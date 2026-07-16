@@ -1,0 +1,1 @@
+# Bu sürümde küçültme kapalıdır.
