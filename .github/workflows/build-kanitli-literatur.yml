@@ -43,16 +43,16 @@ jobs:
           echo '4fdb4f4486c776edce412c6440fde6d480610a7e5d05312f20c073b496a060c2  /tmp/kanitli-literatur-source.zip' | sha256sum --check
           unzip -q /tmp/kanitli-literatur-source.zip -d /tmp/kanit-src
           test -f /tmp/kanit-src/kanitli-literatur-android/app/build.gradle
-          printf 'android.useAndroidX=true\nandroid.enableJetifier=true\n' > /tmp/kanit-src/kanitli-literatur-android/gradle.properties
+          printf 'android.useAndroidX=true\nandroid.enableJetifier=true\norg.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8\norg.gradle.workers.max=2\n' > /tmp/kanit-src/kanitli-literatur-android/gradle.properties
 
-      - name: APK derle
+      - name: Kurulabilir APK derle
         id: android_build
         continue-on-error: true
         working-directory: /tmp/kanit-src/kanitli-literatur-android
         shell: bash
         run: |
           set -o pipefail
-          gradle :app:assembleDebug :app:assembleRelease --stacktrace 2>&1 | tee /tmp/kanitli-literatur-build.log
+          gradle :app:assembleDebug --no-parallel --stacktrace 2>&1 | tee /tmp/kanitli-literatur-build.log
 
       - name: Derleme günlüğünü yükle
         if: always()
@@ -67,11 +67,11 @@ jobs:
         if: steps.android_build.outcome != 'success'
         run: exit 1
 
-      - name: APK sağlama toplamlarını oluştur
+      - name: APK sağlama toplamını oluştur
         shell: bash
         run: |
-          cd /tmp/kanit-src/kanitli-literatur-android/app/build/outputs/apk
-          sha256sum debug/app-debug.apk release/app-release-unsigned.apk > SHA256SUMS.txt
+          cd /tmp/kanit-src/kanitli-literatur-android/app/build/outputs/apk/debug
+          sha256sum app-debug.apk > SHA256SUMS.txt
 
       - name: APK çıktısını yükle
         uses: actions/upload-artifact@v4
@@ -81,5 +81,4 @@ jobs:
           retention-days: 30
           path: |
             /tmp/kanit-src/kanitli-literatur-android/app/build/outputs/apk/debug/app-debug.apk
-            /tmp/kanit-src/kanitli-literatur-android/app/build/outputs/apk/release/app-release-unsigned.apk
-            /tmp/kanit-src/kanitli-literatur-android/app/build/outputs/apk/SHA256SUMS.txt
+            /tmp/kanit-src/kanitli-literatur-android/app/build/outputs/apk/debug/SHA256SUMS.txt
