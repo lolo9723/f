@@ -1,0 +1,84 @@
+name: Kanıtlı Literatür APK
+
+on:
+  push:
+    branches:
+      - kanitli-literatur-v0.1
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Depoyu al
+        uses: actions/checkout@v4
+
+      - name: Java 17 kur
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK kur
+        uses: android-actions/setup-android@v3
+
+      - name: Gradle kur
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Kaynak paketini doğrula ve aç
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/kanit-src
+          cat kanitli-literatur/source/source.b64.part* | base64 --decode > /tmp/kanitli-literatur-source.zip
+          echo '4fdb4f4486c776edce412c6440fde6d480610a7e5d05312f20c073b496a060c2  /tmp/kanitli-literatur-source.zip' | sha256sum --check
+          unzip -q /tmp/kanitli-literatur-source.zip -d /tmp/kanit-src
+          test -f /tmp/kanit-src/kanitli-literatur-android/app/build.gradle
+          printf 'android.useAndroidX=true\nandroid.enableJetifier=true\norg.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8\norg.gradle.workers.max=2\n' > /tmp/kanit-src/kanitli-literatur-android/gradle.properties
+
+      - name: Kurulabilir APK derle
+        id: android_build
+        continue-on-error: true
+        working-directory: /tmp/kanit-src/kanitli-literatur-android
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle :app:assembleDebug --no-parallel --stacktrace 2>&1 | tee /tmp/kanitli-literatur-build.log
+
+      - name: Derleme günlüğünü yükle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kanitli-Literatur-Build-Log
+          if-no-files-found: warn
+          retention-days: 7
+          path: /tmp/kanitli-literatur-build.log
+
+      - name: Derleme başarısını denetle
+        if: steps.android_build.outcome != 'success'
+        run: exit 1
+
+      - name: APK sağlama toplamını oluştur
+        shell: bash
+        run: |
+          cd /tmp/kanit-src/kanitli-literatur-android/app/build/outputs/apk/debug
+          sha256sum app-debug.apk > SHA256SUMS.txt
+
+      - name: APK çıktısını yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kanitli-Literatur-APK
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            /tmp/kanit-src/kanitli-literatur-android/app/build/outputs/apk/debug/app-debug.apk
+            /tmp/kanit-src/kanitli-literatur-android/app/build/outputs/apk/debug/SHA256SUMS.txt
