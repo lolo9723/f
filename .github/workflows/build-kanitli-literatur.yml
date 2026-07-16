@@ -43,6 +43,7 @@ jobs:
           echo '4fdb4f4486c776edce412c6440fde6d480610a7e5d05312f20c073b496a060c2  /tmp/kanitli-literatur-source.zip' | sha256sum --check
           unzip -q /tmp/kanitli-literatur-source.zip -d /tmp/kanit-src
           test -f /tmp/kanit-src/kanitli-literatur-android/app/build.gradle
+          printf 'android.useAndroidX=true\nandroid.enableJetifier=true\n' > /tmp/kanit-src/kanitli-literatur-android/gradle.properties
 
       - name: APK derle
         id: android_build
