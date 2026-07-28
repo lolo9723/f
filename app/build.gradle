@@ -7,11 +7,11 @@ android {
     compileSdk 35
 
     defaultConfig {
-        applicationId 'com.emrah.basmayan.android16'
+        applicationId 'com.emrah.basmayan.fixed303'
         minSdk 24
         targetSdk 35
         versionCode 1
-        versionName '3.0.2'
+        versionName '3.0.3'
     }
 
     buildTypes {
