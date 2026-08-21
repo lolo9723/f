@@ -11,8 +11,8 @@ android {
         applicationId 'tr.edu.balikesir.yerelajan'
         minSdk 31
         targetSdk 35
-        versionCode 7
-        versionName '1.0.1'
+        versionCode 8
+        versionName '1.0.2'
     }
 
     buildTypes {
@@ -37,6 +37,5 @@ android {
 }
 
 dependencies {
-    // Qwen3 LiteRT paketlerinin güncel Android composite-op desteği için doğrulanmış sürüm.
     implementation 'com.google.ai.edge.litertlm:litertlm-android:0.13.1'
 }
