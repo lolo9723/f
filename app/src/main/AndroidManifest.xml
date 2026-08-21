@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Çekirdek bilinçli olarak INTERNET izni istemez. Web görevleri sistem tarayıcısını kullanır. -->
+    <!-- INTERNET uygulama düzeyinde tanımlıdır; aşağıdaki <processes> ile varsayılan ajan prosesinden alınır. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- SMS, rehber, bildirim, mikrofon, kamera veya geniş depolama izni yoktur. -->
 
     <queries>
@@ -23,10 +24,25 @@
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false">
 
+        <!-- Android 11+: Ana süreç internete çıkamaz; yalnız görünür :web süreci internete çıkar. -->
+        <processes>
+            <deny-permission android:name="android.permission.INTERNET" />
+            <process />
+            <process android:process=":web">
+                <allow-permission android:name="android.permission.INTERNET" />
+            </process>
+        </processes>
+
         <activity
             android:name=".FolderGrantActivity"
             android:exported="false"
             android:excludeFromRecents="true"
+            android:theme="@style/AppTheme" />
+
+        <activity
+            android:name=".WebResearchActivity"
+            android:exported="false"
+            android:process=":web"
             android:theme="@style/AppTheme" />
 
         <activity
@@ -40,7 +56,7 @@
         </activity>
 
         <service
-            android:name=".AgentAccessibilityService"
+            android:name=".AgentAccessibilityServiceV4"
             android:exported="false"
             android:label="Yerel Ajan Görünür Otomasyon"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
