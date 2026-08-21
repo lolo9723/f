@@ -299,7 +299,15 @@ public class MainActivity extends Activity {
 
     private void runModule(Module m) {
         if (m.mode==Mode.LOCAL_READY) {
-            if(taskText.isEmpty()){toast("Önce metin seç.");return;} setTaskText(taskText); toast("Metin yerel olarak hazırlandı ve şifreli hafızaya alındı."); return;
+            if(taskText.isEmpty()){toast("Önce Agent Script seç veya yapıştır.");return;}
+            setTaskText(taskText);
+            if(!AgentAccessibilityServiceV4.isConnectedAndHealthy()){
+                toast("Erişilebilirlik servisi kapalı veya öz test başarısız. Önce 'Erişilebilirliği Aç' bölümünden Yerel Ajan'ı etkinleştir.");
+                return;
+            }
+            boolean accepted=AgentAccessibilityServiceV4.requestAgentStartFromUi();
+            toast(accepted?"Agent Script yürütücüye gönderildi. Ajan başlıyor…":"Agent başlatılamadı. Erişilebilirliği kapatıp yeniden aç ve tekrar dene.");
+            return;
         }
         if(m.mode!=Mode.CALIBRATE){toast("Bu modül bu sürümde yalnızca yol haritasında.");return;}
         if(!AgentAccessibilityService.hasCalibration(this,m.id)){toast("Önce görevi bir kez öğret.");return;}
@@ -350,8 +358,8 @@ public class MainActivity extends Activity {
         m.add(new Module(16,"docx_edit","DOCX Düzenle","DOCX okuma çalışır; güvenli biçim koruyan yazma motoru sonraki sürümde eklenecek.",Mode.PLANNED,"",true,false,false));
         m.add(new Module(17,"pdf_extract","PDF'den Veri Çıkar","PDF metin/tablo çıkarma motoru bu sürümde yok; PDF ek dosya olarak seçilebilir.",Mode.PLANNED,"",false,false,true));
         m.add(new Module(18,"rename_files","Dosya Adlarını Standardize Et","Android SAF ile güvenli yeniden adlandırma akışı sonraki sürümdedir.",Mode.PLANNED,"",true,false,false));
-        m.add(new Module(19,"link_check","Link Kontrolü","Doğrudan HTTP isteği yapmamak için çekirdek internetsizdir; tarayıcı kontrolü sonraki sürümde.",Mode.PLANNED,"com.android.chrome",true,false,false));
-        m.add(new Module(20,"agent_task","Özel Agent Görevi Çalıştır","İlk aşamada görev metnini güvenli yerel hafızaya alır; kod sandbox'ı sonraki sürümdedir.",Mode.LOCAL_READY,"",true,false,false));
+        m.add(new Module(19,"link_check","Link Kontrolü","Doğrudan HTTP isteği yapmamak için çekirdek internetsizdir; tarayıcı kontrolü sonraki sürümdedir.",Mode.PLANNED,"com.android.chrome",true,false,false));
+        m.add(new Module(20,"agent_task","Özel Agent Görevi Çalıştır","Genel AGENT/1–3 görev kodlarını parse eder ve yerel güvenli yürütücüde çalıştırır.",Mode.LOCAL_READY,"",true,false,false));
         return m;
     }
 
