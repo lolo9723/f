@@ -41,6 +41,7 @@ public class AgentAccessibilityService extends TouchAgentServiceV2 {
         if (event == null) return;
         if (scriptRuntime == null) scriptRuntime = new AgentScriptRuntime(this);
         if (scriptRuntime.isRunning()) {
+            if (FolderGrantActivity.isActive()) return;
             scriptRuntime.onEvent(event);
             return;
         }
