@@ -37,7 +37,6 @@
         <uses-native-library android:name="libvndksupport.so" android:required="false" />
         <uses-native-library android:name="libOpenCL.so" android:required="false" />
 
-        <!-- Export edilmez; :web yalnız mevcut görev VM değişkenlerinin JSON snapshot'unu okuyabilir. -->
         <provider
             android:name=".VmStateProvider"
             android:authorities="tr.edu.balikesir.yerelajan.vmstate"
@@ -58,6 +57,12 @@
 
         <activity
             android:name=".ModelSetupActivity"
+            android:exported="false"
+            android:process=":web"
+            android:theme="@style/AppTheme" />
+
+        <activity
+            android:name=".ModelSetupActivityV2"
             android:exported="false"
             android:process=":web"
             android:theme="@style/AppTheme" />
