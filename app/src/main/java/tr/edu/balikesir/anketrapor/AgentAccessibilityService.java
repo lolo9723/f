@@ -39,6 +39,17 @@ public class AgentAccessibilityService extends TouchAgentServiceV2 {
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event == null) return;
+        String pkg = event.getPackageName() == null ? "" : event.getPackageName().toString();
+        if (SafetyPolicy.isBlockedPackage(this, pkg)) {
+            getSharedPreferences(STATE_PREF, MODE_PRIVATE).edit()
+                    .putBoolean(KEY_RUNNING, false)
+                    .putBoolean(KEY_LEARNING, false)
+                    .putBoolean(AgentScriptRuntime.SCRIPT_RUNNING, false)
+                    .apply();
+            if (scriptRuntime != null) scriptRuntime.interrupt();
+            return;
+        }
+
         if (scriptRuntime == null) scriptRuntime = new AgentScriptRuntime(this);
         if (scriptRuntime.isRunning()) {
             if (FolderGrantActivity.isActive()) return;
