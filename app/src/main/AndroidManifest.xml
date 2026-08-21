@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- INTERNET uygulama düzeyinde tanımlıdır; süreç politikasıyla yalnız :web prosesine verilir. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- SMS, rehber, bildirim, mikrofon, kamera veya geniş depolama izni yoktur. -->
 
@@ -24,7 +23,6 @@
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false">
 
-        <!-- Ana ajan ve yerel model planlayıcı internete çıkamaz. Yalnız görünür :web süreçte ağ vardır. -->
         <processes>
             <deny-permission android:name="android.permission.INTERNET" />
             <process />
@@ -36,9 +34,15 @@
             </process>
         </processes>
 
-        <!-- LiteRT-LM GPU başlangıcında üretici kütüphanelerini güvenli biçimde opsiyonel ister. -->
         <uses-native-library android:name="libvndksupport.so" android:required="false" />
         <uses-native-library android:name="libOpenCL.so" android:required="false" />
+
+        <!-- Export edilmez; :web yalnız mevcut görev VM değişkenlerinin JSON snapshot'unu okuyabilir. -->
+        <provider
+            android:name=".VmStateProvider"
+            android:authorities="tr.edu.balikesir.yerelajan.vmstate"
+            android:exported="false"
+            android:grantUriPermissions="false" />
 
         <activity
             android:name=".FolderGrantActivity"
