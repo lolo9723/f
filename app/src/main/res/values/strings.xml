@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Yerel Ajan</string>
+    <string name="accessibility_description">Yalnızca açıkça desteklenen uygulamalarda, sen izlerken öğretilmiş adımları tekrarlar. Banka, SMS/OTP ve şifre uygulamaları destek listesinde değildir. Son Yayınla/Paylaş/Gönder adımını gerçekleştirmez.</string>
+</resources>
