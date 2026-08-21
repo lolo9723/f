@@ -1,13 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Intentionally NO android.permission.INTERNET. -->
-    <!-- Intentionally NO SMS, contacts, notification, microphone, camera or broad-storage permissions. -->
+    <!-- Çekirdek bilinçli olarak INTERNET izni istemez. Web görevleri sistem tarayıcısını kullanır. -->
+    <!-- SMS, rehber, bildirim, mikrofon, kamera veya geniş depolama izni yoktur. -->
 
     <queries>
         <package android:name="com.android.chrome" />
         <package android:name="com.instagram.android" />
         <package android:name="com.canva.editor" />
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
     </queries>
 
     <application
@@ -18,6 +22,13 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false">
+
+        <activity
+            android:name=".FolderGrantActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@style/AppTheme" />
 
         <activity
             android:name=".MainActivity"
