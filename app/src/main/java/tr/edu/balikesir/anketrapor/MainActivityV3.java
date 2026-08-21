@@ -52,7 +52,7 @@ public class MainActivityV3 extends MainActivity {
                 .setTitle("🧠 Yerel Akıllı Planlayıcı")
                 .setMessage(modelStatus + "\n\nModel yalnız görev planı üretir. Ekrana doğrudan dokunamaz; plan AGENT güvenlik motorundan geçtikten sonra çalışır.")
                 .setNegativeButton("Kapat", null)
-                .setNeutralButton("Modeli Kur / Kontrol Et", (d,w) -> startActivity(new Intent(this, ModelSetupActivity.class)))
+                .setNeutralButton("Modeli Kur / Kontrol Et", (d,w) -> startActivity(new Intent(this, ModelSetupActivityV2.class)))
                 .setPositiveButton("Görev Planla", (d,w) -> showPlannerPrompt())
                 .show();
     }
@@ -62,7 +62,7 @@ public class MainActivityV3 extends MainActivity {
             new AlertDialog.Builder(this).setTitle("Yerel model gerekli")
                     .setMessage("Doğal dilden planlama için önce cihazına uygun modeli bir kez kur. ChatGPT'den aldığın AGENT kodlarını model olmadan da 20. modülde çalıştırabilirsin.")
                     .setNegativeButton("Kapat", null)
-                    .setPositiveButton("Modeli Kur", (d,w) -> startActivity(new Intent(this, ModelSetupActivity.class))).show();
+                    .setPositiveButton("Modeli Kur", (d,w) -> startActivity(new Intent(this, ModelSetupActivityV2.class))).show();
             return;
         }
         EditText input = new EditText(this);
