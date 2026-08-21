@@ -13,6 +13,7 @@ public class FolderGrantActivity extends Activity {
     private static volatile Runnable completionCallback;
     private static volatile boolean active;
     private boolean completed;
+    private boolean duplicateInstance;
 
     public static void setCompletionCallback(Runnable callback) { completionCallback = callback; }
     public static boolean isActive() { return active; }
@@ -20,6 +21,11 @@ public class FolderGrantActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (active) {
+            duplicateInstance = true;
+            finish();
+            return;
+        }
         active = true;
         Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION |
@@ -45,8 +51,10 @@ public class FolderGrantActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        active = false;
-        if (!completed && isFinishing()) notifyCompletion();
+        if (!duplicateInstance) {
+            active = false;
+            if (!completed && isFinishing()) notifyCompletion();
+        }
         super.onDestroy();
     }
 
