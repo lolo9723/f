@@ -7,9 +7,9 @@ import android.database.Cursor;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.ResultReceiver;
 import android.provider.MediaStore;
 import android.view.Gravity;
 import android.view.View;
@@ -36,12 +36,13 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Yalnız :web prosesinde çalışan görünür web araştırma motoru.
- * Görev kriterleri public web verisidir; clipboard/Accessibility/özel dosya verisi bu prosese aktarılmaz.
- */
+/** Yalnız :web prosesinde çalışan görünür, genel web araştırma motoru. */
 public class WebResearchActivity extends Activity {
     public static final String EXTRA_SPEC = "web_spec";
+    public static final String EXTRA_RECEIVER = "web_receiver";
+    public static final int RESULT_ERROR = -1;
+    public static final int RESULT_PARTIAL = 0;
+    public static final int RESULT_FULL = 1;
 
     private WebView web;
     private TextView status;
@@ -49,6 +50,8 @@ public class WebResearchActivity extends Activity {
     private ProgressBar progress;
     private Button openFile;
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private ResultReceiver receiver;
+    private boolean resultSent;
 
     private JSONObject spec;
     private JSONArray queries;
@@ -75,6 +78,7 @@ public class WebResearchActivity extends Activity {
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
+        receiver = getIntent().getParcelableExtra(EXTRA_RECEIVER);
         try {
             String raw = getIntent().getStringExtra(EXTRA_SPEC);
             if (raw == null || raw.trim().isEmpty()) throw new IllegalArgumentException("Web görev tanımı yok.");
@@ -103,6 +107,7 @@ public class WebResearchActivity extends Activity {
     }
 
     private void buildUi() {
+        if (status != null) return;
         LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(Color.WHITE);
         LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.VERTICAL); head.setPadding(dp(16), dp(14), dp(16), dp(10));
         TextView title = tv("Yerel Ajan • Web Araştırma", 20, true); head.addView(title);
@@ -307,36 +312,41 @@ public class WebResearchActivity extends Activity {
             for (int i = 0; i < fields.length(); i++) headers[i + 1] = fields.optJSONObject(i).optString("name", "Alan" + (i + 1));
             headers[headers.length - 1] = "Link";
             String path = SimpleXlsxWriter.write(this, filename, headers, rows, headers.length - 1);
-            state = "done"; setStatus((full ? "✓ " : "⚠ ") + message + "\nExcel: " + path); updateCounter(); progress.setProgress(100); openFile.setVisibility(View.VISIBLE);
+            String finalMessage = (full ? "✓ " : "⚠ ") + message + "\nExcel: " + path;
+            state = "done"; setStatus(finalMessage); updateCounter(); progress.setProgress(100); openFile.setVisibility(View.VISIBLE);
+            sendResult(full ? RESULT_FULL : RESULT_PARTIAL, finalMessage);
         } catch (Exception e) { finishWithError("Excel oluşturulamadı: " + message(e)); }
     }
 
     private void finishWithError(String msg) {
         finished = true; handler.removeCallbacksAndMessages(null); if (status != null) status.setText("✕ " + msg); if (progress != null) progress.setProgress(100); if (counter != null) counter.setText("Görev durdu");
+        sendResult(RESULT_ERROR, msg);
+    }
+
+    private void sendResult(int code, String message) {
+        if (resultSent || receiver == null) return; resultSent = true;
+        Bundle b = new Bundle(); b.putString("message", message); b.putString("filename", filename); b.putInt("found", rows.size()); b.putInt("target", targetCount);
+        try { receiver.send(code, b); } catch (Exception ignored) {}
     }
 
     private void openOutputFile() {
         try {
             if (android.os.Build.VERSION.SDK_INT >= 29) {
-                ContentResolver cr = getContentResolver();
-                String[] proj = {MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME};
-                String sel = MediaStore.MediaColumns.DISPLAY_NAME + "=?";
+                ContentResolver cr = getContentResolver(); String[] proj = {MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME}; String sel = MediaStore.MediaColumns.DISPLAY_NAME + "=?";
                 try (Cursor c = cr.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, proj, sel, new String[]{filename}, MediaStore.MediaColumns.DATE_ADDED + " DESC")) {
                     if (c != null && c.moveToFirst()) {
-                        long id = c.getLong(c.getColumnIndexOrThrow(MediaStore.MediaColumns._ID));
-                        Uri u = Uri.withAppendedPath(MediaStore.Downloads.EXTERNAL_CONTENT_URI, String.valueOf(id));
+                        long id = c.getLong(c.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)); Uri u = Uri.withAppendedPath(MediaStore.Downloads.EXTERNAL_CONTENT_URI, String.valueOf(id));
                         Intent i = new Intent(Intent.ACTION_VIEW); i.setDataAndType(u, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"); i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION); startActivity(i); return;
                     }
                 }
             }
-            Intent i = new Intent(Intent.ACTION_VIEW); i.setData(Uri.parse("content://downloads/public_downloads")); startActivity(i);
-        } catch (Exception e) { setStatus("Excel oluşturuldu: İndirilenler/Yerel Ajan/" + filename); }
+            setStatus("Excel hazır: İndirilenler/Yerel Ajan/" + filename);
+        } catch (Exception e) { setStatus("Excel hazır: İndirilenler/Yerel Ajan/" + filename); }
     }
 
     private void updateCounter() { if (counter != null) counter.setText("Doğrulanan: " + rows.size() + "/" + targetCount + " • Açılan sayfa: " + pagesVisited + "/" + maxPages); }
     private void updateProgress() { updateCounter(); if (progress != null) progress.setProgress(Math.min(95, (int)Math.round((pagesVisited * 100.0) / Math.max(1, maxPages)))); }
     private void setStatus(String s) { if (status != null) status.setText(s); }
-
     private static JSONArray orEmpty(JSONArray a) { return a == null ? new JSONArray() : a; }
     private static int clamp(int v, int lo, int hi) { return Math.max(lo, Math.min(hi, v)); }
     private String decodeJsString(String value) throws Exception { Object x = new JSONTokener(value == null ? "\"\"" : value).nextValue(); return x instanceof String ? (String)x : String.valueOf(x); }
@@ -348,10 +358,6 @@ public class WebResearchActivity extends Activity {
     private TextView tv(String s, float sp, boolean bold) { TextView t = new TextView(this); t.setText(s); t.setTextSize(sp); t.setTextColor(Color.rgb(30,33,38)); if (bold) t.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD); t.setGravity(Gravity.START); return t; }
     private int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }
 
-    @Override public void onBackPressed() {
-        if (!finished && web != null && web.canGoBack()) web.goBack(); else super.onBackPressed();
-    }
-    @Override protected void onDestroy() {
-        handler.removeCallbacksAndMessages(null); if (web != null) { web.stopLoading(); web.destroy(); } super.onDestroy();
-    }
+    @Override public void onBackPressed() { if (!finished && web != null && web.canGoBack()) web.goBack(); else super.onBackPressed(); }
+    @Override protected void onDestroy() { handler.removeCallbacksAndMessages(null); if (web != null) { web.stopLoading(); web.destroy(); } super.onDestroy(); }
 }
