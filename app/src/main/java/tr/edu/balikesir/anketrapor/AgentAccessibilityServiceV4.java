@@ -11,7 +11,13 @@ public class AgentAccessibilityServiceV4 extends TouchAgentServiceV2 {
 
     @Override protected void onServiceConnected() {
         super.onServiceConnected();
-        selfTestsOk = AgentVm.selfTest() && AgentScriptEngineV3.selfTest() && AgentScriptEngineV2.selfTest() && AgentScriptEngine.selfTest();
+        selfTestsOk = AgentVm.selfTest()
+                && AgentTemplateResolver.selfTest()
+                && WebResearchActivity.selfTestNumbers()
+                && LocalModelRegistry.selfTest()
+                && AgentScriptEngineV3.selfTest()
+                && AgentScriptEngineV2.selfTest()
+                && AgentScriptEngine.selfTest();
         runtime = new AgentScriptRuntimeV5(this);
         AccessibilityServiceInfo info = getServiceInfo();
         info.packageNames = null;
