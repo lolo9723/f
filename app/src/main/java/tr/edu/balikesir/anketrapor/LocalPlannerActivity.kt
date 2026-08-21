@@ -19,7 +19,7 @@ import org.json.JSONObject
 /**
  * :planner prosesinde çalışır. INTERNET veya Accessibility erişimi yoktur.
  * Model yalnız AGENT/3 planı üretir; parser + güvenlik doğrulamasını geçmeden kaydedilmez.
- * LiteRT-LM 0.11 API'siyle uyumludur; JSON doğruluğu çok aşamalı parse/repair ile zorlanır.
+ * Qwen LiteRT-LM paketleriyle uyumludur; JSON doğruluğu çok aşamalı parse/repair ile zorlanır.
  */
 class LocalPlannerActivity : Activity() {
     companion object {
@@ -135,7 +135,6 @@ class LocalPlannerActivity : Activity() {
         }
     }
 
-    /** LiteRT-LM 0.11: response-format/thinking API yok; sıkı prompt + parser + iki repair turu kullanılır. */
     private fun tryBackend(model: LocalModelRegistry.Model, userPrompt: String, gpu: Boolean): String? {
         var engine: Engine? = null
         try {
@@ -145,7 +144,7 @@ class LocalPlannerActivity : Activity() {
                 EngineConfig(
                     modelPath = LocalModelRegistry.file(this, model).absolutePath,
                     backend = backend,
-                    maxNumTokens = 8192,
+                    maxNumTokens = model.maxTokens,
                     cacheDir = cacheDir.absolutePath
                 )
             )
@@ -182,7 +181,6 @@ class LocalPlannerActivity : Activity() {
         }
     }
 
-    /** Model etrafına açıklama eklese bile ilk dengeli JSON nesnesini güvenli biçimde ayıklar. */
     private fun cleanJson(raw: String): String {
         val s = raw.trim()
         var start = -1
