@@ -101,6 +101,8 @@ final class AgentScriptEngineV2 {
         spec.put("link_contains", copyArray(src.optJSONArray("link_contains"), 30));
         spec.put("must_contain", copyArray(src.optJSONArray("must_contain"), 30));
         spec.put("must_not_contain", copyArray(src.optJSONArray("must_not_contain"), 30));
+        spec.put("allow_search_fallback", src.optBoolean("allow_search_fallback", true));
+        spec.put("allow_partial", src.optBoolean("allow_partial", false));
         JSONArray fields = src.optJSONArray("fields");
         if (fields == null) fields = new JSONArray();
         if (fields.length() > 30) throw new IllegalArgumentException("En fazla 30 alan çıkarılabilir.");
@@ -120,6 +122,8 @@ final class AgentScriptEngineV2 {
         spec.put("fields", cleanFields);
         return spec;
     }
+
+    static JSONObject validateWebSpecForV3(JSONObject src) throws Exception { return validateWebSpec(src); }
 
     static JSONObject carSpec(String brand, int minYear, int maxKm, int count, String filename) throws Exception {
         JSONObject s = new JSONObject();
