@@ -3,8 +3,6 @@ package tr.edu.balikesir.anketrapor
 import android.app.Activity
 import android.graphics.Color
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.os.ResultReceiver
 import android.view.ViewGroup
 import android.widget.LinearLayout
@@ -15,14 +13,13 @@ import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
-import com.google.ai.edge.litertlm.ResponseFormat
 import com.google.ai.edge.litertlm.SamplerConfig
-import com.google.ai.edge.litertlm.ThinkingConfig
 import org.json.JSONObject
 
 /**
  * :planner prosesinde çalışır. INTERNET veya Accessibility erişimi yoktur.
- * Model yalnız AGENT/3 planı üretir; plan parser doğrulamasından geçmeden kaydedilmez.
+ * Model yalnız AGENT/3 planı üretir; parser + güvenlik doğrulamasını geçmeden kaydedilmez.
+ * LiteRT-LM 0.11 API'siyle uyumludur; JSON doğruluğu çok aşamalı parse/repair ile zorlanır.
  */
 class LocalPlannerActivity : Activity() {
     companion object {
@@ -31,46 +28,41 @@ class LocalPlannerActivity : Activity() {
         const val RESULT_OK_PLAN = 1
         const val RESULT_ERROR_PLAN = -1
 
-        private val JSON_SCHEMA = """
-          {
-            "type":"object",
-            "properties":{
-              "version":{"type":"integer","enum":[3]},
-              "name":{"type":"string"},
-              "steps":{"type":"array","minItems":1,"maxItems":300,"items":{"type":"object","properties":{"op":{"type":"string"}},"required":["op"],"additionalProperties":true}}
-            },
-            "required":["version","steps"],
-            "additionalProperties":true
-          }
-        """.trimIndent()
-
         private val SYSTEM_PROMPT = """
-          Sen Yerel Ajan'ın görev planlayıcısısın. Yalnızca AGENT/3 JSON nesnesi üret.
-          Kesin kurallar:
-          - Açıklama, markdown, kod bloğu, doğal dil cevabı verme; yalnız JSON.
-          - version her zaman 3.
-          - Asla ödeme, banka, şifre, OTP, SMS okuma, satın alma, silme veya son Yayınla/Paylaş/Gönder adımını otomatikleştirme.
-          - Veri araştırmasında mümkünse iki bağımsız kaynak kullan, kaynak URL'lerini sonuçta koru.
-          - Yetersiz doğrulama varsa assert veya açık başarısızlık üret; tahmin ederek başarı verme.
-          - Sonsuz döngü kurma. repeat/foreach yalnız sınırlı veri üzerinde olsun.
+          Sen Yerel Ajan'ın görev planlayıcısısın. YALNIZCA geçerli AGENT/3 JSON nesnesi üret.
+          Cevabın ilk karakteri { ve son karakteri } olmalı. Markdown/kod bloğu/açıklama kullanma.
 
-          Desteklenen üst düzey op'lar:
-          var.set {name, value|expr}; clipboard.read {name}; list.append {name,value};
+          ZORUNLU KÖK ŞEMA:
+          {"version":3,"name":"görev adı","steps":[...]}
+          - version kesinlikle 3.
+          - steps boş olamaz ve her step nesnesinde op bulunmalı.
+          - Desteklenmeyen op üretme.
+          - Asla ödeme, banka, şifre, OTP/SMS okuma, satın alma, silme veya son Yayınla/Paylaş/Gönder eylemini otomatikleştirme.
+          - Yetersiz veri varsa başarı uydurma; assert veya açık hata/eksik sonuç yolu oluştur.
+          - Sonsuz döngü yok. repeat/foreach sınırlı olmalı.
+          - Web araştırmasında mümkünse gerçek kaynak URL'lerini koru ve birden çok kaynaktan veri gerekiyorsa ayrı dataset üretip JOIN et.
+
+          DESTEKLENEN OP'LAR:
+          var.set {name,value|expr}; clipboard.read {name}; list.append {name,value};
           if {condition,then,else}; foreach {list,item,index,steps}; repeat {count|count_expr,steps};
           dataset.filter {source,target,item,where}; dataset.sort {source,target,item,key,ascending};
           dataset.dedupe {source,target,item,key}; dataset.join {left,right,target,left_key,right_key,left_var,right_var,type};
-          assert {expr,message};
-          app.open {package}; url.open {url}; ui.tap {any:[...]}; ui.set_text {any:[...],value|expr|source:"clipboard"};
+          assert {expr,message}; app.open {package}; url.open {url};
+          ui.tap {any:[...]}; ui.set_text {any:[...],value|expr|source:"clipboard"};
           ui.read_text {name,any:[...]}; ui.wait_text {any:[...]}; wait {ms}; back; swipe {direction};
           instagram.share_ajan_folder;
           web.search_extract {queries:[...],target_count,max_pages,filename,allowed_domains,link_contains,must_contain,must_not_contain,fields:[{name,type,regex,min,max,max_exclusive}],output,allow_partial};
           output.xlsx {source,filename,columns:[{header,field|expr}],hyperlink_header}; status {message,expr}; stop {message}.
 
-          İfade biçimi:
-          {"var":"x"} veya {"op":"add|sub|mul|div|mod|round|floor|ceil|min|max|eq|ne|gt|gte|lt|lte|and|or|not|concat|lower|upper|trim|contains|starts_with|ends_with|replace|regex|to_number|to_text|length|get|coalesce|array|object","args":[...]}
-          Bir nesne alanını okumak için: {"op":"get","args":[{"var":"row"},"Alan Adı"]}.
-          Dinamik web sorgularında ${'$'}{degisken.yolu} şablonu kullanılabilir.
-          Çok kaynaklı görevlerde her web.search_extract sonucunu farklı output değişkenine al, gerekiyorsa foreach ile ikinci kaynağı ara, ardından dataset.join/filter/dedupe/sort ve output.xlsx kullan.
+          İFADELER:
+          {"var":"x"}
+          veya {"op":"add|sub|mul|div|mod|round|floor|ceil|min|max|eq|ne|gt|gte|lt|lte|and|or|not|concat|lower|upper|trim|contains|starts_with|ends_with|replace|regex|to_number|to_text|length|get|coalesce|array|object","args":[...]}
+          Nesne alanı: {"op":"get","args":[{"var":"row"},"Alan Adı"]}
+          Dinamik sorgu: ${'$'}{degisken.yolu}
+
+          ÇOK KAYNAKLI GÖREV KURALI:
+          Aynı sonuç için puan/yorum bir kaynaktan, fiyat/özellik başka kaynaktan geliyorsa hepsini tek sayfada arama.
+          Her kaynağı farklı web.search_extract output değişkenine al; ortak ad/kimlik üzerinden normalize et, dataset.join kullan, hesaplanan alanları expr ile üret, son filtreyi JOIN sonrasında uygula, sonra output.xlsx ile çıkar.
         """.trimIndent()
     }
 
@@ -123,23 +115,27 @@ class LocalPlannerActivity : Activity() {
     private fun runPlanner(model: LocalModelRegistry.Model, userPrompt: String) {
         try {
             val plan = tryBackend(model, userPrompt, true) ?: tryBackend(model, userPrompt, false)
-            if (plan == null) throw IllegalStateException("GPU ve CPU model başlatma denemeleri başarısız oldu.")
+            if (plan == null) throw IllegalStateException("GPU ve CPU planlama denemeleri geçerli bir AGENT/3 planı üretemedi.")
             val script = "AGENT/3\n$plan"
             AgentScriptEngineV3.parse(script)
-            SecureStore(this).put("last_text", script)
-            SecureStore(this).put(AgentScriptRuntimeV5.SCRIPT_SAVED, script)
+            val secure = SecureStore(this)
+            secure.put("last_text", script)
+            secure.put(AgentScriptRuntimeV5.SCRIPT_SAVED, script)
             runOnUiThread {
-                status.text = "✓ Plan doğrulandı ve şifreli yerel hafızaya kaydedildi. 20. Özel Agent Görevi'nden çalıştırabilirsin."
+                status.text = "✓ Plan iki aşamalı doğrulamadan geçti ve şifreli yerel hafızaya kaydedildi."
                 progress.isIndeterminate = false
                 progress.progress = 100
             }
-            val b = Bundle().apply { putString("script", script); putString("model", model.name) }
-            receiver?.send(RESULT_OK_PLAN, b)
+            receiver?.send(RESULT_OK_PLAN, Bundle().apply {
+                putString("script", script)
+                putString("model", model.name)
+            })
         } catch (t: Throwable) {
             fail("Plan oluşturulamadı: ${t.message ?: t.javaClass.simpleName}")
         }
     }
 
+    /** LiteRT-LM 0.11: response-format/thinking API yok; sıkı prompt + parser + iki repair turu kullanılır. */
     private fun tryBackend(model: LocalModelRegistry.Model, userPrompt: String, gpu: Boolean): String? {
         var engine: Engine? = null
         try {
@@ -156,34 +152,28 @@ class LocalPlannerActivity : Activity() {
             engine.initialize()
             val config = ConversationConfig(
                 systemInstruction = Contents.of(SYSTEM_PROMPT),
-                samplerConfig = SamplerConfig(topK = 32, topP = 0.90, temperature = 0.15, seed = 7),
-                automaticToolCalling = false,
-                maxOutputToken = 6000,
-                thinkingConfig = ThinkingConfig(enableThinking = true, thinkingTokenBudget = 900),
-                enableResponseFormat = true
+                samplerConfig = SamplerConfig(topK = 24, topP = 0.88, temperature = 0.10, seed = 7),
+                automaticToolCalling = false
             )
             engine.createConversation(config).use { conversation ->
-                val response = conversation.sendMessage(
-                    "KULLANICI GÖREVİ:\n$userPrompt\n\nBu görevi güvenli ve tamamlanabilir AGENT/3 planına dönüştür.",
-                    maxOutputToken = 6000,
-                    thinkingConfig = ThinkingConfig(enableThinking = true, thinkingTokenBudget = 900),
-                    responseFormat = ResponseFormat.json(JSON_SCHEMA)
-                )
-                var json = cleanJson(response.toString())
-                try {
-                    AgentScriptEngineV3.parse("AGENT/3\n$json")
-                    return json
-                } catch (first: Exception) {
-                    val repair = conversation.sendMessage(
-                        "Ürettiğin JSON AGENT/3 doğrulamasından geçmedi. Hata: ${first.message}. Yalnız düzeltilmiş JSON nesnesini yeniden üret.",
-                        maxOutputToken = 6000,
-                        thinkingConfig = ThinkingConfig(enableThinking = false, thinkingTokenBudget = 0),
-                        responseFormat = ResponseFormat.json(JSON_SCHEMA)
-                    )
-                    json = cleanJson(repair.toString())
-                    AgentScriptEngineV3.parse("AGENT/3\n$json")
-                    return json
+                var raw = conversation.sendMessage(
+                    "KULLANICI GÖREVİ:\n$userPrompt\n\nGörevi güvenli, tamamlanabilir ve mümkün olduğunca genel AGENT/3 planına dönüştür. Yalnız JSON döndür."
+                ).toString()
+
+                repeat(3) { attempt ->
+                    try {
+                        val json = cleanJson(raw)
+                        AgentScriptEngineV3.parse("AGENT/3\n$json")
+                        return json
+                    } catch (validation: Exception) {
+                        if (attempt >= 2) return@repeat
+                        raw = conversation.sendMessage(
+                            "Önceki çıktın geçersizdi. Hata: ${sanitize(validation.message)}. " +
+                                "Aynı görevi yeniden üret. Yalnız tek bir geçerli JSON nesnesi döndür; kökte version=3 ve steps dizisi olsun; yalnız desteklenen op'ları kullan."
+                        ).toString()
+                    }
                 }
+                return null
             }
         } catch (_: Throwable) {
             return null
@@ -192,17 +182,41 @@ class LocalPlannerActivity : Activity() {
         }
     }
 
+    /** Model etrafına açıklama eklese bile ilk dengeli JSON nesnesini güvenli biçimde ayıklar. */
     private fun cleanJson(raw: String): String {
-        var s = raw.trim()
-        if (s.startsWith("```")) {
-            s = s.replaceFirst(Regex("^```(?:json)?\\s*"), "").replaceFirst(Regex("\\s*```$"), "")
+        val s = raw.trim()
+        var start = -1
+        var depth = 0
+        var inString = false
+        var escaped = false
+        for (i in s.indices) {
+            val ch = s[i]
+            if (start < 0) {
+                if (ch == '{') { start = i; depth = 1 }
+                continue
+            }
+            if (inString) {
+                if (escaped) escaped = false
+                else if (ch == '\\') escaped = true
+                else if (ch == '"') inString = false
+                continue
+            }
+            if (ch == '"') inString = true
+            else if (ch == '{') depth++
+            else if (ch == '}') {
+                depth--
+                if (depth == 0) {
+                    val json = s.substring(start, i + 1)
+                    JSONObject(json)
+                    return json
+                }
+            }
         }
-        val first = s.indexOf('{')
-        val last = s.lastIndexOf('}')
-        if (first >= 0 && last > first) s = s.substring(first, last + 1)
-        JSONObject(s) // syntax validation
-        return s
+        throw IllegalArgumentException("Model geçerli JSON nesnesi üretmedi.")
     }
+
+    private fun sanitize(message: String?): String =
+        (message ?: "doğrulama hatası").replace('\n', ' ').replace('\r', ' ').take(360)
 
     private fun fail(message: String) {
         runOnUiThread {
