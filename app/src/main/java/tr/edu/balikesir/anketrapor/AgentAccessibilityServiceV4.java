@@ -14,6 +14,7 @@ public class AgentAccessibilityServiceV4 extends TouchAgentServiceV2 {
         selfTestsOk = AgentVm.selfTest()
                 && AgentTemplateResolver.selfTest()
                 && WebResearchActivity.selfTestNumbers()
+                && AgentComplexSelfTest.run()
                 && LocalModelRegistry.selfTest()
                 && AgentScriptEngineV3.selfTest()
                 && AgentScriptEngineV2.selfTest()
