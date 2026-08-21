@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- INTERNET uygulama düzeyinde tanımlıdır; aşağıdaki <processes> ile varsayılan ajan prosesinden alınır. -->
+    <!-- INTERNET uygulama düzeyinde tanımlıdır; süreç politikasıyla yalnız :web prosesine verilir. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- SMS, rehber, bildirim, mikrofon, kamera veya geniş depolama izni yoktur. -->
 
@@ -24,14 +24,21 @@
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false">
 
-        <!-- Android 11+: Ana süreç internete çıkamaz; yalnız görünür :web süreci internete çıkar. -->
+        <!-- Ana ajan ve yerel model planlayıcı internete çıkamaz. Yalnız görünür :web süreçte ağ vardır. -->
         <processes>
             <deny-permission android:name="android.permission.INTERNET" />
             <process />
+            <process android:process=":planner">
+                <deny-permission android:name="android.permission.INTERNET" />
+            </process>
             <process android:process=":web">
                 <allow-permission android:name="android.permission.INTERNET" />
             </process>
         </processes>
+
+        <!-- LiteRT-LM GPU başlangıcında üretici kütüphanelerini güvenli biçimde opsiyonel ister. -->
+        <uses-native-library android:name="libvndksupport.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
 
         <activity
             android:name=".FolderGrantActivity"
@@ -43,6 +50,19 @@
             android:name=".WebResearchActivity"
             android:exported="false"
             android:process=":web"
+            android:theme="@style/AppTheme" />
+
+        <activity
+            android:name=".ModelSetupActivity"
+            android:exported="false"
+            android:process=":web"
+            android:theme="@style/AppTheme" />
+
+        <activity
+            android:name=".LocalPlannerActivity"
+            android:exported="false"
+            android:process=":planner"
+            android:excludeFromRecents="true"
             android:theme="@style/AppTheme" />
 
         <activity
