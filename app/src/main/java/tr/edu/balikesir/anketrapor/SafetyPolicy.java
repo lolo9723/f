@@ -36,7 +36,7 @@ final class SafetyPolicy {
 
     private static final String[] PROTECTED_FINALS = {
             "yayinla", "paylas", "gonder", "guncelle",
-            "publish", "share", "send", "post",
+            "publish", "share", "send",
             "simdi paylas", "hikayende paylas", "share now", "publish now",
             "satın al", "satin al", "öde", "ode", "pay now",
             "havale", "eft", "transfer", "onayla odeme", "ödemeyi onayla"
