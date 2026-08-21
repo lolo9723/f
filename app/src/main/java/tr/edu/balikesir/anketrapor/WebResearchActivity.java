@@ -71,6 +71,7 @@ public class WebResearchActivity extends Activity {
     private int targetCount;
     private int maxPages;
     private String filename;
+    private String lastPath = "";
     private String state = "idle";
     private boolean pageHandled;
     private boolean usingFallback;
@@ -141,7 +142,7 @@ public class WebResearchActivity extends Activity {
 
     private void startResearch() {
         queryIndex = 0; candidateIndex = 0; pagesVisited = 0; rows.clear(); candidates.clear(); seenCandidates.clear(); seenDetails.clear();
-        usingFallback = false; finished = false; updateCounter(); loadSearch();
+        usingFallback = false; finished = false; lastPath = ""; updateCounter(); loadSearch();
     }
 
     private void loadSearch() {
@@ -311,7 +312,7 @@ public class WebResearchActivity extends Activity {
             String[] headers = new String[fields.length() + 2]; headers[0] = "Başlık";
             for (int i = 0; i < fields.length(); i++) headers[i + 1] = fields.optJSONObject(i).optString("name", "Alan" + (i + 1));
             headers[headers.length - 1] = "Link";
-            String path = SimpleXlsxWriter.write(this, filename, headers, rows, headers.length - 1);
+            String path = SimpleXlsxWriter.write(this, filename, headers, rows, headers.length - 1); lastPath = path;
             String finalMessage = (full ? "✓ " : "⚠ ") + message + "\nExcel: " + path;
             state = "done"; setStatus(finalMessage); updateCounter(); progress.setProgress(100); openFile.setVisibility(View.VISIBLE);
             sendResult(full ? RESULT_FULL : RESULT_PARTIAL, finalMessage);
@@ -323,9 +324,26 @@ public class WebResearchActivity extends Activity {
         sendResult(RESULT_ERROR, msg);
     }
 
+    private JSONArray rowsJson() {
+        JSONArray out = new JSONArray();
+        for (String[] r : rows) {
+            JSONObject o = new JSONObject();
+            try {
+                o.put("Başlık", r.length > 0 ? r[0] : "");
+                for (int i = 0; i < fields.length(); i++) {
+                    JSONObject f = fields.optJSONObject(i); String name = f == null ? "Alan" + (i + 1) : f.optString("name", "Alan" + (i + 1));
+                    o.put(name, r.length > i + 1 ? r[i + 1] : "");
+                }
+                o.put("Link", r.length > 0 ? r[r.length - 1] : "");
+            } catch (Exception ignored) {}
+            out.put(o);
+        }
+        return out;
+    }
+
     private void sendResult(int code, String message) {
         if (resultSent || receiver == null) return; resultSent = true;
-        Bundle b = new Bundle(); b.putString("message", message); b.putString("filename", filename); b.putInt("found", rows.size()); b.putInt("target", targetCount);
+        Bundle b = new Bundle(); b.putString("message", message); b.putString("filename", filename); b.putString("path", lastPath); b.putInt("found", rows.size()); b.putInt("target", targetCount); b.putString("rows_json", rowsJson().toString());
         try { receiver.send(code, b); } catch (Exception ignored) {}
     }
 
