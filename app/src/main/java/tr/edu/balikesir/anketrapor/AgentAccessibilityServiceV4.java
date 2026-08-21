@@ -4,18 +4,20 @@ import android.accessibilityservice.AccessibilityServiceInfo;
 import android.content.SharedPreferences;
 import android.view.accessibility.AccessibilityEvent;
 
-/** Hazır 1-9 modüllerini korur; 20. modülü V4 runtime'a bağlar. */
+/** Hazır modülleri korur; özel görevleri genel VM runtime ile çalıştırır. */
 public class AgentAccessibilityServiceV4 extends TouchAgentServiceV2 {
-    private AgentScriptRuntimeV4 runtime;
+    private AgentScriptRuntimeV5 runtime;
+    private boolean selfTestsOk;
 
     @Override protected void onServiceConnected() {
         super.onServiceConnected();
-        runtime = new AgentScriptRuntimeV4(this);
+        selfTestsOk = AgentVm.selfTest() && AgentScriptEngineV3.selfTest() && AgentScriptEngineV2.selfTest() && AgentScriptEngine.selfTest();
+        runtime = new AgentScriptRuntimeV5(this);
         AccessibilityServiceInfo info = getServiceInfo();
-        info.packageNames = null; // Hassas uygulamalar aşağıda anında kesilir; yeni uygulamalar için APK gerekmez.
+        info.packageNames = null;
         setServiceInfo(info);
-        if (!AgentScriptEngineV2.selfTest() || !AgentScriptEngine.selfTest()) {
-            android.widget.Toast.makeText(this, "Agent görev öz testi başarısız. 20. modül çalıştırılmayacak.", android.widget.Toast.LENGTH_LONG).show();
+        if (!selfTestsOk) {
+            android.widget.Toast.makeText(this, "Agent çekirdek öz testi başarısız. Özel görevler güvenli biçimde devre dışı.", android.widget.Toast.LENGTH_LONG).show();
         }
     }
 
@@ -24,18 +26,15 @@ public class AgentAccessibilityServiceV4 extends TouchAgentServiceV2 {
         String pkg = event.getPackageName() == null ? "" : event.getPackageName().toString();
         if (SafetyPolicy.isBlockedPackage(this, pkg)) {
             SharedPreferences s = getSharedPreferences("yerel_agent_state", MODE_PRIVATE);
-            s.edit().putBoolean("running", false).putBoolean("learning", false).putBoolean(AgentScriptRuntimeV4.SCRIPT_RUNNING, false).apply();
+            s.edit().putBoolean("running", false).putBoolean("learning", false).putBoolean(AgentScriptRuntimeV5.SCRIPT_RUNNING, false).apply();
             if (runtime != null) runtime.interrupt();
             super.onInterrupt();
             android.widget.Toast.makeText(this, "Hassas uygulama algılandı. Yerel Ajan tamamen durduruldu.", android.widget.Toast.LENGTH_LONG).show();
             return;
         }
-        if (runtime == null) runtime = new AgentScriptRuntimeV4(this);
-        if (runtime.isRunning()) {
-            runtime.onEvent(event);
-            return;
-        }
-        runtime.maybeStartFromOwnApp(event);
+        if (runtime == null) runtime = new AgentScriptRuntimeV5(this);
+        if (runtime.isRunning()) { runtime.onEvent(event); return; }
+        if (selfTestsOk) runtime.maybeStartFromOwnApp(event);
         super.onAccessibilityEvent(event);
     }
 
