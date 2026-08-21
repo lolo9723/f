@@ -30,7 +30,7 @@
         </activity>
 
         <service
-            android:name=".AgentAccessibilityService"
+            android:name=".TouchAgentServiceV2"
             android:exported="false"
             android:label="Yerel Ajan Görünür Otomasyon"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
