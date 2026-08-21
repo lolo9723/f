@@ -34,10 +34,21 @@ final class SafetyPolicy {
             "mesajlar", "messages", "sms", "otp"
     };
 
+    private static final String[] SENSITIVE_URL_TERMS = {
+            "isbank.com.tr", "garanti.com.tr", "garantibbva.com.tr",
+            "akbank.com", "ziraatbank.com.tr", "halkbank.com.tr",
+            "yapikredi.com.tr", "qnb.com.tr", "enpara.com",
+            "vakifbank.com.tr", "teb.com.tr", "denizbank.com",
+            "ing.com.tr", "bitwarden.com", "1password.com", "lastpass.com",
+            "authy.com"
+    };
+
     private static final String[] PROTECTED_FINALS = {
             "yayinla", "paylas", "gonder", "guncelle",
             "publish", "share", "send",
             "simdi paylas", "hikayende paylas", "share now", "publish now",
+            "sil", "delete", "kaldir", "remove", "uninstall", "hesabi sil", "delete account",
+            "sifirla", "reset", "format",
             "satın al", "satin al", "öde", "ode", "pay now",
             "havale", "eft", "transfer", "onayla odeme", "ödemeyi onayla"
     };
@@ -70,7 +81,9 @@ final class SafetyPolicy {
     static boolean isSafeUrl(String url) {
         if (url == null) return false;
         String s = url.trim().toLowerCase(Locale.ROOT);
-        return s.startsWith("https://") || s.startsWith("http://");
+        if (!(s.startsWith("https://") || s.startsWith("http://"))) return false;
+        for (String blocked : SENSITIVE_URL_TERMS) if (s.contains(blocked)) return false;
+        return true;
     }
 
     static String normalize(String s) {
