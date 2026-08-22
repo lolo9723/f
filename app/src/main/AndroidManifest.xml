@@ -55,16 +55,12 @@
             android:process=":web"
             android:theme="@style/AppTheme" />
 
-        <activity
-            android:name=".ModelSetupActivity"
-            android:exported="false"
-            android:process=":web"
-            android:theme="@style/AppTheme" />
-
+        <!-- Model kurulumu ağ kullanmaz; planner sürecinde çalışır. -->
         <activity
             android:name=".ModelSetupActivityV2"
             android:exported="false"
-            android:process=":web"
+            android:process=":planner"
+            android:excludeFromRecents="true"
             android:theme="@style/AppTheme" />
 
         <activity
