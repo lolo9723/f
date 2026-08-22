@@ -145,7 +145,19 @@ ck('case "ui.tap"' in engine and 'case "ui.set_text"' in engine,'AGENT UI tap/se
 ck('case "web_research"' in runtime and 'launchWebResearch' in runtime,'runtime web research')
 ck('case "vm_xlsx"' in runtime and 'SimpleXlsxWriter.write' in runtime,'runtime XLSX output')
 ck('"https".equalsIgnoreCase(scheme)' in web,'web yalnız HTTPS')
-ck('localhost' in web and '192\\.168' in web and 'allowedDomains' in web,'web local/private + allowlist koruması')
+private_guards=(
+    'localhost' in web and
+    '127.0.0.1' in web and
+    '0.0.0.0' in web and
+    '::1' in web and
+    'h.matches("10' in web and
+    'h.matches("192' in web and
+    'h.matches("172' in web and
+    'requireAllowed' in web and
+    'allowedDomains' in web and
+    'hh.endsWith("."+d)' in web
+)
+ck(private_guards,'web localhost + RFC1918 + allowlist koruması')
 
 # 96-100: actual APK byte-level verification
 with zipfile.ZipFile(APK,'r') as z:
