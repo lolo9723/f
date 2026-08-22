@@ -78,8 +78,6 @@ public class MainActivityV3 extends MainActivity {
                 if (resultCode == LocalPlannerActivity.RESULT_OK_PLAN) {
                     String script = resultData == null ? "" : resultData.getString("script", "");
                     if (script.isEmpty()) { toast("Plan boş döndü; çalıştırılmadı."); return; }
-                    // Script zaten SecureStore'a kaydedildi. Panoya script yazmayız; kullanıcının
-                    // çalışma verisini ezmek clipboard.read görevlerini bozuyordu.
                     new AlertDialog.Builder(MainActivityV3.this).setTitle("✓ Görev planı hazır")
                             .setMessage("Plan AGENT güvenlik şemasından geçti ve yerel hafızaya kaydedildi. Pano içeriğin değiştirilmedi. Şimdi 20. modülde Hazırla / Çalıştır'a basabilirsin.")
                             .setNegativeButton("Kapat", null)
@@ -112,7 +110,24 @@ public class MainActivityV3 extends MainActivity {
         return null;
     }
 
-    private void refreshTexts() { replaceRecursively(getWindow().getDecorView()); }
+    private void refreshTexts() {
+        View root=getWindow().getDecorView();
+        replaceRecursively(root);
+        hideLegacyPlannedCards(root);
+    }
+
+    /** Eski prototipteki 10–19 ALTYAPI kartları çalışır ürün yüzeyinde gösterilmez. */
+    private void hideLegacyPlannedCards(View root) {
+        for(int n=10;n<=19;n++){
+            View v=findTextView(root,n+".  ");
+            View cur=v;
+            for(int i=0;cur!=null&&i<6;i++){
+                if(cur.hasOnClickListeners()){cur.setVisibility(View.GONE);break;}
+                if(!(cur.getParent() instanceof View))break;
+                cur=(View)cur.getParent();
+            }
+        }
+    }
 
     private void replaceRecursively(View v) {
         if (v instanceof TextView) {
