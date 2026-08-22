@@ -18,7 +18,7 @@ import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-/** Genel motor görünüm katmanı + yerel model planlayıcı girişi. */
+/** Genel motor görünüm katmanı + gömülü yerel model planlayıcı girişi. */
 public class MainActivityV3 extends MainActivity {
     private Button brainButton;
 
@@ -39,7 +39,7 @@ public class MainActivityV3 extends MainActivity {
         brainButton.setText("🧠");
         brainButton.setTextSize(20);
         brainButton.setAllCaps(false);
-        brainButton.setContentDescription("Yerel model ve doğal dil planlayıcı");
+        brainButton.setContentDescription("Gömülü yerel model ve doğal dil planlayıcı");
         brainButton.setOnClickListener(v -> showBrainMenu());
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dp(58), dp(58), Gravity.END | Gravity.BOTTOM);
         lp.setMargins(dp(12), dp(12), dp(18), dp(24));
@@ -50,21 +50,15 @@ public class MainActivityV3 extends MainActivity {
         String modelStatus = LocalModelRegistry.status(this);
         new AlertDialog.Builder(this)
                 .setTitle("🧠 Yerel Akıllı Planlayıcı")
-                .setMessage(modelStatus + "\n\nModel yalnız görev planı üretir. Ekrana doğrudan dokunamaz; plan AGENT güvenlik motorundan geçtikten sonra çalışır.")
+                .setMessage(modelStatus + "\n\nModel APK'nın içindedir; internetten model indirme yoktur. İlk kullanımda yerel klasöre hazırlanıp SHA-256 ile doğrulanır. Model yalnız görev planı üretir; ekran eylemlerini güvenli AGENT motoru yürütür.")
                 .setNegativeButton("Kapat", null)
-                .setNeutralButton("Modeli Kur / Kontrol Et", (d,w) -> startActivity(new Intent(this, ModelSetupActivityV2.class)))
+                .setNeutralButton("Model Durumu / SHA Kontrol", (d,w) -> startActivity(new Intent(this, ModelSetupActivityV2.class)))
                 .setPositiveButton("Görev Planla", (d,w) -> showPlannerPrompt())
                 .show();
     }
 
+    /** Model daha önce hazırlanmamış olsa bile LocalPlannerActivity onu APK içinden otomatik hazırlar. */
     private void showPlannerPrompt() {
-        if (LocalModelRegistry.strongestInstalled(this) == null) {
-            new AlertDialog.Builder(this).setTitle("Yerel model gerekli")
-                    .setMessage("Doğal dilden planlama için önce cihazına uygun modeli bir kez kur. ChatGPT'den aldığın AGENT kodlarını model olmadan da 20. modülde çalıştırabilirsin.")
-                    .setNegativeButton("Kapat", null)
-                    .setPositiveButton("Modeli Kur", (d,w) -> startActivity(new Intent(this, ModelSetupActivityV2.class))).show();
-            return;
-        }
         EditText input = new EditText(this);
         input.setMinLines(6); input.setGravity(Gravity.TOP | Gravity.START);
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
@@ -83,19 +77,23 @@ public class MainActivityV3 extends MainActivity {
             @Override protected void onReceiveResult(int resultCode, Bundle resultData) {
                 if (resultCode == LocalPlannerActivity.RESULT_OK_PLAN) {
                     String script = resultData == null ? "" : resultData.getString("script", "");
-                    if (!script.isEmpty()) {
-                        ClipboardManager cm=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
-                        if(cm!=null)cm.setPrimaryClip(ClipData.newPlainText("Yerel Ajan Görevi",script));
-                    }
+                    if (script.isEmpty()) { toast("Plan boş döndü; çalıştırılmadı."); return; }
+                    // Script zaten SecureStore'a kaydedildi. Panoya script yazmayız; kullanıcının
+                    // çalışma verisini ezmek clipboard.read görevlerini bozuyordu.
                     new AlertDialog.Builder(MainActivityV3.this).setTitle("✓ Görev planı hazır")
-                            .setMessage("Plan güvenlik şemasından geçti, şifreli yerel hafızaya kaydedildi ve panoya kopyalandı. 20. Özel Agent Görevi'ni açıp Pano'yu seçerek çalıştırabilirsin.")
+                            .setMessage("Plan AGENT güvenlik şemasından geçti ve yerel hafızaya kaydedildi. Pano içeriğin değiştirilmedi. Şimdi 20. modülde Hazırla / Çalıştır'a basabilirsin.")
+                            .setNegativeButton("Kapat", null)
                             .setPositiveButton("20. Modülü Aç", (d,w) -> openModule20()).show();
                 } else {
-                    String m=resultData==null?"Planlayıcı başarısız oldu.":resultData.getString("message","Planlayıcı başarısız oldu.");toast(m);
+                    String m=resultData==null?"Planlayıcı başarısız oldu.":resultData.getString("message","Planlayıcı başarısız oldu.");
+                    new AlertDialog.Builder(MainActivityV3.this).setTitle("Planlayıcı durdu").setMessage(m).setPositiveButton("Tamam",null).show();
                 }
             }
         };
-        Intent i=new Intent(this,LocalPlannerActivity.class);i.putExtra(LocalPlannerActivity.EXTRA_PROMPT,prompt);i.putExtra(LocalPlannerActivity.EXTRA_RECEIVER,receiver);startActivity(i);
+        Intent i=new Intent(this,LocalPlannerActivity.class);
+        i.putExtra(LocalPlannerActivity.EXTRA_PROMPT,prompt);
+        i.putExtra(LocalPlannerActivity.EXTRA_RECEIVER,receiver);
+        startActivity(i);
     }
 
     private void openModule20() {
@@ -125,7 +123,7 @@ public class MainActivityV3 extends MainActivity {
             } else if (s.startsWith("20.  Özel Agent Görevi Çalıştır")) {
                 t.setText("20.  Özel Agent Görevi Çalıştır • GENEL MOTOR");
             } else if (s.contains("Çekirdek APK'da INTERNET izni yok")) {
-                t.setText("✓ Ana ajan + yerel model süreçlerinde INTERNET yasak • yalnız ayrı web araştırma/model indirme sürecinde ağ açık • SMS / OTP / rehber / mikrofon / kamera izni yok");
+                t.setText("✓ Ana ajan + gömülü yerel model süreçlerinde INTERNET yasak • yalnız ayrı web araştırma sürecinde ağ açık • SMS / OTP / rehber / mikrofon / kamera izni yok");
             } else if ("Güvenlik".equals(s)) {
                 t.setOnClickListener(x -> showSecurity());
             }
@@ -139,13 +137,15 @@ public class MainActivityV3 extends MainActivity {
     private void showSecurity() {
         new AlertDialog.Builder(this).setTitle("Güvenlik tasarımı • Genel Motor")
                 .setMessage("• Ana ajan/Accessibility ve yerel model planlayıcı süreçlerinde INTERNET Android süreç politikasında reddedilir.\n" +
-                        "• Yalnız görünür :web araştırma ve model indirme süreci internete çıkar; Accessibility bu süreçte yoktur.\n" +
+                        "• Model APK'nın içindedir; model indirme sunucusu veya hesap/token gerekmez.\n" +
+                        "• Yalnız görünür :web araştırma süreci internete çıkar; Accessibility bu süreçte yoktur.\n" +
                         "• Model doğrudan tıklamaz; yalnız AGENT planı üretir ve parser doğrulaması zorunludur.\n" +
                         "• SMS/OTP, rehber, kamera, mikrofon ve bildirim okuma izni yoktur.\n" +
                         "• Web motoru yalnız HTTPS public adresleri kabul eder; localhost/özel IP ve finans/şifre alanları engellenir.\n" +
                         "• Banka, SMS/OTP veya şifre yöneticisi uygulaması öne gelirse ajan tamamen durdurulur.\n" +
-                        "• Yayınla/Paylaş/Gönder, ödeme ve silme gibi kritik son eylemler otomatik yapılmaz.\n\n" +
-                        "Hiçbir genel amaçlı otomasyon CAPTCHA, site engeli veya erişilemeyen UI karşısında mutlak başarı garantisi veremez; motor takılmak yerine açık hata üretmek üzere tasarlanmıştır.")
+                        "• Yayınla/Paylaş/Gönder, ödeme ve silme gibi kritik son eylemler otomatik yapılmaz.\n" +
+                        "• Yerel planlayıcının toplam 75 saniyelik sert süre sınırı vardır; sonsuza kadar bekleyemez.\n\n" +
+                        "CAPTCHA, site engeli veya erişilemeyen UI dış sistem kısıtlarıdır; motor bunlarda açık hata üretmek üzere tasarlanmıştır.")
                 .setPositiveButton("Tamam", null).show();
     }
 
