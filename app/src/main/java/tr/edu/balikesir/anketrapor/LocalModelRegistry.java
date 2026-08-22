@@ -3,9 +3,10 @@ package tr.edu.balikesir.anketrapor;
 import android.app.ActivityManager;
 import android.content.Context;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 
 /** 1.0.4: ağdan model seçmez; APK içindeki doğrulanmış no-think modeli kullanır. */
 final class LocalModelRegistry {
@@ -42,8 +43,6 @@ final class LocalModelRegistry {
     }
 
     static double totalRamGb(Context c){return totalRamBytes(c)/(1024d*1024d*1024d);}
-
-    /** Güç yerine kararlılık: 1.0.4'ün doğal dil planlayıcısı her cihazda aynı doğrulanmış modeli kullanır. */
     static Model preferred(Context c){return BUNDLED;}
 
     static File modelDir(Context c){
@@ -55,15 +54,16 @@ final class LocalModelRegistry {
 
     static File file(Context c,Model m){return new File(modelDir(c),m.filename);}
     static File marker(Context c,Model m){return new File(modelDir(c),m.filename+".verified");}
-
     static boolean sizeMatches(Model m,long n){return m!=null&&n==m.expectedBytes;}
 
     static boolean looksInstalled(Context c,Model m){
         if(m==null)return false;
         File f=file(c,m), marker=marker(c,m);
         if(!f.isFile()||!sizeMatches(m,f.length())||!marker.isFile())return false;
-        try{
-            String s=Files.readString(marker.toPath(),StandardCharsets.UTF_8).trim();
+        try(FileInputStream in=new FileInputStream(marker);ByteArrayOutputStream out=new ByteArrayOutputStream()){
+            byte[] b=new byte[128];int n,total=0;
+            while((n=in.read(b))!=-1&&total<256){out.write(b,0,n);total+=n;}
+            String s=new String(out.toByteArray(),StandardCharsets.UTF_8).trim();
             return BUNDLED_SHA256.equalsIgnoreCase(s);
         }catch(Exception e){return false;}
     }
