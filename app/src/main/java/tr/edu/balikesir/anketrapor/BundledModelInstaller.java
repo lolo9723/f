@@ -5,10 +5,10 @@ import android.content.res.AssetFileDescriptor;
 import android.content.res.AssetManager;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.security.MessageDigest;
 
 /** APK içindeki modeli ağ kullanmadan, SHA-256 doğrulayarak atomik biçimde hazırlar. */
@@ -52,32 +52,27 @@ final class BundledModelInstaller {
             int n;
             while((n=in.read(buf))!=-1){
                 if(n==0)continue;
-                fos.write(buf,0,n);
-                md.update(buf,0,n);
-                copied+=n;
+                fos.write(buf,0,n);md.update(buf,0,n);copied+=n;
                 if(progress!=null)progress.onProgress(copied,m.expectedBytes);
             }
-            fos.flush();
-            fos.getFD().sync();
+            fos.flush();fos.getFD().sync();
         }catch(Exception e){part.delete();throw e;}
 
         if(copied!=m.expectedBytes){part.delete();throw new IllegalStateException("Gömülü model kopyası eksik: "+copied+" / "+m.expectedBytes);}
         String digest=hex(md.digest());
         if(!LocalModelRegistry.BUNDLED_SHA256.equalsIgnoreCase(digest)){
-            part.delete();
-            throw new SecurityException("Gömülü model SHA-256 doğrulaması başarısız.");
+            part.delete();throw new SecurityException("Gömülü model SHA-256 doğrulaması başarısız.");
         }
 
         if(!part.renameTo(out)){
-            try(InputStream in=Files.newInputStream(part.toPath());FileOutputStream fos=new FileOutputStream(out)){
+            try(InputStream in=new FileInputStream(part);FileOutputStream fos=new FileOutputStream(out)){
                 int n;while((n=in.read(buf))!=-1){if(n>0)fos.write(buf,0,n);}fos.flush();fos.getFD().sync();
             }
             if(!part.delete())part.deleteOnExit();
         }
-        Files.writeString(marker.toPath(),LocalModelRegistry.BUNDLED_SHA256+"\n",StandardCharsets.UTF_8);
+        writeMarker(marker);
         if(!LocalModelRegistry.looksInstalled(c,m)){
-            out.delete();marker.delete();
-            throw new IllegalStateException("Yerel model son doğrulamadan geçmedi.");
+            out.delete();marker.delete();throw new IllegalStateException("Yerel model son doğrulamadan geçmedi.");
         }
         return out;
     }
@@ -86,14 +81,21 @@ final class BundledModelInstaller {
         LocalModelRegistry.Model m=LocalModelRegistry.BUNDLED;
         File f=LocalModelRegistry.file(c,m);
         if(!f.isFile()||f.length()!=m.expectedBytes)return false;
-        try(InputStream in=Files.newInputStream(f.toPath())){
+        try(InputStream in=new FileInputStream(f)){
             MessageDigest md=MessageDigest.getInstance("SHA-256");
             byte[] b=new byte[8*1024*1024];int n;
             while((n=in.read(b))!=-1)if(n>0)md.update(b,0,n);
             boolean ok=LocalModelRegistry.BUNDLED_SHA256.equalsIgnoreCase(hex(md.digest()));
-            if(ok)Files.writeString(LocalModelRegistry.marker(c,m).toPath(),LocalModelRegistry.BUNDLED_SHA256+"\n",StandardCharsets.UTF_8);
+            if(ok)writeMarker(LocalModelRegistry.marker(c,m));
             return ok;
         }catch(Exception e){return false;}
+    }
+
+    private static void writeMarker(File marker)throws Exception{
+        byte[] data=(LocalModelRegistry.BUNDLED_SHA256+"\n").getBytes(StandardCharsets.UTF_8);
+        try(FileOutputStream out=new FileOutputStream(marker,false)){
+            out.write(data);out.flush();out.getFD().sync();
+        }
     }
 
     static String hex(byte[] bytes){
