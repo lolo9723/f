@@ -7,6 +7,7 @@ import android.view.accessibility.AccessibilityEvent;
 /** Hazır modülleri korur; özel görevleri genel VM runtime ile çalıştırır. */
 public class AgentAccessibilityServiceV4 extends TouchAgentServiceV2 {
     private static volatile AgentAccessibilityServiceV4 active;
+    private static volatile String lastStartMessage="";
     private AgentScriptRuntimeV5 runtime;
     private boolean selfTestsOk;
 
@@ -18,6 +19,8 @@ public class AgentAccessibilityServiceV4 extends TouchAgentServiceV2 {
                 && WebResearchActivity.selfTestNumbers()
                 && AgentComplexSelfTest.run()
                 && LocalModelRegistry.selfTest()
+                && BundledModelInstaller.selfTest()
+                && AgentScriptStarter.selfTest()
                 && AgentScriptEngineV3.selfTest()
                 && AgentScriptEngineV2.selfTest()
                 && AgentScriptEngine.selfTest();
@@ -30,24 +33,25 @@ public class AgentAccessibilityServiceV4 extends TouchAgentServiceV2 {
         }
     }
 
-    /**
-     * MainActivity'deki 20. modül butonundan deterministik başlangıç köprüsü.
-     * Samsung bazı dialog butonlarında TYPE_VIEW_CLICKED olayını güvenilir üretmediği için
-     * yalnız Accessibility event'ine bel bağlanmaz. Servis açık ve öz testler başarılıysa
-     * aynı güvenli runtime başlangıç yoluna sentetik kendi-uygulama click olayı gönderilir.
-     */
+    /** 20. modülün doğrudan başlangıç yolu; dialog/tıklama event'i taklit etmez. */
     static boolean requestAgentStartFromUi() {
         AgentAccessibilityServiceV4 s=active;
-        if(s==null||!s.selfTestsOk)return false;
-        if(s.runtime==null)s.runtime=new AgentScriptRuntimeV5(s);
-        AccessibilityEvent e=AccessibilityEvent.obtain(AccessibilityEvent.TYPE_VIEW_CLICKED);
-        try{
-            e.setPackageName("tr.edu.balikesir.yerelajan");
-            e.getText().add("Hazırla / Çalıştır");
-            return s.runtime.maybeStartFromOwnApp(e);
-        }finally{e.recycle();}
+        if(s==null){lastStartMessage="Erişilebilirlik servisi bağlı değil.";return false;}
+        if(!s.selfTestsOk){lastStartMessage="Agent çekirdek öz testi başarısız.";return false;}
+        if(s.runtime!=null&&s.runtime.isRunning()){lastStartMessage="Başka bir Agent görevi zaten çalışıyor.";return false;}
+
+        if(s.runtime!=null)s.runtime.destroy();
+        AgentScriptStarter.Result r=AgentScriptStarter.start(s);
+        lastStartMessage=r.message;
+        s.runtime=new AgentScriptRuntimeV5(s);
+        if(!r.ok)return false;
+        // State artık SCRIPT_RUNNING=true. onEvent(null) doğrudan pump'ı planlar.
+        s.runtime.onEvent(null);
+        android.widget.Toast.makeText(s,r.message,android.widget.Toast.LENGTH_LONG).show();
+        return true;
     }
 
+    static String lastStartMessage(){return lastStartMessage;}
     static boolean isConnectedAndHealthy(){AgentAccessibilityServiceV4 s=active;return s!=null&&s.selfTestsOk;}
 
     @Override public void onAccessibilityEvent(AccessibilityEvent event) {
@@ -63,6 +67,7 @@ public class AgentAccessibilityServiceV4 extends TouchAgentServiceV2 {
         }
         if (runtime == null) runtime = new AgentScriptRuntimeV5(this);
         if (runtime.isRunning()) { runtime.onEvent(event); return; }
+        // Eski accessibility-click başlangıcı yalnız geriye uyumlu yedek yol olarak kalır.
         if (selfTestsOk) runtime.maybeStartFromOwnApp(event);
         super.onAccessibilityEvent(event);
     }
