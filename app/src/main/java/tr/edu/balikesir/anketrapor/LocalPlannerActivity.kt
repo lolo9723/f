@@ -99,11 +99,12 @@ class LocalPlannerActivity : Activity() {
             if (!BundledModelInstaller.selfTest()) throw IllegalStateException("Model kurulum çekirdeği öz testi başarısız.")
             if (!LocalModelRegistry.looksInstalled(this, LocalModelRegistry.BUNDLED)) {
                 BundledModelInstaller.ensureInstalled(this) { done, total ->
-                    if (delivered.get()) return@ensureInstalled
-                    runOnUiThread {
-                        progress.isIndeterminate = false
-                        progress.progress = ((done * 100L) / total.coerceAtLeast(1L)).toInt().coerceIn(0, 100)
-                        status.text = "Gömülü model hazırlanıyor • ${mb(done)} / ${mb(total)}"
+                    if (!delivered.get()) {
+                        runOnUiThread {
+                            progress.isIndeterminate = false
+                            progress.progress = ((done * 100L) / total.coerceAtLeast(1L)).toInt().coerceIn(0, 100)
+                            status.text = "Gömülü model hazırlanıyor • ${mb(done)} / ${mb(total)}"
+                        }
                     }
                 }
             }
@@ -128,7 +129,7 @@ class LocalPlannerActivity : Activity() {
             engine = Engine(
                 EngineConfig(
                     modelPath = LocalModelRegistry.file(this, LocalModelRegistry.BUNDLED).absolutePath,
-                    backend = Backend.CPU(threadCount = null),
+                    backend = Backend.CPU(),
                     maxNumTokens = LocalModelRegistry.BUNDLED.maxTokens,
                     cacheDir = cacheDir.absolutePath
                 )
