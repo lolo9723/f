@@ -7,6 +7,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -16,6 +17,36 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+
+      - name: Public LiteRT model indirme doğrulaması
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -q 'huggingface_hub[hf_xet]>=0.34.0'
+          mkdir -p /tmp/yerel-agent-model
+          python - <<'PY'
+          from huggingface_hub import hf_hub_download
+          from pathlib import Path
+          import hashlib
+          p = Path(hf_hub_download(
+              repo_id='litert-community/Qwen3-0.6B',
+              filename='Qwen3-0.6B_dynamic_wi4b32_afp32.litertlm',
+              local_dir='/tmp/yerel-agent-model'
+          ))
+          size = p.stat().st_size
+          if size < 300_000_000:
+              raise SystemExit(f'Model beklenenden küçük: {size}')
+          h = hashlib.sha256()
+          with p.open('rb') as f:
+              for chunk in iter(lambda: f.read(8*1024*1024), b''):
+                  h.update(chunk)
+          print('MODEL_PATH='+str(p))
+          print('MODEL_SIZE='+str(size))
+          print('MODEL_SHA256='+h.hexdigest())
+          Path('/tmp/model-size.txt').write_text(str(size))
+          Path('/tmp/model-sha256.txt').write_text(h.hexdigest())
+          PY
+
       - name: APK oluştur
         run: gradle assembleDebug --stacktrace
       - name: Dosyayı adlandır
