@@ -7,7 +7,7 @@ android {
     compileSdk 35
 
     defaultConfig {
-        applicationId 'tr.edu.balikesir.anketrapor'
+        applicationId 'com.emrah.kapatsahibinden'
         minSdk 24
         targetSdk 35
         versionCode 1
