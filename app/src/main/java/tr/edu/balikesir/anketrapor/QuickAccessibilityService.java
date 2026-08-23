@@ -3,23 +3,39 @@ package tr.edu.balikesir.anketrapor;
 import android.accessibilityservice.AccessibilityService;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.PixelFormat;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
+import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Button;
 import android.widget.Toast;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Locale;
+
 public class QuickAccessibilityService extends AccessibilityService {
+    private static final String CHROME_PACKAGE = "com.android.chrome";
+
     private WindowManager windowManager;
     private Button bubble;
     private WindowManager.LayoutParams params;
     private final Handler handler = new Handler(Looper.getMainLooper());
+
+    private boolean automationRunning = false;
+    private boolean waitingConfirmation = false;
+    private int attempts = 0;
+    private String currentTarget;
+    private Deque<String> targets;
 
     @Override
     protected void onServiceConnected() {
@@ -80,7 +96,7 @@ public class QuickAccessibilityService extends AccessibilityService {
                         try { windowManager.updateViewLayout(bubble, params); } catch (Exception ignored) { }
                         return true;
                     case MotionEvent.ACTION_UP:
-                        if (!moved) leaveCurrentAndOpenSahibinden();
+                        if (!moved) closeChromeVpnAndOpenSahibinden();
                         return true;
                     default:
                         return false;
@@ -95,11 +111,139 @@ public class QuickAccessibilityService extends AccessibilityService {
         }
     }
 
-    private void leaveCurrentAndOpenSahibinden() {
-        // Android, normal uygulamalara başka uygulamaları gerçek anlamda force-stop etme izni vermez.
-        // En hızlı güvenilir davranış: mevcut uygulamayı arka plana gönderip Sahibinden'i öne almak.
+    private void closeChromeVpnAndOpenSahibinden() {
+        if (automationRunning) return;
+
+        SharedPreferences prefs = getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE);
+        String vpnPackage = prefs.getString(MainActivity.KEY_VPN_PACKAGE, "");
+
+        targets = new ArrayDeque<>();
+        targets.add(CHROME_PACKAGE);
+        if (!TextUtils.isEmpty(vpnPackage) && !CHROME_PACKAGE.equals(vpnPackage)) {
+            targets.add(vpnPackage);
+        }
+
+        automationRunning = true;
         performGlobalAction(GLOBAL_ACTION_HOME);
-        handler.postDelayed(() -> openSahibinden(this), 70);
+        handler.postDelayed(this::openNextAppDetails, 80);
+    }
+
+    private void openNextAppDetails() {
+        if (!automationRunning) return;
+
+        currentTarget = targets.pollFirst();
+        if (currentTarget == null) {
+            finishAutomation();
+            return;
+        }
+
+        waitingConfirmation = false;
+        attempts = 0;
+
+        try {
+            Intent details = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:" + currentTarget));
+            details.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(details);
+            handler.postDelayed(this::pumpForceStop, 180);
+        } catch (Exception e) {
+            handler.postDelayed(this::openNextAppDetails, 80);
+        }
+    }
+
+    private void pumpForceStop() {
+        if (!automationRunning) return;
+
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null) {
+            retryOrAdvance();
+            return;
+        }
+
+        if (!waitingConfirmation) {
+            AccessibilityNodeInfo forceStop = findNode(root,
+                    "zorla durdur", "force stop", "durdurmaya zorla");
+
+            if (forceStop != null && forceStop.isEnabled() && clickNode(forceStop)) {
+                waitingConfirmation = true;
+                attempts = 0;
+                handler.postDelayed(this::pumpForceStop, 130);
+                return;
+            }
+
+            retryOrAdvance();
+            return;
+        }
+
+        AccessibilityNodeInfo confirm = findNode(root,
+                "tamam", "ok", "evet", "yes", "zorla durdur", "force stop");
+
+        if (confirm != null && confirm.isEnabled() && clickNode(confirm)) {
+            handler.postDelayed(this::openNextAppDetails, 140);
+            return;
+        }
+
+        attempts++;
+        if (attempts <= 5) {
+            handler.postDelayed(this::pumpForceStop, 130);
+        } else {
+            // Bazı Android sürümlerinde Zorla durdur için ikinci onay penceresi çıkmaz.
+            handler.postDelayed(this::openNextAppDetails, 80);
+        }
+    }
+
+    private void retryOrAdvance() {
+        attempts++;
+        if (attempts <= 6) {
+            handler.postDelayed(this::pumpForceStop, 130);
+        } else {
+            // Uygulama zaten durmuşsa düğme pasif olabilir; sıradaki hedefe geç.
+            handler.postDelayed(this::openNextAppDetails, 80);
+        }
+    }
+
+    private AccessibilityNodeInfo findNode(AccessibilityNodeInfo node, String... wanted) {
+        if (node == null) return null;
+
+        String text = normalize(node.getText());
+        String desc = normalize(node.getContentDescription());
+        for (String item : wanted) {
+            String key = normalize(item);
+            if ((!TextUtils.isEmpty(text) && text.contains(key)) ||
+                    (!TextUtils.isEmpty(desc) && desc.contains(key))) {
+                return node;
+            }
+        }
+
+        for (int i = 0; i < node.getChildCount(); i++) {
+            AccessibilityNodeInfo found = findNode(node.getChild(i), wanted);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private boolean clickNode(AccessibilityNodeInfo node) {
+        AccessibilityNodeInfo current = node;
+        for (int i = 0; i < 5 && current != null; i++) {
+            if (current.isClickable()) {
+                return current.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            }
+            current = current.getParent();
+        }
+        return node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+    }
+
+    private String normalize(CharSequence value) {
+        if (value == null) return "";
+        return value.toString().trim().toLowerCase(new Locale("tr", "TR"));
+    }
+
+    private void finishAutomation() {
+        automationRunning = false;
+        waitingConfirmation = false;
+        currentTarget = null;
+        performGlobalAction(GLOBAL_ACTION_HOME);
+        handler.postDelayed(() -> openSahibinden(this), 90);
     }
 
     public static void openSahibinden(Context context) {
@@ -123,7 +267,10 @@ public class QuickAccessibilityService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        // Bu yardımcı yalnızca kullanıcı dokunuşuyla çalışır; ekran içeriğini okumaz.
+        if (automationRunning) {
+            handler.removeCallbacks(this::pumpForceStop);
+            handler.postDelayed(this::pumpForceStop, 40);
+        }
     }
 
     @Override
