@@ -41,13 +41,13 @@ public class MainActivity extends Activity {
         root.setPadding(pad, pad, pad, pad);
 
         TextView title = new TextView(this);
-        title.setText("Kapat → Sahibinden");
+        title.setText("Kapat → Komik Shorts");
         title.setTextSize(24f);
         title.setGravity(Gravity.CENTER);
         root.addView(title, new LinearLayout.LayoutParams(-1, -2));
 
         TextView info = new TextView(this);
-        info.setText("Küçük ‘Kapat’ düğmesine dokununca Chrome zorla durdurulur, seçtiğin VPN uygulaması zorla durdurulur ve ardından Sahibinden açılır.");
+        info.setText("Küçük ‘Kapat’ düğmesine dokununca Chrome zorla durdurulur, seçtiğin ayrı VPN uygulaması zorla durdurulur ve ardından YouTube’da rastgele komik bir Shorts doğrudan açılır.");
         info.setTextSize(16f);
         info.setPadding(0, dp(18), 0, dp(18));
         root.addView(info, new LinearLayout.LayoutParams(-1, -2));
@@ -77,8 +77,8 @@ public class MainActivity extends Activity {
         root.addView(chooseVpn, vpnLp);
 
         Button test = new Button(this);
-        test.setText("Sahibinden’i Şimdi Aç");
-        test.setOnClickListener(v -> QuickAccessibilityService.openSahibinden(this));
+        test.setText("Rastgele Komik Shorts Aç");
+        test.setOnClickListener(v -> QuickAccessibilityService.openRandomFunnyShort(this));
         LinearLayout.LayoutParams testLp = new LinearLayout.LayoutParams(-1, -2);
         testLp.topMargin = dp(10);
         root.addView(test, testLp);
