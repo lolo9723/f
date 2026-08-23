@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <queries>
-        <package android:name="com.sahibinden" />
+        <package android:name="com.google.android.youtube" />
         <package android:name="com.android.chrome" />
         <intent>
             <action android:name="android.net.VpnService" />
@@ -9,7 +9,7 @@
 
     <application
         android:allowBackup="true"
-        android:label="Kapat → Sahibinden"
+        android:label="Kapat → Komik Shorts"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
         <activity
