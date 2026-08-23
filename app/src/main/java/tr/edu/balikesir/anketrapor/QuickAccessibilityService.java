@@ -19,17 +19,29 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Button;
 import android.widget.Toast;
 
+import java.security.SecureRandom;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Locale;
 
 public class QuickAccessibilityService extends AccessibilityService {
     private static final String CHROME_PACKAGE = "com.android.chrome";
+    private static final String YOUTUBE_PACKAGE = "com.google.android.youtube";
+    private static final String KEY_LAST_SHORT = "last_funny_short";
+
+    // Güncel ve doğrulanmış komik Shorts havuzu. Her tetiklemede bir önceki video tekrarlanmaz.
+    private static final String[] FUNNY_SHORT_IDS = new String[] {
+            "Z_bMPmW_n6A", // Funny animals
+            "Xp2YQawe19A", // Funny Animals #30
+            "fEmjqcCEf1M", // Funny animals videos
+            "omW3uK0BRpI"  // Funny cat and dog videos
+    };
 
     private WindowManager windowManager;
     private Button bubble;
     private WindowManager.LayoutParams params;
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private final SecureRandom random = new SecureRandom();
 
     private boolean automationRunning = false;
     private boolean waitingConfirmation = false;
@@ -96,7 +108,7 @@ public class QuickAccessibilityService extends AccessibilityService {
                         try { windowManager.updateViewLayout(bubble, params); } catch (Exception ignored) { }
                         return true;
                     case MotionEvent.ACTION_UP:
-                        if (!moved) closeChromeVpnAndOpenSahibinden();
+                        if (!moved) closeChromeVpnAndOpenFunnyShort();
                         return true;
                     default:
                         return false;
@@ -111,7 +123,7 @@ public class QuickAccessibilityService extends AccessibilityService {
         }
     }
 
-    private void closeChromeVpnAndOpenSahibinden() {
+    private void closeChromeVpnAndOpenFunnyShort() {
         if (automationRunning) return;
 
         SharedPreferences prefs = getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE);
@@ -187,7 +199,6 @@ public class QuickAccessibilityService extends AccessibilityService {
         if (attempts <= 5) {
             handler.postDelayed(this::pumpForceStop, 130);
         } else {
-            // Bazı Android sürümlerinde Zorla durdur için ikinci onay penceresi çıkmaz.
             handler.postDelayed(this::openNextAppDetails, 80);
         }
     }
@@ -197,7 +208,6 @@ public class QuickAccessibilityService extends AccessibilityService {
         if (attempts <= 6) {
             handler.postDelayed(this::pumpForceStop, 130);
         } else {
-            // Uygulama zaten durmuşsa düğme pasif olabilir; sıradaki hedefe geç.
             handler.postDelayed(this::openNextAppDetails, 80);
         }
     }
@@ -243,25 +253,44 @@ public class QuickAccessibilityService extends AccessibilityService {
         waitingConfirmation = false;
         currentTarget = null;
         performGlobalAction(GLOBAL_ACTION_HOME);
-        handler.postDelayed(() -> openSahibinden(this), 90);
+        handler.postDelayed(() -> openRandomFunnyShort(this), 90);
     }
 
-    public static void openSahibinden(Context context) {
-        Intent launch = context.getPackageManager().getLaunchIntentForPackage("com.sahibinden");
-        if (launch != null) {
-            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
-            context.startActivity(launch);
-            return;
+    public static void openRandomFunnyShort(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE);
+        String last = prefs.getString(KEY_LAST_SHORT, "");
+
+        SecureRandom r = new SecureRandom();
+        String selected = FUNNY_SHORT_IDS[r.nextInt(FUNNY_SHORT_IDS.length)];
+        if (FUNNY_SHORT_IDS.length > 1) {
+            int guard = 0;
+            while (selected.equals(last) && guard < 10) {
+                selected = FUNNY_SHORT_IDS[r.nextInt(FUNNY_SHORT_IDS.length)];
+                guard++;
+            }
         }
+        prefs.edit().putString(KEY_LAST_SHORT, selected).apply();
+
+        Uri shortUri = Uri.parse("https://www.youtube.com/shorts/" + selected);
+        try {
+            Intent youtube = new Intent(Intent.ACTION_VIEW, shortUri);
+            youtube.setPackage(YOUTUBE_PACKAGE);
+            youtube.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            context.startActivity(youtube);
+            return;
+        } catch (Exception ignored) { }
 
         try {
-            Intent market = new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.sahibinden"));
-            market.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            context.startActivity(market);
-        } catch (Exception e) {
-            Intent web = new Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.sahibinden"));
+            Intent web = new Intent(Intent.ACTION_VIEW, shortUri);
             web.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(web);
+        } catch (Exception e) {
+            try {
+                Intent market = new Intent(Intent.ACTION_VIEW,
+                        Uri.parse("market://details?id=" + YOUTUBE_PACKAGE));
+                market.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(market);
+            } catch (Exception ignored) { }
         }
     }
 
