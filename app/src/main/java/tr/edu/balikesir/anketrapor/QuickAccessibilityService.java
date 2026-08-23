@@ -27,25 +27,30 @@ import java.util.Locale;
 public class QuickAccessibilityService extends AccessibilityService {
     private static final String CHROME_PACKAGE = "com.android.chrome";
     private static final String YOUTUBE_PACKAGE = "com.google.android.youtube";
-    private static final String KEY_LAST_SHORT = "last_funny_short";
+    private static final String KEY_LAST_VIDEO = "last_normal_video";
 
-    // Güncel ve doğrulanmış komik Shorts havuzu. Her tetiklemede bir önceki video tekrarlanmaz.
-    private static final String[] FUNNY_SHORT_IDS = new String[] {
-            "Z_bMPmW_n6A", // Funny animals
-            "Xp2YQawe19A", // Funny Animals #30
-            "fEmjqcCEf1M", // Funny animals videos
-            "omW3uK0BRpI"  // Funny cat and dog videos
+    // Normal YouTube videoları: yapım, üretim, ahşap ve restorasyon tarzı; Shorts değildir.
+    private static final String[] NORMAL_VIDEO_IDS = new String[] {
+            "x5y_IsR53cU", // Wood carving - no talking
+            "cPUhejwl-cs", // Satisfying manufacturing processes
+            "5siCeReHfJ8", // Recycling/manufacturing processes
+            "1tpfIXvates", // Wooden toy making - no talking
+            "oxvG9QcYbUg", // Silent spoon carving
+            "eWE9X1iCedk", // Chair build - no talking
+            "49gKJ7GAbBg", // Japanese woodworking - no talking
+            "GqL6adoH4Tk", // Jewelry box build - no talking
+            "4PdjRDZXU-I"  // Wooden bench making - no talking
     };
 
     private WindowManager windowManager;
     private Button bubble;
     private WindowManager.LayoutParams params;
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private final SecureRandom random = new SecureRandom();
 
     private boolean automationRunning = false;
-    private boolean waitingConfirmation = false;
+    private int phase = 0; // 0: force stop, 1: confirm, 2: verify stopped
     private int attempts = 0;
+    private int detailRounds = 0;
     private String currentTarget;
     private Deque<String> targets;
 
@@ -57,7 +62,6 @@ public class QuickAccessibilityService extends AccessibilityService {
 
     private void showBubble() {
         if (bubble != null) return;
-
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         bubble = new Button(this);
         bubble.setText("Kapat");
@@ -71,8 +75,7 @@ public class QuickAccessibilityService extends AccessibilityService {
         bubble.setMinimumHeight(0);
 
         params = new WindowManager.LayoutParams(
-                dp(58),
-                dp(38),
+                dp(58), dp(38),
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
                         WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
@@ -108,7 +111,7 @@ public class QuickAccessibilityService extends AccessibilityService {
                         try { windowManager.updateViewLayout(bubble, params); } catch (Exception ignored) { }
                         return true;
                     case MotionEvent.ACTION_UP:
-                        if (!moved) closeChromeVpnAndOpenFunnyShort();
+                        if (!moved) closeChromeVpnAndOpenNormalVideo();
                         return true;
                     default:
                         return false;
@@ -123,9 +126,8 @@ public class QuickAccessibilityService extends AccessibilityService {
         }
     }
 
-    private void closeChromeVpnAndOpenFunnyShort() {
+    private void closeChromeVpnAndOpenNormalVideo() {
         if (automationRunning) return;
-
         SharedPreferences prefs = getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE);
         String vpnPackage = prefs.getString(MainActivity.KEY_VPN_PACKAGE, "");
 
@@ -137,84 +139,127 @@ public class QuickAccessibilityService extends AccessibilityService {
 
         automationRunning = true;
         performGlobalAction(GLOBAL_ACTION_HOME);
-        handler.postDelayed(this::openNextAppDetails, 80);
+        handler.postDelayed(this::openNextAppDetails, 100);
     }
 
     private void openNextAppDetails() {
         if (!automationRunning) return;
-
         currentTarget = targets.pollFirst();
         if (currentTarget == null) {
             finishAutomation();
             return;
         }
+        detailRounds = 0;
+        openCurrentDetails();
+    }
 
-        waitingConfirmation = false;
+    private void openCurrentDetails() {
+        phase = 0;
         attempts = 0;
-
         try {
             Intent details = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                     Uri.parse("package:" + currentTarget));
             details.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
             startActivity(details);
-            handler.postDelayed(this::pumpForceStop, 180);
+            handler.postDelayed(this::pumpForceStop, 250);
         } catch (Exception e) {
-            handler.postDelayed(this::openNextAppDetails, 80);
+            handler.postDelayed(this::openNextAppDetails, 120);
         }
     }
 
     private void pumpForceStop() {
         if (!automationRunning) return;
-
         AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root == null) {
-            retryOrAdvance();
+            retryCurrent();
             return;
         }
 
-        if (!waitingConfirmation) {
-            AccessibilityNodeInfo forceStop = findNode(root,
-                    "zorla durdur", "force stop", "durdurmaya zorla");
+        AccessibilityNodeInfo forceStop = findNode(root,
+                "zorla durdur", "force stop", "durdurmaya zorla");
 
+        if (phase == 0) {
+            // Düğme pasifse uygulama zaten tamamen durdurulmuş demektir.
+            if (forceStop != null && !forceStop.isEnabled()) {
+                handler.postDelayed(this::openNextAppDetails, 150);
+                return;
+            }
             if (forceStop != null && forceStop.isEnabled() && clickNode(forceStop)) {
-                waitingConfirmation = true;
+                phase = 1;
                 attempts = 0;
-                handler.postDelayed(this::pumpForceStop, 130);
+                handler.postDelayed(this::pumpForceStop, 220);
+                return;
+            }
+            retryCurrent();
+            return;
+        }
+
+        if (phase == 1) {
+            // Bazı cihazlarda ikinci onay çıkmadan doğrudan durur.
+            if (forceStop != null && !forceStop.isEnabled()) {
+                handler.postDelayed(this::openNextAppDetails, 150);
                 return;
             }
 
-            retryOrAdvance();
+            AccessibilityNodeInfo confirm = findNode(root,
+                    "tamam", "ok", "evet", "yes");
+            if (confirm != null && confirm.isEnabled() && clickNode(confirm)) {
+                phase = 2;
+                attempts = 0;
+                handler.postDelayed(this::pumpForceStop, 300);
+                return;
+            }
+
+            attempts++;
+            if (attempts <= 8) {
+                handler.postDelayed(this::pumpForceStop, 180);
+            } else {
+                retryDetailsRound();
+            }
             return;
         }
 
-        AccessibilityNodeInfo confirm = findNode(root,
-                "tamam", "ok", "evet", "yes", "zorla durdur", "force stop");
-
-        if (confirm != null && confirm.isEnabled() && clickNode(confirm)) {
-            handler.postDelayed(this::openNextAppDetails, 140);
+        // phase 2: Zorla durdur düğmesinin gerçekten pasif olduğunu doğrula.
+        if (forceStop != null && !forceStop.isEnabled()) {
+            handler.postDelayed(this::openNextAppDetails, 160);
             return;
         }
+
+        // Onay diyaloğu hâlâ açıksa bir kez daha pozitif düğmeyi dene.
+        AccessibilityNodeInfo confirm = findNode(root, "tamam", "ok", "evet", "yes");
+        if (confirm != null && confirm.isEnabled()) clickNode(confirm);
 
         attempts++;
-        if (attempts <= 5) {
-            handler.postDelayed(this::pumpForceStop, 130);
+        if (attempts <= 10) {
+            handler.postDelayed(this::pumpForceStop, 220);
         } else {
-            handler.postDelayed(this::openNextAppDetails, 80);
+            retryDetailsRound();
         }
     }
 
-    private void retryOrAdvance() {
+    private void retryCurrent() {
         attempts++;
-        if (attempts <= 6) {
-            handler.postDelayed(this::pumpForceStop, 130);
+        if (attempts <= 8) {
+            handler.postDelayed(this::pumpForceStop, 180);
         } else {
-            handler.postDelayed(this::openNextAppDetails, 80);
+            retryDetailsRound();
+        }
+    }
+
+    private void retryDetailsRound() {
+        detailRounds++;
+        if (detailRounds <= 2) {
+            handler.postDelayed(this::openCurrentDetails, 180);
+        } else {
+            Toast.makeText(this,
+                    "Bir uygulamanın Zorla durdur durumu doğrulanamadı; sıradaki adıma geçiliyor.",
+                    Toast.LENGTH_SHORT).show();
+            handler.postDelayed(this::openNextAppDetails, 180);
         }
     }
 
     private AccessibilityNodeInfo findNode(AccessibilityNodeInfo node, String... wanted) {
         if (node == null) return null;
-
         String text = normalize(node.getText());
         String desc = normalize(node.getContentDescription());
         for (String item : wanted) {
@@ -224,7 +269,6 @@ public class QuickAccessibilityService extends AccessibilityService {
                 return node;
             }
         }
-
         for (int i = 0; i < node.getChildCount(); i++) {
             AccessibilityNodeInfo found = findNode(node.getChild(i), wanted);
             if (found != null) return found;
@@ -234,7 +278,7 @@ public class QuickAccessibilityService extends AccessibilityService {
 
     private boolean clickNode(AccessibilityNodeInfo node) {
         AccessibilityNodeInfo current = node;
-        for (int i = 0; i < 5 && current != null; i++) {
+        for (int i = 0; i < 6 && current != null; i++) {
             if (current.isClickable()) {
                 return current.performAction(AccessibilityNodeInfo.ACTION_CLICK);
             }
@@ -250,38 +294,46 @@ public class QuickAccessibilityService extends AccessibilityService {
 
     private void finishAutomation() {
         automationRunning = false;
-        waitingConfirmation = false;
+        phase = 0;
         currentTarget = null;
         performGlobalAction(GLOBAL_ACTION_HOME);
-        handler.postDelayed(() -> openRandomFunnyShort(this), 90);
+        handler.postDelayed(() -> openRandomNormalVideo(this), 140);
     }
 
-    public static void openRandomFunnyShort(Context context) {
+    public static void openRandomNormalVideo(Context context) {
         SharedPreferences prefs = context.getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE);
-        String last = prefs.getString(KEY_LAST_SHORT, "");
-
-        SecureRandom r = new SecureRandom();
-        String selected = FUNNY_SHORT_IDS[r.nextInt(FUNNY_SHORT_IDS.length)];
-        if (FUNNY_SHORT_IDS.length > 1) {
+        String last = prefs.getString(KEY_LAST_VIDEO, "");
+        SecureRandom random = new SecureRandom();
+        String selected = NORMAL_VIDEO_IDS[random.nextInt(NORMAL_VIDEO_IDS.length)];
+        if (NORMAL_VIDEO_IDS.length > 1) {
             int guard = 0;
-            while (selected.equals(last) && guard < 10) {
-                selected = FUNNY_SHORT_IDS[r.nextInt(FUNNY_SHORT_IDS.length)];
+            while (selected.equals(last) && guard < 12) {
+                selected = NORMAL_VIDEO_IDS[random.nextInt(NORMAL_VIDEO_IDS.length)];
                 guard++;
             }
         }
-        prefs.edit().putString(KEY_LAST_SHORT, selected).apply();
+        prefs.edit().putString(KEY_LAST_VIDEO, selected).apply();
 
-        Uri shortUri = Uri.parse("https://www.youtube.com/shorts/" + selected);
+        // vnd.youtube açılışı normal uzun-form YouTube oynatıcısını hedefler, Shorts değil.
         try {
-            Intent youtube = new Intent(Intent.ACTION_VIEW, shortUri);
+            Intent youtube = new Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube:" + selected));
             youtube.setPackage(YOUTUBE_PACKAGE);
             youtube.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
             context.startActivity(youtube);
             return;
         } catch (Exception ignored) { }
 
+        Uri watchUri = Uri.parse("https://www.youtube.com/watch?v=" + selected);
         try {
-            Intent web = new Intent(Intent.ACTION_VIEW, shortUri);
+            Intent youtubeWeb = new Intent(Intent.ACTION_VIEW, watchUri);
+            youtubeWeb.setPackage(YOUTUBE_PACKAGE);
+            youtubeWeb.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            context.startActivity(youtubeWeb);
+            return;
+        } catch (Exception ignored) { }
+
+        try {
+            Intent web = new Intent(Intent.ACTION_VIEW, watchUri);
             web.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(web);
         } catch (Exception e) {
@@ -296,14 +348,10 @@ public class QuickAccessibilityService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (automationRunning) {
-            handler.removeCallbacks(this::pumpForceStop);
-            handler.postDelayed(this::pumpForceStop, 40);
-        }
+        if (automationRunning) handler.postDelayed(this::pumpForceStop, 50);
     }
 
-    @Override
-    public void onInterrupt() { }
+    @Override public void onInterrupt() { }
 
     @Override
     public boolean onUnbind(Intent intent) {
