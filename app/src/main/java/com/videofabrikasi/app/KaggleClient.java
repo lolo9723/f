@@ -21,10 +21,12 @@ public final class KaggleClient {
         public final String body;
         public final String location;
         Result(int code, String body, String location) {
-            this.code = code; this.body = body == null ? "" : body;
+            this.code = code;
+            this.body = body == null ? "" : body;
             this.location = location == null ? "" : location;
         }
         public boolean ok() { return code >= 200 && code < 300; }
+        public boolean redirect() { return code >= 300 && code < 400 && !location.isEmpty(); }
     }
 
     public static final class PushResult {
@@ -32,7 +34,18 @@ public final class KaggleClient {
         public final String url;
         public final String ref;
         PushResult(int version, String url, String ref) {
-            this.version = version; this.url = url; this.ref = ref;
+            this.version = version;
+            this.url = url;
+            this.ref = ref;
+        }
+    }
+
+    public static final class DownloadTarget {
+        public final String url;
+        public final boolean authRequired;
+        DownloadTarget(String url, boolean authRequired) {
+            this.url = url;
+            this.authRequired = authRequired;
         }
     }
 
@@ -86,8 +99,59 @@ public final class KaggleClient {
         return normalizeStatus(j.optString("status", ""));
     }
 
-    public String finalVideoUrl(String username, String slug) throws Exception {
-        return API + "/kernels/output/download/" + encPath(username) + "/" + encPath(slug) + "/FINAL.mp4";
+    public DownloadTarget resolveOutputDownload(String username, String slug, int version,
+                                                String filePath, String token) throws Exception {
+        if (version <= 0) version = getCurrentVersion(username, slug, token);
+        JSONObject body = new JSONObject();
+        body.put("ownerSlug", username);
+        body.put("kernelSlug", slug);
+        body.put("versionNumber", version);
+        body.put("filePath", filePath);
+
+        Result r = request("POST", API + "/kernels.KernelsApiService/DownloadKernelOutput",
+                token, body.toString(), false);
+        if (r.redirect()) return new DownloadTarget(r.location, false);
+        if (r.ok()) {
+            JSONObject j = new JSONObject(r.body);
+            String url = j.optString("url", "");
+            if (!url.isEmpty()) return new DownloadTarget(url, false);
+        }
+        throw new IllegalStateException("Kaggle çıktı bağlantısı alınamadı. HTTP " + r.code + ": " + compact(r.body));
+    }
+
+    public String getOutputState(String username, String slug, int version, String token) throws Exception {
+        DownloadTarget t = resolveOutputDownload(username, slug, version, "status.json", token);
+        Result r = request("GET", t.url, t.authRequired ? token : null, null, true);
+        if (!r.ok()) throw new IllegalStateException("status.json HTTP " + r.code);
+        return outputStateFromJson(r.body);
+    }
+
+    static String outputStateFromJson(String jsonText) throws Exception {
+        JSONObject j = new JSONObject(jsonText == null ? "{}" : jsonText);
+        boolean aiOk = j.optBoolean("ai_ok", false);
+        String stage = j.optString("stage", "").toUpperCase(Locale.US);
+        String error = compact(j.optString("error", ""));
+        if (aiOk && stage.equals("COMPLETE")) return "AI TAMAMLANDI";
+        if (stage.contains("FALLBACK") || (!aiOk && stage.contains("COMPLETE"))) {
+            return error.isEmpty() ? "AI BAŞARISIZ — FALLBACK" : "AI BAŞARISIZ — FALLBACK: " + error;
+        }
+        if (stage.contains("FAIL") || stage.contains("ERROR")) {
+            return error.isEmpty() ? "AI HATALI" : "AI HATALI: " + error;
+        }
+        return stage.isEmpty() ? "ÇIKTI DURUMU BİLİNMİYOR" : stage;
+    }
+
+    private int getCurrentVersion(String username, String slug, String token) throws Exception {
+        JSONObject body = new JSONObject();
+        body.put("userName", username);
+        body.put("kernelSlug", slug);
+        Result r = request("POST", API + "/kernels.KernelsApiService/GetKernel", token, body.toString(), true);
+        if (!r.ok()) throw new IllegalStateException("Kaggle sürümü alınamadı. HTTP " + r.code);
+        JSONObject j = new JSONObject(r.body);
+        JSONObject metadata = j.optJSONObject("metadata");
+        int v = metadata == null ? 0 : metadata.optInt("currentVersionNumber", 0);
+        if (v <= 0) throw new IllegalStateException("Geçerli Kaggle sürüm numarası bulunamadı.");
+        return v;
     }
 
     public static String slugify(String input) {
@@ -116,9 +180,7 @@ public final class KaggleClient {
     private static String enc(String s) throws Exception {
         return URLEncoder.encode(s, StandardCharsets.UTF_8.name());
     }
-    private static String encPath(String s) throws Exception {
-        return enc(s).replace("+", "%20");
-    }
+
     private static String compact(String s) {
         if (s == null) return "";
         String x = s.replaceAll("\\s+", " ").trim();
