@@ -118,19 +118,18 @@ def prepare_story_for_ltx(story):
                 "subprocess.check_call([sys.executable,'-m','pip','install','-q','transformers==4.49.0','diffusers==0.33.1'])",
                 "subprocess.check_call([sys.executable,'-m','pip','install','-q','transformers==4.49.0','diffusers==0.33.1','sentencepiece==0.2.0'])");
 
+        String translationBootstrap =
+                "    subprocess.check_call([sys.executable,'-m','pip','install','-q','-e',str(repo)+'[inference]'])\n\n"
+                + "    LTX_STORY, TRANSLATION_INFO = prepare_story_for_ltx(USER_IDEA)\n"
+                + "    PROMPTS = build_scene_prompts(LTX_STORY)\n"
+                + "    write_status(\n"
+                + "        stage='PROMPTS_READY', engine='LTX-Video 2B distilled 0.9.6 T4-FP16 story-v3', ai_ok=False,\n"
+                + "        prompt_language='English', translation=TRANSLATION_INFO\n"
+                + "    )\n\n"
+                + "    gpu_name, gpu_vram_gb, torch_version = gpu_preflight()";
         script = requireReplace(script,
                 "    subprocess.check_call([sys.executable,'-m','pip','install','-q','-e',str(repo)+'[inference]'])\n\n    gpu_name, gpu_vram_gb, torch_version = gpu_preflight()",
-                """
-    subprocess.check_call([sys.executable,'-m','pip','install','-q','-e',str(repo)+'[inference]'])
-
-    LTX_STORY, TRANSLATION_INFO = prepare_story_for_ltx(USER_IDEA)
-    PROMPTS = build_scene_prompts(LTX_STORY)
-    write_status(
-        stage='PROMPTS_READY', engine='LTX-Video 2B distilled 0.9.6 T4-FP16 story-v3', ai_ok=False,
-        prompt_language='English', translation=TRANSLATION_INFO
-    )
-
-    gpu_name, gpu_vram_gb, torch_version = gpu_preflight()""");
+                translationBootstrap);
 
         script = requireReplace(script,
                 "gpu=gpu_name, dtype='float16', audio='procedural_generic_emotion_sfx_aac'",
