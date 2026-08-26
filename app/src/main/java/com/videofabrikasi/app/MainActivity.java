@@ -238,7 +238,7 @@ public class MainActivity extends Activity {
         String stamp = String.valueOf(System.currentTimeMillis() / 1000L);
         String base = KaggleClient.slugify(story);
         String slug = "vf-" + base.substring(0, Math.min(base.length(), 22)) + "-" + stamp;
-        String title = "Video Fabrikasi " + stamp;
+        String title = slug;
         String script = VideoFactoryScript.build(story, slug);
         project.save(u, slug, title, story, "GÖNDERİLİYOR", 0);
         renderProject();
