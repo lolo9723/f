@@ -11,7 +11,6 @@ import android.database.Cursor;
 import android.graphics.Color;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -25,6 +24,8 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.VideoView;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -37,7 +38,8 @@ public class MainActivity extends Activity {
     private KaggleClient kaggle;
     private EditText username, token, idea;
     private TextView status, projectInfo;
-    private Button generate, refresh, retry, download, prevProject, nextProject;
+    private Button generate, refresh, retry, download, prevProject, nextProject, playPause;
+    private VideoView player;
     private BroadcastReceiver downloadReceiver;
     private boolean busy = false;
 
@@ -57,6 +59,7 @@ public class MainActivity extends Activity {
         setContentView(buildUi());
         restore();
         registerDownloadReceiver();
+        executor.execute(this::reconcilePendingDownloads);
         handler.postDelayed(autoPoll, 1500);
     }
 
@@ -64,6 +67,9 @@ public class MainActivity extends Activity {
         handler.removeCallbacks(autoPoll);
         if (downloadReceiver != null) {
             try { unregisterReceiver(downloadReceiver); } catch (Exception ignored) {}
+        }
+        if (player != null) {
+            try { player.stopPlayback(); } catch (Exception ignored) {}
         }
         executor.shutdownNow();
         super.onDestroy();
@@ -157,6 +163,27 @@ public class MainActivity extends Activity {
         retry.setOnClickListener(v -> startGeneration(true));
         download.setOnClickListener(v -> downloadFinal());
 
+        playPause = button("▶ İNDİRİLENİ OYNAT");
+        playPause.setId(R.id.play_pause);
+        root.addView(playPause, full());
+        playPause.setOnClickListener(v -> togglePlayback());
+
+        player = new VideoView(this);
+        player.setId(R.id.video_player);
+        player.setVisibility(View.GONE);
+        LinearLayout.LayoutParams videoParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(420));
+        videoParams.bottomMargin = dp(12);
+        root.addView(player, videoParams);
+        player.setOnCompletionListener(mp -> {
+            if (playPause != null) playPause.setText("▶ TEKRAR OYNAT");
+        });
+        player.setOnErrorListener((mp, what, extra) -> {
+            if (playPause != null) playPause.setText("▶ İNDİRİLENİ OYNAT");
+            toast("Video oynatılamadı. Dosya yeniden doğrulanmalı.");
+            return true;
+        });
+
         TextView note = label("Telefon AI hesaplamaz. Birden fazla video Kaggle'a gönderilebilir; son 500 proje telefonda saklanır. MP4 yalnız gerçek AI üretimi doğrulandıktan sonra indirilebilir.", 12, false);
         note.setTextColor(Color.GRAY);
         root.addView(note, full());
@@ -182,6 +209,7 @@ public class MainActivity extends Activity {
         }
         idea.setText(project.idea());
         if (!project.username().isEmpty()) username.setText(project.username());
+        resetPlayerForProject();
         renderProject();
     }
 
@@ -247,12 +275,13 @@ public class MainActivity extends Activity {
             return;
         }
 
-        String stamp = String.valueOf(System.currentTimeMillis() / 1000L);
+        String stamp = String.valueOf(System.currentTimeMillis());
         String base = KaggleClient.slugify(story);
-        String slug = "vf-" + base.substring(0, Math.min(base.length(), 22)) + "-" + stamp;
+        String slug = "vf-" + base.substring(0, Math.min(base.length(), 20)) + "-" + stamp;
         String title = slug;
         String script = VideoFactoryScript.build(story, slug);
         project.save(u, slug, title, story, "GÖNDERİLİYOR", 0);
+        resetPlayerForProject();
         renderProject();
         setBusy(true, retrying ? "TÜM VİDEO YENİDEN GÖNDERİLİYOR…" : "GPU İŞİ GÖNDERİLİYOR…");
 
@@ -397,11 +426,36 @@ public class MainActivity extends Activity {
                 executor.execute(() -> verifyDownloadedVideo(id, slug));
             }
         };
-        IntentFilter filter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
-        if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(downloadReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            registerReceiver(downloadReceiver, filter);
+        // ACTION_DOWNLOAD_COMPLETE is a system-only broadcast. Android 14+ explicitly
+        // exempts such receivers from exported/not-exported flags.
+        registerReceiver(downloadReceiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+    }
+
+    private void reconcilePendingDownloads() {
+        try {
+            for (Map.Entry<String, ?> entry : prefs.getAll().entrySet()) {
+                String key = entry.getKey();
+                if (!key.startsWith("download_slug_")) continue;
+                long id;
+                try { id = Long.parseLong(key.substring("download_slug_".length())); }
+                catch (Exception ignored) { continue; }
+                String slug = String.valueOf(entry.getValue());
+                int state = downloadState(id);
+                if (state == DownloadManager.STATUS_SUCCESSFUL || state == DownloadManager.STATUS_FAILED) {
+                    verifyDownloadedVideo(id, slug);
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private int downloadState(long id) {
+        DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+        DownloadManager.Query q = new DownloadManager.Query().setFilterById(id);
+        try (Cursor c = dm.query(q)) {
+            if (c == null || !c.moveToFirst()) return -1;
+            return c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+        } catch (Exception e) {
+            return -1;
         }
     }
 
@@ -437,9 +491,14 @@ public class MainActivity extends Activity {
             }
 
             project.updateStatusForSlug(slug, "AI TAMAMLANDI — İNDİRİLDİ");
-            prefs.edit().remove("download_slug_" + id).putBoolean("last_download_verified", true).apply();
+            prefs.edit().remove("download_slug_" + id)
+                    .putBoolean("last_download_verified", true)
+                    .putString("verified_uri_" + slug, local).apply();
             ui(() -> {
-                if (slug.equals(project.slug())) renderProject();
+                if (slug.equals(project.slug())) {
+                    renderProject();
+                    resetPlayerForProject();
+                }
                 toast("MP4 indirildi ve doğrulandı.");
             });
         } catch (Exception e) {
@@ -449,6 +508,50 @@ public class MainActivity extends Activity {
                 if (slug.equals(project.slug())) renderProject();
                 showError("MP4 indirme doğrulaması", e);
             });
+        }
+    }
+
+    private void togglePlayback() {
+        if (!project.hasActiveProject()) {
+            toast("Oynatılacak proje yok.");
+            return;
+        }
+        String local = prefs.getString("verified_uri_" + project.slug(), "");
+        if (local == null || local.isEmpty()) {
+            toast("Bu proje için doğrulanmış indirilmiş MP4 yok.");
+            return;
+        }
+        if (local.equals(player.getTag())) {
+            if (player.isPlaying()) {
+                player.pause();
+                playPause.setText("▶ DEVAM ET");
+            } else {
+                player.start();
+                playPause.setText("Ⅱ DURAKLAT");
+            }
+            return;
+        }
+        player.setTag(local);
+        player.setVisibility(View.VISIBLE);
+        player.setVideoURI(Uri.parse(local));
+        player.setOnPreparedListener(mp -> {
+            player.start();
+            playPause.setText("Ⅱ DURAKLAT");
+        });
+    }
+
+    private void resetPlayerForProject() {
+        if (player == null || playPause == null) return;
+        try { player.stopPlayback(); } catch (Exception ignored) {}
+        player.setTag(null);
+        String local = project.hasActiveProject()
+                ? prefs.getString("verified_uri_" + project.slug(), "") : "";
+        if (local == null || local.isEmpty()) {
+            player.setVisibility(View.GONE);
+            playPause.setText("▶ İNDİRİLENİ OYNAT");
+        } else {
+            player.setVisibility(View.VISIBLE);
+            playPause.setText("▶ İNDİRİLENİ OYNAT");
         }
     }
 
