@@ -52,6 +52,23 @@ public class MainActivityTest {
         onView(withId(R.id.play_pause)).perform(scrollTo()).check(matches(isDisplayed()));
     }
 
+    @Test public void allSafeControlsAreActuallyClickableWithoutCrash() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        new ProjectStore(context).clearForTests();
+        onView(withId(R.id.username)).perform(scrollTo(), replaceText(""), closeSoftKeyboard());
+        onView(withId(R.id.token)).perform(scrollTo(), replaceText(""), closeSoftKeyboard());
+
+        int[] ids = new int[] {
+                R.id.save_auth, R.id.test_auth, R.id.generate,
+                R.id.prev_project, R.id.next_project, R.id.refresh, R.id.stop,
+                R.id.retry, R.id.download, R.id.play_pause
+        };
+        for (int id : ids) {
+            onView(withId(id)).perform(scrollTo()).check(matches(isDisplayed())).perform(click());
+        }
+        onView(withId(R.id.generate)).perform(scrollTo()).check(matches(isDisplayed()));
+    }
+
     @Test public void aiOutputMustBeExplicitlySuccessfulOnAndroid() throws Exception {
         assertEquals("AI TAMAMLANDI", KaggleClient.outputStateFromJson(
                 "{\"stage\":\"COMPLETE\",\"ai_ok\":true,\"final\":\"FINAL.mp4\"}"));
