@@ -72,7 +72,6 @@ def _sample_scene_frames(video_path, sample_dir):
     return images, paths
 
 def _cosine(a, b):
-    import torch
     a = a / a.norm(dim=-1, keepdim=True).clamp_min(1e-8)
     b = b / b.norm(dim=-1, keepdim=True).clamp_min(1e-8)
     return float((a * b).sum(dim=-1).mean().item())
@@ -113,7 +112,7 @@ def semantic_scene_qc(video_path, semantic_text, previous_frame, scene_index, at
     decision=quality_gate_decision(
         prompt_cosine, continuity_cosine, near_black_ratio, frame_change
     )
-    report={
+    return {
         'scene':scene_index,
         'attempt':attempt,
         'pass':bool(decision['pass']),
@@ -125,7 +124,6 @@ def semantic_scene_qc(video_path, semantic_text, previous_frame, scene_index, at
         'model':QC_MODEL,
         'revision':QC_REVISION,
     }
-    return report
 
 """;
         script = requireReplace(script,
@@ -164,8 +162,9 @@ def semantic_scene_qc(video_path, semantic_text, previous_frame, scene_index, at
                         + "    write_status(");
 
         script = requireReplace(script,
-                "prompt_language='English', translation=TRANSLATION_INFO",
-                "prompt_language='English', translation=TRANSLATION_INFO, "
+                "gpu=gpu_name, dtype='float16', audio='procedural_generic_emotion_sfx_aac', prompt_language='English', translation=TRANSLATION_INFO",
+                "gpu=gpu_name, dtype='float16', audio='procedural_generic_emotion_sfx_aac', "
+                        + "prompt_language='English', translation=TRANSLATION_INFO, "
                         + "quality_gate='siglip_semantic_plus_visual_integrity', quality=scene_qc_report");
 
         script = script.replace("story-v3", "story-v4");
