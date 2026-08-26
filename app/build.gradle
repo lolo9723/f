@@ -3,18 +3,20 @@ plugins {
 }
 
 android {
-    namespace 'tr.edu.balikesir.anketrapor'
+    namespace 'com.videofabrikasi.app'
     compileSdk 35
 
     defaultConfig {
-        applicationId 'tr.edu.balikesir.anketrapor'
+        applicationId 'com.videofabrikasi.app'
         minSdk 24
         targetSdk 35
         versionCode 1
         versionName '1.0.0'
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
+        debug { minifyEnabled false }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -25,4 +27,14 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+
+    testOptions { unitTests.returnDefaultValues = true }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test:rules:1.6.1'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
 }

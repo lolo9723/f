@@ -1,0 +1,14 @@
+<resources>
+    <item name="username" type="id"/>
+    <item name="token" type="id"/>
+    <item name="idea" type="id"/>
+    <item name="save_auth" type="id"/>
+    <item name="test_auth" type="id"/>
+    <item name="generate" type="id"/>
+    <item name="refresh" type="id"/>
+    <item name="stop" type="id"/>
+    <item name="retry" type="id"/>
+    <item name="download" type="id"/>
+    <item name="status_text" type="id"/>
+    <item name="project_text" type="id"/>
+</resources>
