@@ -3,6 +3,7 @@ package com.videofabrikasi.app;
 import android.app.DownloadManager;
 import android.content.Context;
 import android.content.Intent;
+import android.widget.ScrollView;
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -15,7 +16,9 @@ import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.action.ViewActions.closeSoftKeyboard;
 import static androidx.test.espresso.action.ViewActions.replaceText;
 import static androidx.test.espresso.action.ViewActions.scrollTo;
+import static androidx.test.espresso.action.ViewActions.swipeUp;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
+import static androidx.test.espresso.matcher.ViewMatchers.isAssignableFrom;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
@@ -24,6 +27,10 @@ import static androidx.test.espresso.matcher.ViewMatchers.withText;
 public class MainActivityTest {
     @Rule public ActivityScenarioRule<MainActivity> rule = new ActivityScenarioRule<>(MainActivity.class);
 
+    private void swipeContentUp() {
+        onView(isAssignableFrom(ScrollView.class)).perform(swipeUp());
+    }
+
     @Test public void criticalControlsAreVisibleAndIdeaEditable() {
         onView(withId(R.id.username)).perform(scrollTo()).check(matches(isDisplayed()));
         onView(withId(R.id.token)).perform(scrollTo()).check(matches(isDisplayed()));
@@ -31,13 +38,19 @@ public class MainActivityTest {
         onView(withId(R.id.generate)).perform(scrollTo()).check(matches(isDisplayed()));
         onView(withId(R.id.prev_project)).perform(scrollTo()).check(matches(isDisplayed()));
         onView(withId(R.id.next_project)).perform(scrollTo()).check(matches(isDisplayed()));
-        onView(withId(R.id.refresh)).perform(scrollTo()).check(matches(isDisplayed()));
-        onView(withId(R.id.retry)).perform(scrollTo()).check(matches(isDisplayed()));
-        onView(withId(R.id.download)).perform(scrollTo()).check(matches(isDisplayed()));
-        onView(withId(R.id.play_pause)).perform(scrollTo()).check(matches(isDisplayed()));
-        String sample="Bu test için yeterince uzun örnek bir video hikâyesidir.";
-        onView(withId(R.id.idea)).perform(scrollTo(), replaceText(sample), closeSoftKeyboard());
-        onView(withId(R.id.idea)).perform(scrollTo()).check(matches(withText(sample)));
+
+        // For the bottom section use the same physical gesture a user performs. Espresso's
+        // ScrollToAction can fail on Android 15 edge-to-edge layouts even when the ScrollView
+        // is healthy; a real swipe keeps this an end-user interaction test rather than a
+        // programmatic layout shortcut.
+        swipeContentUp();
+        onView(withId(R.id.refresh)).check(matches(isDisplayed()));
+        onView(withId(R.id.retry)).check(matches(isDisplayed()));
+        onView(withId(R.id.download)).check(matches(isDisplayed()));
+        onView(withId(R.id.play_pause)).check(matches(isDisplayed()));
+
+        onView(withId(R.id.idea)).perform(scrollTo(), replaceText("Bu test için yeterince uzun örnek bir video hikâyesidir."), closeSoftKeyboard());
+        onView(withId(R.id.idea)).perform(scrollTo()).check(matches(withText("Bu test için yeterince uzun örnek bir video hikâyesidir.")));
     }
 
     @Test public void generateRejectsMissingCredentialsWithoutCrash() {
@@ -48,8 +61,9 @@ public class MainActivityTest {
     }
 
     @Test public void playRejectsMissingVerifiedVideoWithoutCrash() {
-        onView(withId(R.id.play_pause)).perform(scrollTo(), click());
-        onView(withId(R.id.play_pause)).perform(scrollTo()).check(matches(isDisplayed()));
+        swipeContentUp();
+        onView(withId(R.id.play_pause)).check(matches(isDisplayed())).perform(click());
+        onView(withId(R.id.play_pause)).check(matches(isDisplayed()));
     }
 
     @Test public void allSafeControlsAreActuallyClickableWithoutCrash() {
@@ -58,14 +72,22 @@ public class MainActivityTest {
         onView(withId(R.id.username)).perform(scrollTo(), replaceText(""), closeSoftKeyboard());
         onView(withId(R.id.token)).perform(scrollTo(), replaceText(""), closeSoftKeyboard());
 
-        int[] ids = new int[] {
+        int[] upperIds = new int[] {
                 R.id.save_auth, R.id.test_auth, R.id.generate,
-                R.id.prev_project, R.id.next_project, R.id.refresh, R.id.stop,
-                R.id.retry, R.id.download, R.id.play_pause
+                R.id.prev_project, R.id.next_project
         };
-        for (int id : ids) {
+        for (int id : upperIds) {
             onView(withId(id)).perform(scrollTo()).check(matches(isDisplayed())).perform(click());
         }
+
+        swipeContentUp();
+        int[] lowerIds = new int[] {
+                R.id.refresh, R.id.stop, R.id.retry, R.id.download, R.id.play_pause
+        };
+        for (int id : lowerIds) {
+            onView(withId(id)).check(matches(isDisplayed())).perform(click());
+        }
+
         onView(withId(R.id.generate)).perform(scrollTo()).check(matches(isDisplayed()));
     }
 
