@@ -32,17 +32,22 @@ public final class ProjectStore {
     }
 
     public synchronized void updateStatus(String status) {
+        updateStatusForSlug(slug(), status);
+    }
+
+    public synchronized void updateStatusForSlug(String targetSlug, String status) {
+        if (targetSlug == null || targetSlug.isEmpty()) return;
         long now = System.currentTimeMillis();
-        p.edit().putString("status", status).putLong("updated", now).apply();
-        String activeSlug = slug();
-        if (activeSlug.isEmpty()) return;
+        if (targetSlug.equals(slug())) {
+            p.edit().putString("status", status).putLong("updated", now).apply();
+        }
         try {
             JSONArray old = historyArray();
             JSONArray next = new JSONArray();
             for (int i = 0; i < old.length(); i++) {
                 JSONObject item = old.optJSONObject(i);
                 if (item == null) continue;
-                if (activeSlug.equals(item.optString("slug", ""))) {
+                if (targetSlug.equals(item.optString("slug", ""))) {
                     item.put("status", status);
                     item.put("updated", now);
                 }
