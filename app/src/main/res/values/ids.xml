@@ -9,6 +9,8 @@
     <item name="stop" type="id"/>
     <item name="retry" type="id"/>
     <item name="download" type="id"/>
+    <item name="prev_project" type="id"/>
+    <item name="next_project" type="id"/>
     <item name="status_text" type="id"/>
     <item name="project_text" type="id"/>
 </resources>
