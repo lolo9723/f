@@ -29,6 +29,17 @@ public class VideoFactoryScriptTest {
         assertFalse(s.contains("output_path=str(out)"));
     }
 
+    @Test public void t4PathForcesFloat16InsteadOfNativeBfloat16() {
+        String s = VideoFactoryScript.build("test", "p1");
+        assertTrue(s.contains("cfg_data['precision'] = 'float16'"));
+        assertTrue(s.contains("elif precision == \"float16\":"));
+        assertTrue(s.contains("to(torch.float16)"));
+        assertTrue(s.contains("compute_dtype = torch.float16 if precision == \"float16\" else torch.bfloat16"));
+        assertTrue(s.contains("Pinned LTX transformer precision block changed unexpectedly"));
+        assertTrue(s.contains("Pinned LTX VAE/text encoder precision block changed unexpectedly"));
+        assertTrue(s.contains("T4-FP16"));
+    }
+
     @Test public void generatedPythonPassesRealSyntaxCompilation() throws Exception {
         String s = VideoFactoryScript.build("Türkçe fikir: çığlık atan mektup", "syntax-test");
         Path dir = Files.createTempDirectory("video-factory-python-test");
