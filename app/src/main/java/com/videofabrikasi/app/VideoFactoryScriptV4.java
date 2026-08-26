@@ -136,18 +136,16 @@ def semantic_scene_qc(video_path, semantic_text, previous_frame, scene_index, at
 
         script = requireReplace(script,
                 "                validate_scene_media(out)\n\n                next_frame=SCENES/f'continuity_{i+1}.png'",
-                """
-                validate_scene_media(out)
-                semantic_text = f'{SCENE_ROLES[i][0]} animated scene. {LTX_STORY[:480]}'
-                qc = semantic_scene_qc(
-                    out, semantic_text, continuity_frame, i+1, attempt
-                )
-                if not qc['pass']:
-                    raise RuntimeError('Semantic/visual QC failed: ' + '; '.join(qc['reasons']))
-                scene_qc_report.append(qc)
-                shutil.copy2(out, WORK/f'scene_{i+1}.mp4')
-
-                next_frame=SCENES/f'continuity_{i+1}.png'""");
+                "                validate_scene_media(out)\n"
+                        + "                semantic_text = f'{SCENE_ROLES[i][0]} animated scene. {LTX_STORY[:480]}'\n"
+                        + "                qc = semantic_scene_qc(\n"
+                        + "                    out, semantic_text, continuity_frame, i+1, attempt\n"
+                        + "                )\n"
+                        + "                if not qc['pass']:\n"
+                        + "                    raise RuntimeError('Semantic/visual QC failed: ' + '; '.join(qc['reasons']))\n"
+                        + "                scene_qc_report.append(qc)\n"
+                        + "                shutil.copy2(out, WORK/f'scene_{i+1}.mp4')\n\n"
+                        + "                next_frame=SCENES/f'continuity_{i+1}.png'");
 
         script = requireReplace(script,
                 "            continuity_frame=continuity_frame.name\n        )",
