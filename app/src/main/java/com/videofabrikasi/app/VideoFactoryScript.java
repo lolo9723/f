@@ -27,7 +27,7 @@ def write_status(**kw):
     data.update(kw)
     STATUS.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
 
-write_status(stage='BOOT', engine='LTX-Video 2B distilled 0.9.6', ai_ok=False)
+write_status(stage='BOOT', engine='LTX-Video 2B distilled 0.9.6 T4-FP16', ai_ok=False)
 
 PROMPTS = [
     \"\"\"Vertical 3D animated short. Two visually identical anthropomorphic white envelope characters with tiny black arms, legs, eyes and mouths. A confident happy envelope runs eagerly toward a red street mailbox. Behind it a frightened sad envelope screams in panic and sprints desperately to catch it. Very strong emotion in the first second, fast physical comedy, clean cinematic lighting, stable character design, no readable text.\"\"\",
@@ -89,12 +89,42 @@ def fallback_video():
     concat.write_text(''.join(\"file '%s'\\n\"%p for p in clips))
     subprocess.check_call(['ffmpeg','-y','-f','concat','-safe','0','-i',str(concat),'-vf','scale=1080:1920:flags=lanczos','-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart',str(FINAL)])
 
+def patch_ltx_for_t4_fp16(repo):
+    inference_file = repo/'ltx_video'/'inference.py'
+    src = inference_file.read_text(encoding='utf-8')
+    transformer_old = '''    elif precision == "bfloat16":
+        return Transformer3DModel.from_pretrained(ckpt_path).to(torch.bfloat16)
+    else:
+        return Transformer3DModel.from_pretrained(ckpt_path)
+'''
+    transformer_new = '''    elif precision == "bfloat16":
+        return Transformer3DModel.from_pretrained(ckpt_path).to(torch.bfloat16)
+    elif precision == "float16":
+        return Transformer3DModel.from_pretrained(ckpt_path).to(torch.float16)
+    else:
+        return Transformer3DModel.from_pretrained(ckpt_path)
+'''
+    cast_old = '''    vae = vae.to(torch.bfloat16)
+    text_encoder = text_encoder.to(torch.bfloat16)
+'''
+    cast_new = '''    compute_dtype = torch.float16 if precision == "float16" else torch.bfloat16
+    vae = vae.to(compute_dtype)
+    text_encoder = text_encoder.to(compute_dtype)
+'''
+    if transformer_old not in src:
+        raise RuntimeError('Pinned LTX transformer precision block changed unexpectedly')
+    if cast_old not in src:
+        raise RuntimeError('Pinned LTX VAE/text encoder precision block changed unexpectedly')
+    src = src.replace(transformer_old, transformer_new, 1).replace(cast_old, cast_new, 1)
+    inference_file.write_text(src, encoding='utf-8')
+
 try:
     repo = WORK/'LTX-Video'
     if not repo.exists():
         subprocess.check_call(['git','clone','--filter=blob:none','https://github.com/Lightricks/LTX-Video.git',str(repo)])
     subprocess.check_call(['git','-C',str(repo),'fetch','--depth','1','origin',LTX_COMMIT])
     subprocess.check_call(['git','-C',str(repo),'checkout','--detach','FETCH_HEAD'])
+    patch_ltx_for_t4_fp16(repo)
     subprocess.check_call([sys.executable,'-m','pip','install','-q','-e',str(repo)+'[inference]'])
     sys.path.insert(0,str(repo))
     from ltx_video.inference import infer, InferenceConfig
@@ -103,6 +133,7 @@ try:
     base_cfg = repo/'configs/ltxv-2b-0.9.6-distilled.yaml'
     custom_cfg = WORK/'ltx_t4_config.yaml'
     cfg_data = yaml.safe_load(base_cfg.read_text(encoding='utf-8'))
+    cfg_data['precision'] = 'float16'
     cfg_data['prompt_enhancement_words_threshold'] = 0
     custom_cfg.write_text(yaml.safe_dump(cfg_data, sort_keys=False), encoding='utf-8')
 
@@ -114,7 +145,7 @@ try:
         scene_dir=SCENES/f'generated_{i+1}'
         if scene_dir.exists(): shutil.rmtree(scene_dir)
         scene_dir.mkdir(parents=True)
-        write_status(stage=f'GENERATING_{i+1}_OF_5', engine='LTX-Video 2B distilled 0.9.6', ai_ok=False)
+        write_status(stage=f'GENERATING_{i+1}_OF_5', engine='LTX-Video 2B distilled 0.9.6 T4-FP16', ai_ok=False)
         cfg=InferenceConfig(
             pipeline_config=str(custom_cfg),
             prompt=prompt, height=800, width=448, num_frames=49, frame_rate=24,
@@ -130,7 +161,7 @@ try:
         if not out.is_file() or out.stat().st_size < 10000:
             raise RuntimeError(f'Scene {i+1} did not produce a valid MP4')
         generated.append(out)
-        write_status(stage=f'SCENE_{i+1}_READY', engine='LTX-Video 2B distilled 0.9.6', ai_ok=False,
+        write_status(stage=f'SCENE_{i+1}_READY', engine='LTX-Video 2B distilled 0.9.6 T4-FP16', ai_ok=False,
                      scene=i+1, scene_file=out.name)
 
     concat=WORK/'concat.txt'
@@ -140,7 +171,7 @@ try:
         '-pix_fmt','yuv420p','-movflags','+faststart',str(FINAL)])
     if not FINAL.is_file() or FINAL.stat().st_size < 100000:
         raise RuntimeError('Final MP4 is unexpectedly small or missing')
-    write_status(stage='COMPLETE', engine='LTX-Video 2B distilled 0.9.6', ai_ok=True, final='FINAL.mp4', scenes=5)
+    write_status(stage='COMPLETE', engine='LTX-Video 2B distilled 0.9.6 T4-FP16', ai_ok=True, final='FINAL.mp4', scenes=5)
 except Exception as e:
     (WORK/'ai_error.txt').write_text(traceback.format_exc(),encoding='utf-8')
     write_status(stage='AI_FAILED_FALLBACK', engine='fallback renderer', ai_ok=False, error=str(e))
