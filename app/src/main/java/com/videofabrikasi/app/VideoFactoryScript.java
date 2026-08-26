@@ -10,7 +10,7 @@ public final class VideoFactoryScript {
         String safeIdea = Base64.getEncoder().encodeToString((idea == null ? "" : idea).getBytes(StandardCharsets.UTF_8));
         String safeId = Base64.getEncoder().encodeToString((projectId == null ? "" : projectId).getBytes(StandardCharsets.UTF_8));
         return """
-import os, sys, json, subprocess, traceback, base64, shutil
+import os, sys, json, subprocess, traceback, base64, shutil, wave
 from pathlib import Path
 
 PROJECT_ID = base64.b64decode('__PROJECT_ID_B64__').decode('utf-8')
@@ -70,6 +70,95 @@ def make_reference(path, scene):
     else:
         env(195,520,True); env(355,600,False)
     img.save(path)
+
+def build_soundtrack(path, duration):
+    import numpy as np
+    sr = 44100
+    count = max(1, int(sr * duration))
+    audio = np.zeros(count, dtype=np.float32)
+    rng = np.random.default_rng(12400)
+
+    def put(start, signal, gain=1.0):
+        idx = int(max(0.0, start) * sr)
+        if idx >= len(audio): return
+        end = min(len(audio), idx + len(signal))
+        audio[idx:end] += signal[:end-idx] * gain
+
+    def envelope(n, attack=0.03, release=0.12):
+        env = np.ones(n, dtype=np.float32)
+        a = min(n, max(1, int(sr*attack)))
+        r = min(n, max(1, int(sr*release)))
+        env[:a] *= np.linspace(0.0, 1.0, a, dtype=np.float32)
+        env[-r:] *= np.linspace(1.0, 0.0, r, dtype=np.float32)
+        return env
+
+    # First-second cartoon scream: formant-like harmonics + breath noise.
+    n = int(sr * 1.20)
+    tt = np.arange(n, dtype=np.float32) / sr
+    f0 = 390.0 + 120.0*np.sin(2*np.pi*4.2*tt) + 210.0*tt
+    phase = 2*np.pi*np.cumsum(f0)/sr
+    scream = (0.58*np.sin(phase) + 0.30*np.sin(2*phase) + 0.17*np.sin(3*phase)
+              + 0.08*rng.normal(0,1,n).astype(np.float32))
+    scream *= envelope(n, 0.015, 0.18)
+    put(0.04, scream, 0.72)
+
+    # Fast whoosh as the frightened letter catches up.
+    n = int(sr * 0.55)
+    tt = np.arange(n, dtype=np.float32) / sr
+    whoosh_noise = rng.normal(0,1,n).astype(np.float32)
+    whoosh = np.concatenate(([0.0], np.diff(whoosh_noise)))
+    whoosh *= np.sin(np.pi*np.clip(tt/0.55,0,1))**2
+    put(1.05, whoosh, 0.13)
+
+    # Push / mailbox impact.
+    n = int(sr * 0.38)
+    tt = np.arange(n, dtype=np.float32) / sr
+    impact = (np.sin(2*np.pi*72*tt) + 0.45*rng.normal(0,1,n).astype(np.float32)) * np.exp(-tt*15.0)
+    put(2.00, impact, 0.42)
+
+    # Metallic mailbox clank.
+    n = int(sr * 0.50)
+    tt = np.arange(n, dtype=np.float32) / sr
+    metal = (np.sin(2*np.pi*1180*tt) + 0.55*np.sin(2*np.pi*1830*tt)) * np.exp(-tt*8.5)
+    put(6.15, metal, 0.18)
+
+    # Emotional low drone after the bad letter is read.
+    n = int(sr * 2.30)
+    tt = np.arange(n, dtype=np.float32) / sr
+    drone = (np.sin(2*np.pi*146.8*tt) + 0.42*np.sin(2*np.pi*174.6*tt)) * envelope(n,0.35,0.70)
+    put(7.65, drone, 0.10)
+
+    # Paper fall / final rustle.
+    n = int(sr * 0.75)
+    tt = np.arange(n, dtype=np.float32) / sr
+    paper_noise = rng.normal(0,1,n).astype(np.float32)
+    paper = np.concatenate(([0.0], np.diff(paper_noise))) * envelope(n,0.02,0.35)
+    put(9.20, paper, 0.09)
+
+    peak = float(np.max(np.abs(audio))) if len(audio) else 1.0
+    if peak > 0.94:
+        audio *= 0.94 / peak
+    pcm = (np.clip(audio, -1.0, 1.0) * 32767.0).astype(np.int16)
+    with wave.open(str(path), 'wb') as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sr)
+        wf.writeframes(pcm.tobytes())
+
+def validate_final_media(path):
+    if not path.is_file() or path.stat().st_size < 100000:
+        raise RuntimeError('Final MP4 is unexpectedly small or missing')
+    raw = subprocess.check_output([
+        'ffprobe','-v','error','-show_entries','stream=codec_type,width,height','-of','json',str(path)
+    ], text=True)
+    info = json.loads(raw)
+    streams = info.get('streams', [])
+    video = next((s for s in streams if s.get('codec_type') == 'video'), None)
+    audio = next((s for s in streams if s.get('codec_type') == 'audio'), None)
+    if video is None or int(video.get('width',0)) != 1080 or int(video.get('height',0)) != 1920:
+        raise RuntimeError('Final video stream is missing or not 1080x1920')
+    if audio is None:
+        raise RuntimeError('Final audio stream is missing')
 
 def fallback_video():
     from PIL import Image, ImageDraw
@@ -190,13 +279,17 @@ try:
 
     concat=TEMP/'concat.txt'
     concat.write_text(''.join(\"file '%s'\\n\"%p for p in generated))
+    video_only=TEMP/'final_video_only.mp4'
     subprocess.check_call(['ffmpeg','-y','-f','concat','-safe','0','-i',str(concat),
         '-vf','scale=1080:1920:flags=lanczos','-c:v','libx264','-preset','medium','-crf','19',
-        '-pix_fmt','yuv420p','-movflags','+faststart',str(FINAL)])
-    if not FINAL.is_file() or FINAL.stat().st_size < 100000:
-        raise RuntimeError('Final MP4 is unexpectedly small or missing')
+        '-pix_fmt','yuv420p','-movflags','+faststart',str(video_only)])
+    audio_path=TEMP/'soundtrack.wav'
+    build_soundtrack(audio_path, 10.4)
+    subprocess.check_call(['ffmpeg','-y','-i',str(video_only),'-i',str(audio_path),
+        '-c:v','copy','-c:a','aac','-b:a','160k','-shortest','-movflags','+faststart',str(FINAL)])
+    validate_final_media(FINAL)
     write_status(stage='COMPLETE', engine='LTX-Video 2B distilled 0.9.6 T4-FP16', ai_ok=True,
-                 final='FINAL.mp4', scenes=5, gpu=gpu_name, dtype='float16')
+                 final='FINAL.mp4', scenes=5, gpu=gpu_name, dtype='float16', audio='procedural_sfx_aac')
 except Exception as e:
     (WORK/'ai_error.txt').write_text(traceback.format_exc(),encoding='utf-8')
     write_status(stage='AI_FAILED_FALLBACK', engine='fallback renderer', ai_ok=False, error=str(e))
