@@ -24,6 +24,8 @@ public class MainActivityTest {
         onView(withId(R.id.token)).check(matches(isDisplayed()));
         onView(withId(R.id.idea)).check(matches(isDisplayed()));
         onView(withId(R.id.generate)).check(matches(isDisplayed()));
+        onView(withId(R.id.prev_project)).check(matches(isDisplayed()));
+        onView(withId(R.id.next_project)).check(matches(isDisplayed()));
         onView(withId(R.id.refresh)).check(matches(isDisplayed()));
         onView(withId(R.id.retry)).check(matches(isDisplayed()));
         onView(withId(R.id.download)).check(matches(isDisplayed()));
