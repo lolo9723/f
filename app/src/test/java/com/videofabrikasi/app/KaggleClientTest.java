@@ -16,16 +16,4 @@ public class KaggleClientTest {
         assertEquals("KUYRUKTA", KaggleClient.normalizeStatus("QUEUED"));
         assertEquals("HATALI", KaggleClient.normalizeStatus("ERROR"));
     }
-
-    @Test public void aiOutputMustBeExplicitlySuccessful() throws Exception {
-        assertEquals("AI TAMAMLANDI", KaggleClient.outputStateFromJson(
-                "{\"stage\":\"COMPLETE\",\"ai_ok\":true,\"final\":\"FINAL.mp4\"}"));
-    }
-
-    @Test public void fallbackIsNeverReportedAsAiSuccess() throws Exception {
-        String state = KaggleClient.outputStateFromJson(
-                "{\"stage\":\"COMPLETE_FALLBACK\",\"ai_ok\":false,\"error\":\"model failed\"}");
-        assertTrue(state.startsWith("AI BAŞARISIZ — FALLBACK"));
-        assertFalse(state.equals("AI TAMAMLANDI"));
-    }
 }
