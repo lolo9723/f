@@ -31,6 +31,25 @@ jobs:
             app/build/reports/tests/testDebugUnitTest/**
             app/build/test-results/testDebugUnitTest/**
           if-no-files-found: warn
+      - name: Live E2E tooling dry contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/kaggle_live_e2e.py
+          rm -rf /tmp/vf-e2e-dry
+          mkdir -p /tmp/vf-e2e-dry/classes
+          javac -encoding UTF-8 -d /tmp/vf-e2e-dry/classes \
+            app/src/main/java/com/videofabrikasi/app/VideoFactoryScript.java \
+            app/src/main/java/com/videofabrikasi/app/VideoFactoryScriptV2.java \
+            app/src/main/java/com/videofabrikasi/app/VideoFactoryScriptV3.java \
+            tools/com/videofabrikasi/app/GenerateE2EScript.java
+          java -cp /tmp/vf-e2e-dry/classes com.videofabrikasi.app.GenerateE2EScript vf-ci-dry-run \
+            > /tmp/vf-e2e-dry/kernel.py
+          python3 -m py_compile /tmp/vf-e2e-dry/kernel.py
+          grep -q "story-v3" /tmp/vf-e2e-dry/kernel.py
+          grep -q "Helsinki-NLP/opus-mt-tr-en" /tmp/vf-e2e-dry/kernel.py
+          grep -q "CONTINUITY_STRENGTH = 0.65" /tmp/vf-e2e-dry/kernel.py
+          echo "Live E2E tooling dry contract PASS"
       - name: Lint
         run: gradle lintDebug --stacktrace
       - name: Build APK
