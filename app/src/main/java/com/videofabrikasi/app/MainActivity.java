@@ -11,6 +11,7 @@ import android.database.Cursor;
 import android.graphics.Color;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -423,12 +424,19 @@ public class MainActivity extends Activity {
                 if (id <= 0L) return;
                 String slug = prefs.getString("download_slug_" + id, "");
                 if (slug == null || slug.isEmpty()) return;
+                // The receiver is exported on Android 13+ because DownloadManager is outside
+                // our app process. Spoofed broadcasts cannot mark a project successful: the ID
+                // must already exist in our pending map and verifyDownloadedVideo queries the
+                // authoritative DownloadManager row before accepting the file.
                 executor.execute(() -> verifyDownloadedVideo(id, slug));
             }
         };
-        // ACTION_DOWNLOAD_COMPLETE is a system-only broadcast. Android 14+ explicitly
-        // exempts such receivers from exported/not-exported flags.
-        registerReceiver(downloadReceiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+        IntentFilter filter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(downloadReceiver, filter, Context.RECEIVER_EXPORTED);
+        } else {
+            registerReceiver(downloadReceiver, filter);
+        }
     }
 
     private void reconcilePendingDownloads() {
