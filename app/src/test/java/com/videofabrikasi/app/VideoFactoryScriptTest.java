@@ -15,12 +15,14 @@ public class VideoFactoryScriptTest {
                 "p1");
     }
 
-    @Test public void v2IsTheActiveProductionEngine() {
+    @Test public void v3IsTheActiveProductionEngine() {
         String s = script();
-        assertTrue(s.contains("story-v2"));
+        assertTrue(s.contains("story-v3"));
+        assertFalse(s.contains("story-v2"));
         assertTrue(s.contains("CONTINUITY_STRENGTH = 0.65"));
         assertTrue(s.contains("SCENE_ROLES = ["));
-        assertTrue(s.contains("PROMPTS = build_scene_prompts(USER_IDEA)"));
+        assertTrue(s.contains("PROMPTS = build_scene_prompts(LTX_STORY)"));
+        assertFalse(s.contains("PROMPTS = build_scene_prompts(USER_IDEA)"));
     }
 
     @Test public void genericStoryUsesFiveDistinctDramaticRoles() {
@@ -41,6 +43,67 @@ public class VideoFactoryScriptTest {
         assertFalse(s.contains("happy envelope"));
         assertFalse(s.contains("worried envelope"));
         assertTrue(s.contains("use only characters, objects, setting and events supported by the creator story"));
+    }
+
+    @Test public void turkishStoryIsPreparedInEnglishOnCpuBeforeLtxPrompts() {
+        String s = script();
+        assertTrue(s.contains("TRANSLATION_MODEL = 'Helsinki-NLP/opus-mt-tr-en'"));
+        assertTrue(s.contains("TRANSLATION_REVISION = '8f0734f08b3e19c8ef655c26625f725bc9b73d10'"));
+        assertTrue(s.contains("AutoTokenizer.from_pretrained"));
+        assertTrue(s.contains("AutoModelForSeq2SeqLM.from_pretrained"));
+        assertTrue(s.contains("revision=TRANSLATION_REVISION"));
+        assertTrue(s.contains(".to('cpu')"));
+        assertTrue(s.contains("torch.inference_mode()"));
+        assertTrue(s.contains("num_beams=4"));
+        assertTrue(s.contains("do_sample=False"));
+        assertTrue(s.contains("sentencepiece==0.2.0"));
+        assertTrue(s.contains("LTX_STORY, TRANSLATION_INFO = prepare_story_for_ltx(USER_IDEA)"));
+        assertTrue(s.contains("prompt_language='English'"));
+        assertTrue(s.contains("Translation still appears Turkish; refusing low-quality LTX prompt"));
+        assertTrue(s.contains("'mode':'tr_to_en'"));
+    }
+
+    @Test public void turkishDetectionAndChunkingActuallyExecuteWithoutDownloadingModel() throws Exception {
+        String s = VideoFactoryScript.build(
+                "Bir anahtar kapıya doğru koşuyor ama neden kaçtığı finalde ortaya çıkıyor.",
+                "language-test");
+        Path dir = Files.createTempDirectory("video-factory-language-test");
+        Path generated = dir.resolve("generated.py");
+        Path runner = dir.resolve("language_runner.py");
+        Files.write(generated, s.getBytes(StandardCharsets.UTF_8));
+
+        String helper = """
+import ast, json, sys
+source = open(sys.argv[1], encoding='utf-8').read()
+tree = ast.parse(source)
+selected=[]
+for node in tree.body:
+    if isinstance(node, ast.Assign):
+        names=[t.id for t in node.targets if isinstance(t, ast.Name)]
+        if any(n in ('TURKISH_CHARS','TURKISH_HINT_WORDS') for n in names):
+            selected.append(node)
+    elif isinstance(node, ast.FunctionDef) and node.name in ('looks_turkish','split_translation_chunks'):
+        selected.append(node)
+ns={}
+exec(compile(ast.Module(body=selected, type_ignores=[]), '<language-only>', 'exec'), ns)
+result={
+  'turkish_ascii': ns['looks_turkish']('bir mektup kutuya kosuyor ama neden finalde ortaya cikiyor'),
+  'turkish_unicode': ns['looks_turkish']('Küçük anahtar üzgün şekilde kapıya koşuyor'),
+  'english': ns['looks_turkish']('A small key runs toward a locked door in panic'),
+  'chunks': ns['split_translation_chunks']('Birinci cümle. İkinci cümle! Üçüncü cümle?', 20)
+}
+print(json.dumps(result, ensure_ascii=False))
+""";
+        Files.write(runner, helper.getBytes(StandardCharsets.UTF_8));
+        Process p = new ProcessBuilder("python3", runner.toString(), generated.toString())
+                .redirectErrorStream(true).start();
+        String output = readAll(p.getInputStream());
+        int code = p.waitFor();
+        assertEquals("Language helper execution failed: " + output, 0, code);
+        assertTrue(output.contains("\"turkish_ascii\": true"));
+        assertTrue(output.contains("\"turkish_unicode\": true"));
+        assertTrue(output.contains("\"english\": false"));
+        assertTrue(output.contains("\"chunks\":"));
     }
 
     @Test public void firstSceneIsTextToVideoAndLaterScenesUsePreviousLastFrame() {
@@ -106,7 +169,7 @@ public class VideoFactoryScriptTest {
         String s = VideoFactoryScript.build(
                 "Türkçe fikir: korkmuş bir bavul kapıdan kaçıyor ve gizli nedeni finalde ortaya çıkıyor.",
                 "syntax-test");
-        Path dir = Files.createTempDirectory("video-factory-python-v2-test");
+        Path dir = Files.createTempDirectory("video-factory-python-v3-test");
         Path py = dir.resolve("generated.py");
         Files.write(py, s.getBytes(StandardCharsets.UTF_8));
 
