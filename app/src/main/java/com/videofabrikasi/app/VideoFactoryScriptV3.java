@@ -33,16 +33,17 @@ TURKISH_HINT_WORDS = {
 }
 
 def looks_turkish(text):
+    import re
     text = text or ''
     if any(ch in TURKISH_CHARS for ch in text):
         return True
-    words = [w.strip('.,!?;:\"\\'()[]{}').lower() for w in text.split()]
+    words = [w.lower() for w in re.findall(r'[A-Za-zÇĞİÖŞÜçğıöşü]+', text)]
     hits = sum(1 for w in words if w in TURKISH_HINT_WORDS)
     return hits >= 2
 
 def split_translation_chunks(text, max_chars=700):
     import re
-    pieces = [p.strip() for p in re.split(r'(?<=[.!?;])\\s+', text or '') if p.strip()]
+    pieces = [p.strip() for p in re.split(r'(?<=[.!?;])\s+', text or '') if p.strip()]
     if not pieces:
         return []
     chunks=[]
