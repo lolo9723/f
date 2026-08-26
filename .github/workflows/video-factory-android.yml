@@ -99,7 +99,6 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            set -o pipefail
             adb wait-for-device
             adb shell input keyevent KEYCODE_WAKEUP || true
             adb shell wm dismiss-keyguard || true
@@ -107,7 +106,10 @@ jobs:
             adb shell input keyevent KEYCODE_HOME || true
             sleep 2
 
-            if gradle connectedDebugAndroidTest --stacktrace 2>&1 | tee /tmp/vf-instrumentation-first.log; then
+            gradle connectedDebugAndroidTest --stacktrace > /tmp/vf-instrumentation-first.log 2>&1
+            first_rc=$?
+            cat /tmp/vf-instrumentation-first.log
+            if [ "$first_rc" -eq 0 ]; then
               exit 0
             fi
 
