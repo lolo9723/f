@@ -145,6 +145,7 @@ def semantic_scene_qc(video_path, semantic_text, previous_frame, scene_index, at
                 if not qc['pass']:
                     raise RuntimeError('Semantic/visual QC failed: ' + '; '.join(qc['reasons']))
                 scene_qc_report.append(qc)
+                shutil.copy2(out, WORK/f'scene_{i+1}.mp4')
 
                 next_frame=SCENES/f'continuity_{i+1}.png'""");
 
