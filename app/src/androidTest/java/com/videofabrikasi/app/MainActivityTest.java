@@ -14,6 +14,7 @@ import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.action.ViewActions.closeSoftKeyboard;
 import static androidx.test.espresso.action.ViewActions.replaceText;
+import static androidx.test.espresso.action.ViewActions.scrollTo;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
@@ -24,31 +25,31 @@ public class MainActivityTest {
     @Rule public ActivityScenarioRule<MainActivity> rule = new ActivityScenarioRule<>(MainActivity.class);
 
     @Test public void criticalControlsAreVisibleAndIdeaEditable() {
-        onView(withId(R.id.username)).check(matches(isDisplayed()));
-        onView(withId(R.id.token)).check(matches(isDisplayed()));
-        onView(withId(R.id.idea)).check(matches(isDisplayed()));
-        onView(withId(R.id.generate)).check(matches(isDisplayed()));
-        onView(withId(R.id.prev_project)).check(matches(isDisplayed()));
-        onView(withId(R.id.next_project)).check(matches(isDisplayed()));
-        onView(withId(R.id.refresh)).check(matches(isDisplayed()));
-        onView(withId(R.id.retry)).check(matches(isDisplayed()));
-        onView(withId(R.id.download)).check(matches(isDisplayed()));
-        onView(withId(R.id.play_pause)).check(matches(isDisplayed()));
+        onView(withId(R.id.username)).perform(scrollTo()).check(matches(isDisplayed()));
+        onView(withId(R.id.token)).perform(scrollTo()).check(matches(isDisplayed()));
+        onView(withId(R.id.idea)).perform(scrollTo()).check(matches(isDisplayed()));
+        onView(withId(R.id.generate)).perform(scrollTo()).check(matches(isDisplayed()));
+        onView(withId(R.id.prev_project)).perform(scrollTo()).check(matches(isDisplayed()));
+        onView(withId(R.id.next_project)).perform(scrollTo()).check(matches(isDisplayed()));
+        onView(withId(R.id.refresh)).perform(scrollTo()).check(matches(isDisplayed()));
+        onView(withId(R.id.retry)).perform(scrollTo()).check(matches(isDisplayed()));
+        onView(withId(R.id.download)).perform(scrollTo()).check(matches(isDisplayed()));
+        onView(withId(R.id.play_pause)).perform(scrollTo()).check(matches(isDisplayed()));
         String sample="Bu test için yeterince uzun örnek bir video hikâyesidir.";
-        onView(withId(R.id.idea)).perform(replaceText(sample), closeSoftKeyboard());
-        onView(withId(R.id.idea)).check(matches(withText(sample)));
+        onView(withId(R.id.idea)).perform(scrollTo(), replaceText(sample), closeSoftKeyboard());
+        onView(withId(R.id.idea)).perform(scrollTo()).check(matches(withText(sample)));
     }
 
     @Test public void generateRejectsMissingCredentialsWithoutCrash() {
-        onView(withId(R.id.username)).perform(replaceText(""), closeSoftKeyboard());
-        onView(withId(R.id.token)).perform(replaceText(""), closeSoftKeyboard());
-        onView(withId(R.id.generate)).perform(click());
-        onView(withId(R.id.generate)).check(matches(isDisplayed()));
+        onView(withId(R.id.username)).perform(scrollTo(), replaceText(""), closeSoftKeyboard());
+        onView(withId(R.id.token)).perform(scrollTo(), replaceText(""), closeSoftKeyboard());
+        onView(withId(R.id.generate)).perform(scrollTo(), click());
+        onView(withId(R.id.generate)).perform(scrollTo()).check(matches(isDisplayed()));
     }
 
     @Test public void playRejectsMissingVerifiedVideoWithoutCrash() {
-        onView(withId(R.id.play_pause)).perform(click());
-        onView(withId(R.id.play_pause)).check(matches(isDisplayed()));
+        onView(withId(R.id.play_pause)).perform(scrollTo(), click());
+        onView(withId(R.id.play_pause)).perform(scrollTo()).check(matches(isDisplayed()));
     }
 
     @Test public void aiOutputMustBeExplicitlySuccessfulOnAndroid() throws Exception {
@@ -70,6 +71,6 @@ public class MainActivityTest {
         intent.putExtra(DownloadManager.EXTRA_DOWNLOAD_ID, 987654321L);
         context.sendBroadcast(intent);
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
-        onView(withId(R.id.generate)).check(matches(isDisplayed()));
+        onView(withId(R.id.generate)).perform(scrollTo()).check(matches(isDisplayed()));
     }
 }
