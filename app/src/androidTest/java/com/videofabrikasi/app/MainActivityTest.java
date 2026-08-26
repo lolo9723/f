@@ -5,6 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import static org.junit.Assert.*;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.action.ViewActions.closeSoftKeyboard;
@@ -36,5 +37,17 @@ public class MainActivityTest {
         onView(withId(R.id.token)).perform(replaceText(""), closeSoftKeyboard());
         onView(withId(R.id.generate)).perform(click());
         onView(withId(R.id.generate)).check(matches(isDisplayed()));
+    }
+
+    @Test public void aiOutputMustBeExplicitlySuccessfulOnAndroid() throws Exception {
+        assertEquals("AI TAMAMLANDI", KaggleClient.outputStateFromJson(
+                "{\"stage\":\"COMPLETE\",\"ai_ok\":true,\"final\":\"FINAL.mp4\"}"));
+    }
+
+    @Test public void fallbackIsNeverReportedAsAiSuccessOnAndroid() throws Exception {
+        String state = KaggleClient.outputStateFromJson(
+                "{\"stage\":\"COMPLETE_FALLBACK\",\"ai_ok\":false,\"error\":\"model failed\"}");
+        assertTrue(state.startsWith("AI BAŞARISIZ — FALLBACK"));
+        assertNotEquals("AI TAMAMLANDI", state);
     }
 }
