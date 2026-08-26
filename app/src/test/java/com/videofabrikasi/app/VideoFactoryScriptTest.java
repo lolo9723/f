@@ -50,6 +50,20 @@ public class VideoFactoryScriptTest {
         assertTrue(s.contains("stage='GPU_READY'"));
     }
 
+    @Test public void kaggleWorkingKeepsOnlyPersistentOutputsByDesign() {
+        String s = VideoFactoryScript.build("test", "p1");
+        assertTrue(s.contains("WORK = Path('/kaggle/working')"));
+        assertTrue(s.contains("TEMP = Path('/tmp/video-factory')"));
+        assertTrue(s.contains("FINAL = WORK / 'FINAL.mp4'"));
+        assertTrue(s.contains("STATUS = WORK / 'status.json'"));
+        assertTrue(s.contains("SCENES = TEMP / 'scenes'"));
+        assertTrue(s.contains("repo = TEMP/'LTX-Video'"));
+        assertTrue(s.contains("custom_cfg = TEMP/'ltx_t4_config.yaml'"));
+        assertTrue(s.contains("concat=TEMP/'concat.txt'"));
+        assertFalse(s.contains("SCENES = WORK"));
+        assertFalse(s.contains("repo = WORK/'LTX-Video'"));
+    }
+
     @Test public void generatedPythonPassesRealSyntaxCompilation() throws Exception {
         String s = VideoFactoryScript.build("Türkçe fikir: çığlık atan mektup", "syntax-test");
         Path dir = Files.createTempDirectory("video-factory-python-test");
