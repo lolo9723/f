@@ -118,6 +118,22 @@ def patch_ltx_for_t4_fp16(repo):
     src = src.replace(transformer_old, transformer_new, 1).replace(cast_old, cast_new, 1)
     inference_file.write_text(src, encoding='utf-8')
 
+def gpu_preflight():
+    import torch
+    if not torch.cuda.is_available():
+        raise RuntimeError('Kaggle GPU is not available')
+    gpu_name = torch.cuda.get_device_name(0)
+    total_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+    if total_gb < 12:
+        raise RuntimeError(f'GPU VRAM is too small: {total_gb:.1f} GiB')
+    probe = torch.ones((64,64), device='cuda', dtype=torch.float16)
+    probe_result = (probe @ probe).sum().item()
+    if probe_result <= 0:
+        raise RuntimeError('FP16 CUDA preflight returned an invalid result')
+    del probe
+    torch.cuda.empty_cache()
+    return gpu_name, round(total_gb, 1), torch.__version__
+
 try:
     repo = WORK/'LTX-Video'
     if not repo.exists():
@@ -125,7 +141,11 @@ try:
     subprocess.check_call(['git','-C',str(repo),'fetch','--depth','1','origin',LTX_COMMIT])
     subprocess.check_call(['git','-C',str(repo),'checkout','--detach','FETCH_HEAD'])
     patch_ltx_for_t4_fp16(repo)
+    subprocess.check_call([sys.executable,'-m','pip','install','-q','transformers==4.49.0','diffusers==0.33.1'])
     subprocess.check_call([sys.executable,'-m','pip','install','-q','-e',str(repo)+'[inference]'])
+    gpu_name, gpu_vram_gb, torch_version = gpu_preflight()
+    write_status(stage='GPU_READY', engine='LTX-Video 2B distilled 0.9.6 T4-FP16', ai_ok=False,
+                 gpu=gpu_name, vram_gb=gpu_vram_gb, torch=torch_version, dtype='float16')
     sys.path.insert(0,str(repo))
     from ltx_video.inference import infer, InferenceConfig
     import yaml
@@ -145,7 +165,8 @@ try:
         scene_dir=SCENES/f'generated_{i+1}'
         if scene_dir.exists(): shutil.rmtree(scene_dir)
         scene_dir.mkdir(parents=True)
-        write_status(stage=f'GENERATING_{i+1}_OF_5', engine='LTX-Video 2B distilled 0.9.6 T4-FP16', ai_ok=False)
+        write_status(stage=f'GENERATING_{i+1}_OF_5', engine='LTX-Video 2B distilled 0.9.6 T4-FP16', ai_ok=False,
+                     gpu=gpu_name, dtype='float16')
         cfg=InferenceConfig(
             pipeline_config=str(custom_cfg),
             prompt=prompt, height=800, width=448, num_frames=49, frame_rate=24,
@@ -162,7 +183,7 @@ try:
             raise RuntimeError(f'Scene {i+1} did not produce a valid MP4')
         generated.append(out)
         write_status(stage=f'SCENE_{i+1}_READY', engine='LTX-Video 2B distilled 0.9.6 T4-FP16', ai_ok=False,
-                     scene=i+1, scene_file=out.name)
+                     scene=i+1, scene_file=out.name, gpu=gpu_name, dtype='float16')
 
     concat=WORK/'concat.txt'
     concat.write_text(''.join(\"file '%s'\\n\"%p for p in generated))
@@ -171,7 +192,8 @@ try:
         '-pix_fmt','yuv420p','-movflags','+faststart',str(FINAL)])
     if not FINAL.is_file() or FINAL.stat().st_size < 100000:
         raise RuntimeError('Final MP4 is unexpectedly small or missing')
-    write_status(stage='COMPLETE', engine='LTX-Video 2B distilled 0.9.6 T4-FP16', ai_ok=True, final='FINAL.mp4', scenes=5)
+    write_status(stage='COMPLETE', engine='LTX-Video 2B distilled 0.9.6 T4-FP16', ai_ok=True,
+                 final='FINAL.mp4', scenes=5, gpu=gpu_name, dtype='float16')
 except Exception as e:
     (WORK/'ai_error.txt').write_text(traceback.format_exc(),encoding='utf-8')
     write_status(stage='AI_FAILED_FALLBACK', engine='fallback renderer', ai_ok=False, error=str(e))
