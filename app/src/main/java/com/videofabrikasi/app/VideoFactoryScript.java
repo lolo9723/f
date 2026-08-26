@@ -17,9 +17,13 @@ PROJECT_ID = base64.b64decode('__PROJECT_ID_B64__').decode('utf-8')
 USER_IDEA = base64.b64decode('__USER_IDEA_B64__').decode('utf-8')
 LTX_COMMIT = '4b2d053057623ddd4d0a1d3e9cd28890e9ef487f'
 WORK = Path('/kaggle/working')
+TEMP = Path('/tmp/video-factory')
+if TEMP.exists():
+    shutil.rmtree(TEMP)
+TEMP.mkdir(parents=True)
 FINAL = WORK / 'FINAL.mp4'
 STATUS = WORK / 'status.json'
-SCENES = WORK / 'scenes'
+SCENES = TEMP / 'scenes'
 SCENES.mkdir(exist_ok=True)
 
 def write_status(**kw):
@@ -85,7 +89,7 @@ def fallback_video():
         out=SCENES/f'fallback_{i+1}.mp4'
         imageio.mimsave(out, frames, fps=24, codec='libx264', quality=7)
         clips.append(out)
-    concat=WORK/'concat_fallback.txt'
+    concat=TEMP/'concat_fallback.txt'
     concat.write_text(''.join(\"file '%s'\\n\"%p for p in clips))
     subprocess.check_call(['ffmpeg','-y','-f','concat','-safe','0','-i',str(concat),'-vf','scale=1080:1920:flags=lanczos','-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart',str(FINAL)])
 
@@ -135,9 +139,8 @@ def gpu_preflight():
     return gpu_name, round(total_gb, 1), torch.__version__
 
 try:
-    repo = WORK/'LTX-Video'
-    if not repo.exists():
-        subprocess.check_call(['git','clone','--filter=blob:none','https://github.com/Lightricks/LTX-Video.git',str(repo)])
+    repo = TEMP/'LTX-Video'
+    subprocess.check_call(['git','clone','--filter=blob:none','https://github.com/Lightricks/LTX-Video.git',str(repo)])
     subprocess.check_call(['git','-C',str(repo),'fetch','--depth','1','origin',LTX_COMMIT])
     subprocess.check_call(['git','-C',str(repo),'checkout','--detach','FETCH_HEAD'])
     patch_ltx_for_t4_fp16(repo)
@@ -151,7 +154,7 @@ try:
     import yaml
 
     base_cfg = repo/'configs/ltxv-2b-0.9.6-distilled.yaml'
-    custom_cfg = WORK/'ltx_t4_config.yaml'
+    custom_cfg = TEMP/'ltx_t4_config.yaml'
     cfg_data = yaml.safe_load(base_cfg.read_text(encoding='utf-8'))
     cfg_data['precision'] = 'float16'
     cfg_data['prompt_enhancement_words_threshold'] = 0
@@ -185,7 +188,7 @@ try:
         write_status(stage=f'SCENE_{i+1}_READY', engine='LTX-Video 2B distilled 0.9.6 T4-FP16', ai_ok=False,
                      scene=i+1, scene_file=out.name, gpu=gpu_name, dtype='float16')
 
-    concat=WORK/'concat.txt'
+    concat=TEMP/'concat.txt'
     concat.write_text(''.join(\"file '%s'\\n\"%p for p in generated))
     subprocess.check_call(['ffmpeg','-y','-f','concat','-safe','0','-i',str(concat),
         '-vf','scale=1080:1920:flags=lanczos','-c:v','libx264','-preset','medium','-crf','19',
