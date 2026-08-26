@@ -1,0 +1,85 @@
+name: Kaggle Live T4 E2E Certificate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "video-fabrikasi-android" ]
+    paths:
+      - "E2E_TRIGGER.txt"
+
+permissions:
+  contents: read
+
+jobs:
+  live-kaggle-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Verify E2E secrets exist without printing them
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$KAGGLE_USERNAME" || { echo "Missing GitHub secret: KAGGLE_USERNAME"; exit 2; }
+          test -n "$KAGGLE_API_TOKEN" || { echo "Missing GitHub secret: KAGGLE_API_TOKEN"; exit 2; }
+          echo "Required Kaggle secrets are present."
+
+      - name: Prepare exact Android V3 production kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p e2e/classes
+          javac -encoding UTF-8 -d e2e/classes \
+            app/src/main/java/com/videofabrikasi/app/VideoFactoryScript.java \
+            app/src/main/java/com/videofabrikasi/app/VideoFactoryScriptV2.java \
+            app/src/main/java/com/videofabrikasi/app/VideoFactoryScriptV3.java \
+            tools/com/videofabrikasi/app/GenerateE2EScript.java
+          slug="vf-gh-e2e-$(date +%s%3N)"
+          echo "E2E_KERNEL_SLUG=$slug" >> "$GITHUB_ENV"
+          echo "E2E_KERNEL_SCRIPT=e2e/kernel.py" >> "$GITHUB_ENV"
+          java -cp e2e/classes com.videofabrikasi.app.GenerateE2EScript "$slug" > e2e/kernel.py
+          python3 -m py_compile e2e/kernel.py
+          test -s e2e/kernel.py
+          echo "Production V3 Python generated and py_compile passed."
+
+      - name: Install E2E runner dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet 'requests==2.32.5'
+          if ! command -v ffprobe >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y ffmpeg
+          fi
+          ffprobe -version | head -n 1
+
+      - name: Run real Kaggle T4 end-to-end certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/kaggle_live_e2e.py
+
+      - name: Preserve live E2E certificate and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kaggle-Live-E2E-${{ github.run_id }}
+          path: |
+            e2e_certificate.json
+            e2e_failure.json
+            status.json
+            ffprobe.json
+          if-no-files-found: warn
