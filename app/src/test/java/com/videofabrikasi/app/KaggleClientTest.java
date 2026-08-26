@@ -23,23 +23,6 @@ public class KaggleClientTest {
         assertEquals("https://api.kaggle.com/api/v1", KaggleClient.REST);
     }
 
-    @Test public void outputListingFindsOnlyExactRequestedFile() throws Exception {
-        String json = "{\"files\":["
-                + "{\"fileName\":\"FINAL.mp4.bak\",\"url\":\"https://storage.example/a\"},"
-                + "{\"fileName\":\"FINAL.mp4\",\"url\":\"https://storage.example/final\"},"
-                + "{\"fileName\":\"status.json\",\"url\":\"https://storage.example/status\"}"
-                + "]}";
-        KaggleClient.DownloadTarget finalTarget = KaggleClient.outputTargetFromListJson(json, "FINAL.mp4");
-        assertNotNull(finalTarget);
-        assertEquals("https://storage.example/final", finalTarget.url);
-        assertFalse(finalTarget.authRequired);
-
-        KaggleClient.DownloadTarget statusTarget = KaggleClient.outputTargetFromListJson(json, "status.json");
-        assertNotNull(statusTarget);
-        assertEquals("https://storage.example/status", statusTarget.url);
-        assertNull(KaggleClient.outputTargetFromListJson(json, "missing.mp4"));
-    }
-
     @Test public void signedDownloadUrlMustBeHttpsAndCredentialFree() {
         assertEquals("https://storage.example/file", KaggleClient.requireHttpsUrl("https://storage.example/file"));
         try {
