@@ -96,7 +96,7 @@ public class VideoFactoryScriptTest {
         assertTrue(s.contains("High-arousal opening vocal-like scream"));
         assertTrue(s.contains("soundtrack.wav"));
         assertTrue(s.contains("'-c:a','aac'"));
-        assertTrue(s.contains("audio='procedural_sfx_aac'"));
+        assertTrue(s.contains("audio='procedural_generic_emotion_sfx_aac'"));
         assertTrue(s.contains("def validate_final_media(path):"));
         assertTrue(s.contains("Final audio stream is missing"));
         assertTrue(s.contains("not 1080x1920"));
