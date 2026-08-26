@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URLEncoder;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -14,7 +15,9 @@ import java.text.Normalizer;
 import java.util.Locale;
 
 public final class KaggleClient {
-    private static final String API = "https://www.kaggle.com/api/v1";
+    // Official current SDK endpoint: https://api.kaggle.com/v1/<service>/<method>
+    static final String RPC = "https://api.kaggle.com/v1";
+    static final String REST = "https://api.kaggle.com/api/v1";
 
     public static final class Result {
         public final int code;
@@ -44,13 +47,20 @@ public final class KaggleClient {
         public final String url;
         public final boolean authRequired;
         DownloadTarget(String url, boolean authRequired) {
-            this.url = url;
+            this.url = requireHttpsUrl(url);
             this.authRequired = authRequired;
         }
     }
 
     public Result validateToken(String token) throws Exception {
-        return request("GET", API + "/kernels/list?mine=true&page=1&page_size=1", token, null, true);
+        JSONObject body = new JSONObject();
+        body.put("group", "PROFILE");
+        body.put("pageSize", 1);
+        Result r = rpc("ListKernels", token, body, true);
+        if (r.ok()) return r;
+
+        // Compatibility fallback for legacy Kaggle API routing.
+        return request("GET", REST + "/kernels/list?group=profile&page_size=1", token, null, true);
     }
 
     public PushResult pushKernel(String username, String slug, String title, String python, String token) throws Exception {
@@ -70,27 +80,33 @@ public final class KaggleClient {
         body.put("kernelDataSources", new JSONArray());
         body.put("modelDataSources", new JSONArray());
 
-        Result r = request("POST", API + "/kernels/push", token, body.toString(), true);
+        Result r = rpc("SaveKernel", token, body, true);
         if (!r.ok()) {
-            r = request("POST", API + "/kernels.KernelsApiService/SaveKernel", token, body.toString(), true);
+            r = request("POST", REST + "/kernels/push", token, body.toString(), true);
         }
         if (!r.ok()) throw new IllegalStateException("Kaggle push HTTP " + r.code + ": " + compact(r.body));
         JSONObject json = new JSONObject(r.body);
         String error = json.optString("error", "");
         if (!error.isEmpty()) throw new IllegalStateException("Kaggle: " + error);
-        return new PushResult(json.optInt("versionNumber", 0),
-                json.optString("url", ""), json.optString("ref", username + "/" + slug));
+        int version = json.optInt("versionNumber", json.optInt("version_number", 0));
+        String responseRef = json.optString("ref", username + "/" + slug);
+        String responseUrl = json.optString("url", "");
+        if (version <= 0) {
+            // A successful SaveKernel should return a concrete version. Treat a missing
+            // version as an incomplete push rather than pretending the job exists.
+            throw new IllegalStateException("Kaggle kernel oluşturuldu fakat sürüm numarası dönmedi.");
+        }
+        return new PushResult(version, responseUrl, responseRef);
     }
 
     public String getStatus(String username, String slug, String token) throws Exception {
         JSONObject body = new JSONObject();
         body.put("userName", username);
         body.put("kernelSlug", slug);
-        Result r = request("POST", API + "/kernels.KernelsApiService/GetKernelSessionStatus",
-                token, body.toString(), true);
+        Result r = rpc("GetKernelSessionStatus", token, body, true);
         if (!r.ok()) {
             String q = "?userName=" + enc(username) + "&kernelSlug=" + enc(slug);
-            r = request("GET", API + "/kernels/status" + q, token, null, true);
+            r = request("GET", REST + "/kernels/status" + q, token, null, true);
         }
         if (!r.ok()) throw new IllegalStateException("Durum HTTP " + r.code + ": " + compact(r.body));
         JSONObject j = new JSONObject(r.body);
@@ -100,7 +116,18 @@ public final class KaggleClient {
     }
 
     public DownloadTarget resolveOutputDownload(String username, String slug, int version,
-                                                String filePath, String token) throws Exception {
+                                                 String filePath, String token) throws Exception {
+        // Primary path mirrors the current official Kaggle CLI: list session outputs
+        // and use the exact signed URL returned for the requested file.
+        Exception listFailure = null;
+        try {
+            DownloadTarget listed = resolveFromOutputList(username, slug, filePath, token);
+            if (listed != null) return listed;
+        } catch (Exception e) {
+            listFailure = e;
+        }
+
+        // Fallback: official DownloadKernelOutput RPC for a specific version/file.
         if (version <= 0) version = getCurrentVersion(username, slug, token);
         JSONObject body = new JSONObject();
         body.put("ownerSlug", username);
@@ -108,15 +135,55 @@ public final class KaggleClient {
         body.put("versionNumber", version);
         body.put("filePath", filePath);
 
-        Result r = request("POST", API + "/kernels.KernelsApiService/DownloadKernelOutput",
-                token, body.toString(), false);
+        Result r = rpc("DownloadKernelOutput", token, body, false);
         if (r.redirect()) return new DownloadTarget(r.location, false);
         if (r.ok()) {
-            JSONObject j = new JSONObject(r.body);
-            String url = j.optString("url", "");
-            if (!url.isEmpty()) return new DownloadTarget(url, false);
+            try {
+                JSONObject j = new JSONObject(r.body);
+                String url = j.optString("url", "");
+                if (!url.isEmpty()) return new DownloadTarget(url, false);
+            } catch (Exception ignored) {}
         }
-        throw new IllegalStateException("Kaggle çıktı bağlantısı alınamadı. HTTP " + r.code + ": " + compact(r.body));
+        String detail = listFailure == null ? "" : " Listeleme: " + compact(listFailure.getMessage());
+        throw new IllegalStateException("Kaggle çıktısı bulunamadı: " + filePath + ". HTTP " + r.code
+                + ": " + compact(r.body) + detail);
+    }
+
+    private DownloadTarget resolveFromOutputList(String username, String slug, String filePath, String token) throws Exception {
+        String pageToken = "";
+        for (int page = 0; page < 20; page++) {
+            JSONObject body = new JSONObject();
+            body.put("userName", username);
+            body.put("kernelSlug", slug);
+            body.put("pageSize", 100);
+            if (!pageToken.isEmpty()) body.put("pageToken", pageToken);
+            Result r = rpc("ListKernelSessionOutput", token, body, true);
+            if (!r.ok()) throw new IllegalStateException("Çıktı listesi HTTP " + r.code + ": " + compact(r.body));
+
+            DownloadTarget found = outputTargetFromListJson(r.body, filePath);
+            if (found != null) return found;
+
+            JSONObject j = new JSONObject(r.body);
+            pageToken = j.optString("nextPageToken", j.optString("next_page_token", ""));
+            if (pageToken.isEmpty()) return null;
+        }
+        throw new IllegalStateException("Kaggle çıktı listesi 20 sayfayı aştı; güvenlik sınırı durdurdu.");
+    }
+
+    static DownloadTarget outputTargetFromListJson(String jsonText, String wantedFile) throws Exception {
+        JSONObject j = new JSONObject(jsonText == null ? "{}" : jsonText);
+        JSONArray files = j.optJSONArray("files");
+        if (files == null) return null;
+        for (int i = 0; i < files.length(); i++) {
+            JSONObject f = files.optJSONObject(i);
+            if (f == null) continue;
+            String fileName = f.optString("fileName", f.optString("file_name", ""));
+            if (!wantedFile.equals(fileName)) continue;
+            String url = f.optString("url", "");
+            if (url.isEmpty()) throw new IllegalStateException("Kaggle çıktı kaydı URL içermiyor: " + wantedFile);
+            return new DownloadTarget(url, false);
+        }
+        return null;
     }
 
     public String getOutputState(String username, String slug, int version, String token) throws Exception {
@@ -145,13 +212,19 @@ public final class KaggleClient {
         JSONObject body = new JSONObject();
         body.put("userName", username);
         body.put("kernelSlug", slug);
-        Result r = request("POST", API + "/kernels.KernelsApiService/GetKernel", token, body.toString(), true);
+        Result r = rpc("GetKernel", token, body, true);
         if (!r.ok()) throw new IllegalStateException("Kaggle sürümü alınamadı. HTTP " + r.code);
         JSONObject j = new JSONObject(r.body);
         JSONObject metadata = j.optJSONObject("metadata");
-        int v = metadata == null ? 0 : metadata.optInt("currentVersionNumber", 0);
+        int v = metadata == null ? 0 : metadata.optInt("currentVersionNumber",
+                metadata.optInt("current_version_number", 0));
         if (v <= 0) throw new IllegalStateException("Geçerli Kaggle sürüm numarası bulunamadı.");
         return v;
+    }
+
+    private Result rpc(String method, String token, JSONObject body, boolean followRedirects) throws Exception {
+        return request("POST", RPC + "/kernels.KernelsApiService/" + method,
+                token, body == null ? "{}" : body.toString(), followRedirects);
     }
 
     public static String slugify(String input) {
@@ -173,6 +246,7 @@ public final class KaggleClient {
         if (s.contains("RUNNING")) return "ÜRETİLİYOR";
         if (s.contains("QUEUE") || s.contains("PENDING")) return "KUYRUKTA";
         if (s.contains("CANCEL")) return "DURDURULDU";
+        if (s.contains("NEW_SCRIPT")) return "KUYRUKTA";
         if (s.isEmpty()) return "BİLİNMİYOR";
         return s;
     }
@@ -187,6 +261,19 @@ public final class KaggleClient {
         return x.length() > 220 ? x.substring(0, 220) + "…" : x;
     }
 
+    static String requireHttpsUrl(String raw) {
+        try {
+            URI u = URI.create(raw == null ? "" : raw.trim());
+            if (!"https".equalsIgnoreCase(u.getScheme()) || u.getHost() == null || u.getHost().isEmpty()) {
+                throw new IllegalArgumentException("Güvensiz veya geçersiz indirme URL'si.");
+            }
+            if (u.getUserInfo() != null) throw new IllegalArgumentException("URL kullanıcı bilgisi içeremez.");
+            return u.toString();
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException("Güvensiz veya geçersiz indirme URL'si.", e);
+        }
+    }
+
     public Result request(String method, String url, String token, String json, boolean followRedirects) throws Exception {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         c.setConnectTimeout(20000);
@@ -194,7 +281,7 @@ public final class KaggleClient {
         c.setInstanceFollowRedirects(followRedirects);
         c.setRequestMethod(method);
         c.setRequestProperty("Accept", "application/json, application/zip, video/mp4, */*");
-        c.setRequestProperty("User-Agent", "VideoFabrikasiAndroid/1.0");
+        c.setRequestProperty("User-Agent", "kaggle-api/v1.7.0 VideoFabrikasiAndroid/1.0");
         if (token != null && !token.trim().isEmpty()) c.setRequestProperty("Authorization", "Bearer " + token.trim());
         if (json != null) {
             c.setDoOutput(true);
