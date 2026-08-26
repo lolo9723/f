@@ -32,14 +32,26 @@ TURKISH_HINT_WORDS = {
     'üzgün','mutlu','kötü','iyi','haber','arkasında','içinde','dışında','finalde','ortaya','çıkıyor'
 }
 
-def looks_turkish(text):
+def turkish_language_signals(text):
     import re
     text = text or ''
-    if any(ch in TURKISH_CHARS for ch in text):
-        return True
     words = [w.lower() for w in re.findall(r'[A-Za-zÇĞİÖŞÜçğıöşü]+', text)]
-    hits = sum(1 for w in words if w in TURKISH_HINT_WORDS)
-    return hits >= 2
+    hint_hits = sum(1 for w in words if w in TURKISH_HINT_WORDS)
+    special_chars = sum(1 for ch in text if ch in TURKISH_CHARS)
+    return hint_hits, special_chars
+
+def looks_turkish(text):
+    hint_hits, special_chars = turkish_language_signals(text)
+    # Source detection is deliberately permissive for normal Turkish text, but
+    # one Turkish proper name inside an English story must not trigger translation.
+    return hint_hits >= 2 or special_chars >= 4
+
+def translation_still_turkish(text):
+    hint_hits, special_chars = turkish_language_signals(text)
+    # Output validation is stricter than source detection. A proper name such as
+    # “Çağrı” may legitimately survive English translation; multiple Turkish
+    # function/content words are required before rejecting the result.
+    return hint_hits >= 2 or (hint_hits >= 1 and special_chars >= 4)
 
 def split_translation_chunks(text, max_chars=700):
     import re
@@ -105,7 +117,7 @@ def prepare_story_for_ltx(story):
     gc.collect()
     if len(result) < 20:
         raise RuntimeError('Turkish-to-English translation is unexpectedly short')
-    if looks_turkish(result):
+    if translation_still_turkish(result):
         raise RuntimeError('Translation still appears Turkish; refusing low-quality LTX prompt')
     return result, {
         'mode':'tr_to_en', 'source_language':'tr', 'target_language':'en',
