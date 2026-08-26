@@ -40,6 +40,16 @@ public class VideoFactoryScriptTest {
         assertTrue(s.contains("T4-FP16"));
     }
 
+    @Test public void kaggleRuntimeHasGpuPreflightAndCompatibleDependencyPins() {
+        String s = VideoFactoryScript.build("test", "p1");
+        assertTrue(s.contains("transformers==4.49.0"));
+        assertTrue(s.contains("diffusers==0.33.1"));
+        assertTrue(s.contains("torch.cuda.is_available()"));
+        assertTrue(s.contains("device='cuda', dtype=torch.float16"));
+        assertTrue(s.contains("GPU VRAM is too small"));
+        assertTrue(s.contains("stage='GPU_READY'"));
+    }
+
     @Test public void generatedPythonPassesRealSyntaxCompilation() throws Exception {
         String s = VideoFactoryScript.build("Türkçe fikir: çığlık atan mektup", "syntax-test");
         Path dir = Files.createTempDirectory("video-factory-python-test");
