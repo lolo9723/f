@@ -30,7 +30,7 @@ public class MainActivity extends Activity {
     private KaggleClient kaggle;
     private EditText username, token, idea;
     private TextView status, projectInfo;
-    private Button generate, refresh, retry, download;
+    private Button generate, refresh, retry, download, prevProject, nextProject;
     private boolean busy = false;
 
     private final Runnable autoPoll = new Runnable() {
@@ -109,6 +109,17 @@ public class MainActivity extends Activity {
         projectInfo.setId(R.id.project_text);
         root.addView(projectInfo, full());
 
+        LinearLayout nav = row();
+        prevProject = button("← ÖNCEKİ PROJE");
+        prevProject.setId(R.id.prev_project);
+        nextProject = button("SONRAKİ PROJE →");
+        nextProject.setId(R.id.next_project);
+        nav.addView(prevProject, weight());
+        nav.addView(nextProject, weight());
+        root.addView(nav);
+        prevProject.setOnClickListener(v -> navigateProject(-1));
+        nextProject.setOnClickListener(v -> navigateProject(1));
+
         LinearLayout row1 = row();
         refresh = button("↻ YENİLE");
         refresh.setId(R.id.refresh);
@@ -117,7 +128,10 @@ public class MainActivity extends Activity {
         row1.addView(refresh, weight());
         row1.addView(stop, weight());
         root.addView(row1);
-        refresh.setOnClickListener(v -> refreshStatus(true));
+        refresh.setOnClickListener(v -> {
+            resumeTracking();
+            refreshStatus(true);
+        });
         stop.setOnClickListener(v -> pauseTracking());
 
         LinearLayout row2 = row();
@@ -131,7 +145,7 @@ public class MainActivity extends Activity {
         retry.setOnClickListener(v -> startGeneration(true));
         download.setOnClickListener(v -> downloadFinal());
 
-        TextView note = label("Telefon AI hesaplamaz. Uzak iş uygulama kapansa da Kaggle üzerinde devam eder. MP4 yalnız gerçek AI üretimi doğrulandıktan sonra indirilebilir.", 12, false);
+        TextView note = label("Telefon AI hesaplamaz. Birden fazla video Kaggle'a gönderilebilir; son 500 proje telefonda saklanır. MP4 yalnız gerçek AI üretimi doğrulandıktan sonra indirilebilir.", 12, false);
         note.setTextColor(Color.GRAY);
         root.addView(note, full());
         return scroll;
@@ -145,6 +159,17 @@ public class MainActivity extends Activity {
             saved = "İki aynı beyaz mektup aynı kişiye gidiyor. Biri iyi haber taşıyor ve özgüvenli; diğeri kötü haber taşıyor ve panik içinde. Mutlu mektup posta kutusuna girmek isterken kötü haber mektubu çığlık atarak arkasından yetişip onu kutuya iter. Kişi önce kötü haberi okuyunca çöker ve iyi haberi açmadan yere düşürür.";
         }
         idea.setText(saved);
+        renderProject();
+    }
+
+    private void navigateProject(int delta) {
+        if (busy) return;
+        if (!project.move(delta)) {
+            toast("Gezinilecek kayıtlı proje yok.");
+            return;
+        }
+        idea.setText(project.idea());
+        if (!project.username().isEmpty()) username.setText(project.username());
         renderProject();
     }
 
@@ -226,7 +251,7 @@ public class MainActivity extends Activity {
                 ui(() -> {
                     setBusy(false, "KUYRUKTA");
                     renderProject();
-                    toast("Kaggle GPU işi oluşturuldu.");
+                    toast("Kaggle GPU işi oluşturuldu. Yeni bir fikir girip ikinci videoyu da gönderebilirsin.");
                     handler.postDelayed(() -> refreshStatus(false), 5000);
                 });
             } catch (Exception e) {
@@ -245,6 +270,9 @@ public class MainActivity extends Activity {
             if (userAction && !project.hasActiveProject()) toast("Aktif proje yok.");
             return;
         }
+        String activeSlug = project.slug();
+        String activeUser = project.username();
+        int activeVersion = project.version();
         String t = secure.get("kaggle_token");
         if (t.isEmpty()) {
             if (userAction) toast("Kaggle token bulunamadı.");
@@ -253,19 +281,19 @@ public class MainActivity extends Activity {
         setBusy(true, "DURUM KONTROL EDİLİYOR…");
         executor.execute(() -> {
             try {
-                String remote = kaggle.getStatus(project.username(), project.slug(), t);
+                String remote = kaggle.getStatus(activeUser, activeSlug, t);
                 String verified = remote;
                 if ("TAMAMLANDI".equals(remote)) {
                     try {
-                        verified = kaggle.getOutputState(project.username(), project.slug(), project.version(), t);
+                        verified = kaggle.getOutputState(activeUser, activeSlug, activeVersion, t);
                     } catch (Exception outputError) {
                         verified = "TAMAMLANDI — AI ÇIKTISI DOĞRULANAMADI";
                     }
                 }
                 final String finalState = verified;
-                project.updateStatus(finalState);
+                if (activeSlug.equals(project.slug())) project.updateStatus(finalState);
                 ui(() -> {
-                    setBusy(false, finalState);
+                    setBusy(false, activeSlug.equals(project.slug()) ? finalState : project.status());
                     renderProject();
                     if (userAction) toast("Durum: " + finalState);
                 });
@@ -280,9 +308,12 @@ public class MainActivity extends Activity {
 
     private void pauseTracking() {
         handler.removeCallbacks(autoPoll);
-        project.updateStatus("TAKİP DURAKLATILDI");
-        renderProject();
-        toast("Telefon takibi durdu; Kaggle işi etkilenmez. Yenile ile tekrar kontrol edebilirsin.");
+        toast("Otomatik telefon takibi durdu; Kaggle işleri etkilenmez. Yenile ile takip tekrar başlar.");
+    }
+
+    private void resumeTracking() {
+        handler.removeCallbacks(autoPoll);
+        handler.postDelayed(autoPoll, 20000);
     }
 
     private void downloadFinal() {
@@ -300,14 +331,17 @@ public class MainActivity extends Activity {
             return;
         }
         if (busy) return;
+        String activeUser = project.username();
+        String activeSlug = project.slug();
+        int activeVersion = project.version();
         setBusy(true, "MP4 BAĞLANTISI HAZIRLANIYOR…");
         executor.execute(() -> {
             try {
                 KaggleClient.DownloadTarget target = kaggle.resolveOutputDownload(
-                        project.username(), project.slug(), project.version(), "FINAL.mp4", t);
+                        activeUser, activeSlug, activeVersion, "FINAL.mp4", t);
                 ui(() -> {
                     try {
-                        enqueueDownload(target, t);
+                        enqueueDownload(target, t, activeSlug);
                         setBusy(false, project.status());
                         renderProject();
                     } catch (Exception e) {
@@ -324,16 +358,16 @@ public class MainActivity extends Activity {
         });
     }
 
-    private void enqueueDownload(KaggleClient.DownloadTarget target, String tokenValue) {
+    private void enqueueDownload(KaggleClient.DownloadTarget target, String tokenValue, String slug) {
         DownloadManager.Request req = new DownloadManager.Request(Uri.parse(target.url));
         if (target.authRequired && !tokenValue.isEmpty()) {
             req.addRequestHeader("Authorization", "Bearer " + tokenValue);
         }
-        req.setTitle("Video Fabrikası — " + project.slug());
+        req.setTitle("Video Fabrikası — " + slug);
         req.setDescription("FINAL.mp4 indiriliyor");
         req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
         req.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS,
-                "VideoFabrikasi-" + project.slug() + ".mp4");
+                "VideoFabrikasi-" + slug + ".mp4");
         req.setMimeType("video/mp4");
         long id = ((DownloadManager) getSystemService(DOWNLOAD_SERVICE)).enqueue(req);
         prefs.edit().putLong("last_download_id", id).apply();
@@ -347,7 +381,10 @@ public class MainActivity extends Activity {
             return;
         }
         status.setText(project.status());
-        projectInfo.setText("Proje: " + project.slug() + "\nKullanıcı: " + project.username()
+        int count = project.historyCount();
+        int position = project.historyPosition();
+        projectInfo.setText("Kayıt: " + position + "/" + count
+                + "\nProje: " + project.slug() + "\nKullanıcı: " + project.username()
                 + "\nKaggle sürüm: " + project.version()
                 + "\nUzak üretim telefon kapansa bile devam eder.");
     }
@@ -359,6 +396,8 @@ public class MainActivity extends Activity {
         refresh.setEnabled(!value);
         retry.setEnabled(!value);
         download.setEnabled(!value);
+        if (prevProject != null) prevProject.setEnabled(!value);
+        if (nextProject != null) nextProject.setEnabled(!value);
         View v = findViewById(R.id.test_auth);
         if (v != null) v.setEnabled(!value);
     }
