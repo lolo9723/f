@@ -3,13 +3,13 @@ package com.videofabrikasi.app;
 /**
  * Stable entry point used by the Android app and tests.
  *
- * The active production engine lives in VideoFactoryScriptV2 so the engine can evolve
- * without spreading model-specific details through the Android UI layer.
+ * V3 wraps the proven V2 renderer with prompt-language preparation while keeping
+ * model-specific details out of the Android UI layer.
  */
 public final class VideoFactoryScript {
     private VideoFactoryScript() {}
 
     public static String build(String idea, String projectId) {
-        return VideoFactoryScriptV2.build(idea, projectId);
+        return VideoFactoryScriptV3.build(idea, projectId);
     }
 }
