@@ -1,7 +1,11 @@
 package com.videofabrikasi.app;
 
+import android.app.DownloadManager;
+import android.content.Context;
+import android.content.Intent;
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.platform.app.InstrumentationRegistry;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -51,5 +55,15 @@ public class MainActivityTest {
                 "{\"stage\":\"COMPLETE_FALLBACK\",\"ai_ok\":false,\"error\":\"model failed\"}");
         assertTrue(state.startsWith("AI BAŞARISIZ — FALLBACK"));
         assertNotEquals("AI TAMAMLANDI", state);
+    }
+
+    @Test public void unrelatedDownloadCompletionBroadcastDoesNotCrashActivity() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        Intent intent = new Intent(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
+        intent.setPackage(context.getPackageName());
+        intent.putExtra(DownloadManager.EXTRA_DOWNLOAD_ID, 987654321L);
+        context.sendBroadcast(intent);
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        onView(withId(R.id.generate)).check(matches(isDisplayed()));
     }
 }
