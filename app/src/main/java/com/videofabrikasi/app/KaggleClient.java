@@ -10,6 +10,7 @@ import java.net.HttpURLConnection;
 import java.net.URLEncoder;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.util.Locale;
 
 public final class KaggleClient {
@@ -90,8 +91,11 @@ public final class KaggleClient {
     }
 
     public static String slugify(String input) {
-        String x = input == null ? "" : input.toLowerCase(Locale.US);
-        x = x.replace('ı','i').replace('ş','s').replace('ğ','g').replace('ü','u').replace('ö','o').replace('ç','c');
+        String x = input == null ? "" : input;
+        x = x.replace('ı','i').replace('İ','I').replace('ş','s').replace('Ş','S')
+                .replace('ğ','g').replace('Ğ','G').replace('ü','u').replace('Ü','U')
+                .replace('ö','o').replace('Ö','O').replace('ç','c').replace('Ç','C');
+        x = Normalizer.normalize(x, Normalizer.Form.NFD).replaceAll("\\p{M}+", "").toLowerCase(Locale.US);
         x = x.replaceAll("[^a-z0-9]+", "-").replaceAll("(^-+|-+$)", "");
         if (x.isEmpty()) x = "video";
         if (x.length() > 38) x = x.substring(0, 38).replaceAll("-+$", "");
