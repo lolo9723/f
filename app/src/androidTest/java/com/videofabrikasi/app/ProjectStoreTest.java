@@ -59,4 +59,28 @@ public class ProjectStoreTest {
         assertEquals("project-500", store.slug());
         store.clearForTests();
     }
+
+    @Test public void backgroundDownloadUpdatesOnlyItsOwnProject() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        ProjectStore store = new ProjectStore(context);
+        store.clearForTests();
+
+        store.save("user", "project-a", "project-a", "idea-a", "AI TAMAMLANDI", 1);
+        store.save("user", "project-b", "project-b", "idea-b", "AI TAMAMLANDI", 1);
+        assertEquals("project-b", store.slug());
+
+        // Simulate project A finishing a download while project B is selected.
+        store.updateStatusForSlug("project-a", "AI TAMAMLANDI — İNDİRİLDİ");
+        assertEquals("project-b", store.slug());
+        assertEquals("AI TAMAMLANDI", store.status());
+
+        assertTrue(store.move(1));
+        assertEquals("project-a", store.slug());
+        assertEquals("AI TAMAMLANDI — İNDİRİLDİ", store.status());
+
+        assertTrue(store.move(-1));
+        assertEquals("project-b", store.slug());
+        assertEquals("AI TAMAMLANDI", store.status());
+        store.clearForTests();
+    }
 }
