@@ -59,6 +59,7 @@ public class VideoFactoryScriptTest {
         assertTrue(s.contains("sentencepiece==0.2.0"));
         assertTrue(s.contains("LTX_STORY, TRANSLATION_INFO = prepare_story_for_ltx(USER_IDEA)"));
         assertTrue(s.contains("prompt_language='English'"));
+        assertTrue(s.contains("translation_still_turkish(result)"));
         assertTrue(s.contains("Translation still appears Turkish; refusing low-quality LTX prompt"));
         assertTrue(s.contains("'mode':'tr_to_en'"));
     }
@@ -82,7 +83,9 @@ for node in tree.body:
         names=[t.id for t in node.targets if isinstance(t, ast.Name)]
         if any(n in ('TURKISH_CHARS','TURKISH_HINT_WORDS') for n in names):
             selected.append(node)
-    elif isinstance(node, ast.FunctionDef) and node.name in ('looks_turkish','split_translation_chunks'):
+    elif isinstance(node, ast.FunctionDef) and node.name in (
+        'turkish_language_signals','looks_turkish','translation_still_turkish','split_translation_chunks'
+    ):
         selected.append(node)
 ns={}
 exec(compile(ast.Module(body=selected, type_ignores=[]), '<language-only>', 'exec'), ns)
@@ -90,6 +93,9 @@ result={
   'turkish_ascii': ns['looks_turkish']('bir mektup kutuya kosuyor ama neden finalde ortaya cikiyor'),
   'turkish_unicode': ns['looks_turkish']('Küçük anahtar üzgün şekilde kapıya koşuyor'),
   'english': ns['looks_turkish']('A small key runs toward a locked door in panic'),
+  'english_with_turkish_name': ns['looks_turkish']('Çağrı walks toward the old station in panic'),
+  'output_name_ok': ns['translation_still_turkish']('Çağrı walks toward the old station in panic'),
+  'output_real_turkish_rejected': ns['translation_still_turkish']('Bir anahtar üzgün şekilde kapıya doğru koşuyor'),
   'chunks': ns['split_translation_chunks']('Birinci cümle. İkinci cümle! Üçüncü cümle?', 20)
 }
 print(json.dumps(result, ensure_ascii=False))
@@ -103,6 +109,9 @@ print(json.dumps(result, ensure_ascii=False))
         assertTrue(output.contains("\"turkish_ascii\": true"));
         assertTrue(output.contains("\"turkish_unicode\": true"));
         assertTrue(output.contains("\"english\": false"));
+        assertTrue(output.contains("\"english_with_turkish_name\": false"));
+        assertTrue(output.contains("\"output_name_ok\": false"));
+        assertTrue(output.contains("\"output_real_turkish_rejected\": true"));
         assertTrue(output.contains("\"chunks\":"));
     }
 
