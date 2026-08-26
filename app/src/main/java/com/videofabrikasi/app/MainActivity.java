@@ -75,8 +75,20 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
+    @SuppressWarnings("deprecation")
     private View buildUi() {
         ScrollView scroll = new ScrollView(this);
+        // Android 15 enforces edge-to-edge for targetSdk 35. Keep every interactive
+        // control inside the real system-bar safe area so bottom buttons cannot overlap
+        // gesture/taskbar navigation and accidentally send input to the launcher.
+        scroll.setOnApplyWindowInsetsListener((v, insets) -> {
+            int top = Math.max(0, insets.getSystemWindowInsetTop());
+            int bottom = Math.max(0, insets.getSystemWindowInsetBottom());
+            v.setPadding(0, top, 0, bottom);
+            return insets;
+        });
+        scroll.post(scroll::requestApplyInsets);
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(18), dp(18), dp(18), dp(36));
