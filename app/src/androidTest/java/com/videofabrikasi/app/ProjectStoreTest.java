@@ -38,4 +38,25 @@ public class ProjectStoreTest {
         assertEquals("AI TAMAMLANDI", store.status());
         store.clearForTests();
     }
+
+    @Test public void historyCapsAtFiveHundredAndEvictsOnlyOldest() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        ProjectStore store = new ProjectStore(context);
+        store.clearForTests();
+
+        for (int i = 0; i <= 500; i++) {
+            store.save("user", "project-" + i, "title-" + i, "idea-" + i, "KUYRUKTA", i + 1);
+        }
+
+        assertEquals(500, store.historyCount());
+        assertEquals("project-500", store.slug());
+        assertFalse(store.historySummary(500).contains("project-0 —"));
+        assertTrue(store.historySummary(500).contains("project-1 —"));
+
+        assertTrue(store.move(-1));
+        assertEquals("project-1", store.slug());
+        assertTrue(store.move(1));
+        assertEquals("project-500", store.slug());
+        store.clearForTests();
+    }
 }
