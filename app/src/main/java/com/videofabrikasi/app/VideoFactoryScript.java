@@ -10,11 +10,12 @@ public final class VideoFactoryScript {
         String safeIdea = Base64.getEncoder().encodeToString((idea == null ? "" : idea).getBytes(StandardCharsets.UTF_8));
         String safeId = Base64.getEncoder().encodeToString((projectId == null ? "" : projectId).getBytes(StandardCharsets.UTF_8));
         return """
-import os, sys, json, subprocess, traceback, base64
+import os, sys, json, subprocess, traceback, base64, shutil
 from pathlib import Path
 
 PROJECT_ID = base64.b64decode('__PROJECT_ID_B64__').decode('utf-8')
 USER_IDEA = base64.b64decode('__USER_IDEA_B64__').decode('utf-8')
+LTX_COMMIT = '4b2d053057623ddd4d0a1d3e9cd28890e9ef487f'
 WORK = Path('/kaggle/working')
 FINAL = WORK / 'FINAL.mp4'
 STATUS = WORK / 'status.json'
@@ -26,7 +27,7 @@ def write_status(**kw):
     data.update(kw)
     STATUS.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
 
-write_status(stage='BOOT', engine='LTX-Video 2B distilled', ai_ok=False)
+write_status(stage='BOOT', engine='LTX-Video 2B distilled 0.9.6', ai_ok=False)
 
 PROMPTS = [
     \"\"\"Vertical 3D animated short. Two visually identical anthropomorphic white envelope characters with tiny black arms, legs, eyes and mouths. A confident happy envelope runs eagerly toward a red street mailbox. Behind it a frightened sad envelope screams in panic and sprints desperately to catch it. Very strong emotion in the first second, fast physical comedy, clean cinematic lighting, stable character design, no readable text.\"\"\",
@@ -72,55 +73,74 @@ def fallback_video():
     clips=[]
     for i in range(5):
         frames=[]
-        for f in range(72):
-            img=Image.new('RGB',(576,1024),(32+i*8,36+i*6,42+i*4))
+        for f in range(48):
+            img=Image.new('RGB',(448,800),(32+i*8,36+i*6,42+i*4))
             d=ImageDraw.Draw(img)
-            x=40 + int((f/71)*320); y=360 + i*45
-            d.rounded_rectangle([x,y,x+170,y+110], radius=15, fill=(245,243,235), outline=(220,220,220), width=4)
-            d.ellipse([x+45,y+42,x+57,y+55], fill=(20,20,20))
-            d.ellipse([x+110,y+42,x+122,y+55], fill=(20,20,20))
-            d.text((28,40), f'SAHNE {i+1}/5', fill=(255,255,255))
+            x=30 + int((f/47)*240); y=290 + i*34
+            d.rounded_rectangle([x,y,x+135,y+88], radius=12, fill=(245,243,235), outline=(220,220,220), width=3)
+            d.ellipse([x+36,y+34,x+46,y+44], fill=(20,20,20))
+            d.ellipse([x+88,y+34,x+98,y+44], fill=(20,20,20))
+            d.text((20,30), f'SAHNE {i+1}/5', fill=(255,255,255))
             frames.append(img)
         out=SCENES/f'fallback_{i+1}.mp4'
         imageio.mimsave(out, frames, fps=24, codec='libx264', quality=7)
         clips.append(out)
-    concat=WORK/'concat.txt'
+    concat=WORK/'concat_fallback.txt'
     concat.write_text(''.join(\"file '%s'\\n\"%p for p in clips))
-    subprocess.check_call(['ffmpeg','-y','-f','concat','-safe','0','-i',str(concat),'-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart',str(FINAL)])
+    subprocess.check_call(['ffmpeg','-y','-f','concat','-safe','0','-i',str(concat),'-vf','scale=1080:1920:flags=lanczos','-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart',str(FINAL)])
 
 try:
     repo = WORK/'LTX-Video'
     if not repo.exists():
-        subprocess.check_call(['git','clone','--depth','1','https://github.com/Lightricks/LTX-Video.git',str(repo)])
+        subprocess.check_call(['git','clone','--filter=blob:none','https://github.com/Lightricks/LTX-Video.git',str(repo)])
+    subprocess.check_call(['git','-C',str(repo),'fetch','--depth','1','origin',LTX_COMMIT])
+    subprocess.check_call(['git','-C',str(repo),'checkout','--detach','FETCH_HEAD'])
     subprocess.check_call([sys.executable,'-m','pip','install','-q','-e',str(repo)+'[inference]'])
     sys.path.insert(0,str(repo))
     from ltx_video.inference import infer, InferenceConfig
+    import yaml
+
+    base_cfg = repo/'configs/ltxv-2b-0.9.6-distilled.yaml'
+    custom_cfg = WORK/'ltx_t4_config.yaml'
+    cfg_data = yaml.safe_load(base_cfg.read_text(encoding='utf-8'))
+    cfg_data['prompt_enhancement_words_threshold'] = 0
+    custom_cfg.write_text(yaml.safe_dump(cfg_data, sort_keys=False), encoding='utf-8')
 
     generated=[]
     for i,prompt in enumerate(PROMPTS):
         ref=SCENES/f'ref_{i+1}.png'
         make_reference(ref,i)
         out=SCENES/f'scene_{i+1}.mp4'
-        write_status(stage=f'GENERATING_{i+1}_OF_5', engine='LTX-Video 2B distilled', ai_ok=True)
+        scene_dir=SCENES/f'generated_{i+1}'
+        if scene_dir.exists(): shutil.rmtree(scene_dir)
+        scene_dir.mkdir(parents=True)
+        write_status(stage=f'GENERATING_{i+1}_OF_5', engine='LTX-Video 2B distilled 0.9.6', ai_ok=False)
         cfg=InferenceConfig(
-            pipeline_config=str(repo/'configs/ltxv-2b-0.9.6-distilled.yaml'),
-            prompt=prompt, height=1024, width=576, num_frames=65, frame_rate=24,
-            seed=12400+i, output_path=str(out), offload_to_cpu=True,
+            pipeline_config=str(custom_cfg),
+            prompt=prompt, height=800, width=448, num_frames=49, frame_rate=24,
+            seed=12400+i, output_path=str(scene_dir), offload_to_cpu=True,
             conditioning_media_paths=[str(ref)], conditioning_start_frames=[0],
             conditioning_strengths=[1.0],
         )
         infer(config=cfg)
-        if not out.exists() or out.stat().st_size < 10000:
+        candidates=sorted(scene_dir.glob('*.mp4'), key=lambda p:p.stat().st_mtime, reverse=True)
+        if not candidates:
+            raise RuntimeError(f'Scene {i+1} produced no MP4')
+        shutil.copy2(candidates[0], out)
+        if not out.is_file() or out.stat().st_size < 10000:
             raise RuntimeError(f'Scene {i+1} did not produce a valid MP4')
         generated.append(out)
+        write_status(stage=f'SCENE_{i+1}_READY', engine='LTX-Video 2B distilled 0.9.6', ai_ok=False,
+                     scene=i+1, scene_file=out.name)
 
     concat=WORK/'concat.txt'
     concat.write_text(''.join(\"file '%s'\\n\"%p for p in generated))
     subprocess.check_call(['ffmpeg','-y','-f','concat','-safe','0','-i',str(concat),
         '-vf','scale=1080:1920:flags=lanczos','-c:v','libx264','-preset','medium','-crf','19',
         '-pix_fmt','yuv420p','-movflags','+faststart',str(FINAL)])
-    if FINAL.stat().st_size < 100000: raise RuntimeError('Final MP4 is unexpectedly small')
-    write_status(stage='COMPLETE', engine='LTX-Video 2B distilled', ai_ok=True, final='FINAL.mp4')
+    if not FINAL.is_file() or FINAL.stat().st_size < 100000:
+        raise RuntimeError('Final MP4 is unexpectedly small or missing')
+    write_status(stage='COMPLETE', engine='LTX-Video 2B distilled 0.9.6', ai_ok=True, final='FINAL.mp4', scenes=5)
 except Exception as e:
     (WORK/'ai_error.txt').write_text(traceback.format_exc(),encoding='utf-8')
     write_status(stage='AI_FAILED_FALLBACK', engine='fallback renderer', ai_ok=False, error=str(e))
