@@ -44,6 +44,14 @@ public class VideoFactoryScriptV4Test {
         assertTrue(s.contains("scene_qc_report.append(qc)"));
     }
 
+    @Test public void successfulScenesArePersistedOnlyForCrossRunRepair() {
+        String s = script();
+        assertTrue(s.contains("shutil.copy2(out, WORK/f'scene_{i+1}.mp4')"));
+        assertTrue(s.contains("SCENES = TEMP / 'scenes'"));
+        assertTrue(s.contains("FINAL = WORK / 'FINAL.mp4'"));
+        assertTrue(s.contains("STATUS = WORK / 'status.json'"));
+    }
+
     @Test public void promptReadyStageDoesNotReferenceFutureQcReport() {
         String s = script();
         int start = s.indexOf("stage='PROMPTS_READY'");
