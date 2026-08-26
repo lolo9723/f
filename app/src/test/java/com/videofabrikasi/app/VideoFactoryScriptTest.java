@@ -64,6 +64,18 @@ public class VideoFactoryScriptTest {
         assertFalse(s.contains("repo = WORK/'LTX-Video'"));
     }
 
+    @Test public void finalProductionIncludesHighEmotionAudioAndMediaValidation() {
+        String s = VideoFactoryScript.build("test", "p1");
+        assertTrue(s.contains("def build_soundtrack(path, duration):"));
+        assertTrue(s.contains("First-second cartoon scream"));
+        assertTrue(s.contains("soundtrack.wav"));
+        assertTrue(s.contains("'-c:a','aac'"));
+        assertTrue(s.contains("audio='procedural_sfx_aac'"));
+        assertTrue(s.contains("def validate_final_media(path):"));
+        assertTrue(s.contains("Final audio stream is missing"));
+        assertTrue(s.contains("not 1080x1920"));
+    }
+
     @Test public void generatedPythonPassesRealSyntaxCompilation() throws Exception {
         String s = VideoFactoryScript.build("Türkçe fikir: çığlık atan mektup", "syntax-test");
         Path dir = Files.createTempDirectory("video-factory-python-test");
