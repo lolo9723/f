@@ -112,16 +112,55 @@ public class VideoFactoryScriptTest {
 
         Process p = new ProcessBuilder("python3", "-m", "py_compile", py.toString())
                 .redirectErrorStream(true).start();
-        InputStream in = p.getInputStream();
-        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        byte[] chunk = new byte[4096];
-        int read;
-        while ((read = in.read(chunk)) != -1) {
-            buffer.write(chunk, 0, read);
-        }
+        String output = readAll(p.getInputStream());
         int code = p.waitFor();
-        String output = new String(buffer.toByteArray(), StandardCharsets.UTF_8);
         assertEquals("Generated Python syntax error: " + output, 0, code);
+    }
+
+    @Test public void realPythonPlannerExecutesFiveGenericPromptsWithoutGpu() throws Exception {
+        String story = "Korkmuş bir bavul havaalanı kapısından kaçıyor; görünmeyen sırrı yalnız finalde ortaya çıkıyor.";
+        String s = VideoFactoryScript.build(story, "planner-test");
+        Path dir = Files.createTempDirectory("video-factory-planner-test");
+        Path generated = dir.resolve("generated.py");
+        Path runner = dir.resolve("planner_runner.py");
+        Files.write(generated, s.getBytes(StandardCharsets.UTF_8));
+
+        String helper = """
+import ast, json, sys
+source = open(sys.argv[1], encoding='utf-8').read()
+tree = ast.parse(source)
+selected = []
+for node in tree.body:
+    if isinstance(node, ast.Assign):
+        names = [t.id for t in node.targets if isinstance(t, ast.Name)]
+        if any(name in ('SCENE_ROLES', 'STYLE_RULES') for name in names):
+            selected.append(node)
+    elif isinstance(node, ast.FunctionDef) and node.name == 'build_scene_prompts':
+        selected.append(node)
+module = ast.Module(body=selected, type_ignores=[])
+ns = {}
+exec(compile(module, '<planner-only>', 'exec'), ns)
+story = sys.argv[2]
+prompts = ns['build_scene_prompts'](story)
+print(json.dumps({'roles':[r[0] for r in ns['SCENE_ROLES']], 'count':len(prompts), 'prompts':prompts}, ensure_ascii=False))
+""";
+        Files.write(runner, helper.getBytes(StandardCharsets.UTF_8));
+
+        Process p = new ProcessBuilder("python3", runner.toString(), generated.toString(), story)
+                .redirectErrorStream(true).start();
+        String output = readAll(p.getInputStream());
+        int code = p.waitFor();
+        assertEquals("Planner execution failed: " + output, 0, code);
+        assertTrue(output.contains("\"count\": 5"));
+        assertTrue(output.contains("HOOK"));
+        assertTrue(output.contains("ESCALATION"));
+        assertTrue(output.contains("TURNING_POINT"));
+        assertTrue(output.contains("CONSEQUENCE"));
+        assertTrue(output.contains("PAYOFF"));
+        assertTrue(output.contains(story));
+        String lower = output.toLowerCase();
+        assertFalse(lower.contains("white envelope"));
+        assertFalse(lower.contains("street mailbox"));
     }
 
     @Test public void userIdeaAndProjectIdAreBase64Embedded() {
@@ -129,5 +168,13 @@ public class VideoFactoryScriptTest {
         assertFalse(s.contains("USER_IDEA = a\"\"\"b"));
         assertTrue(s.contains("base64.b64decode"));
         assertTrue(s.contains("PROJECT_ID = base64.b64decode"));
+    }
+
+    private static String readAll(InputStream in) throws Exception {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        byte[] chunk = new byte[4096];
+        int read;
+        while ((read = in.read(chunk)) != -1) buffer.write(chunk, 0, read);
+        return new String(buffer.toByteArray(), StandardCharsets.UTF_8);
     }
 }
