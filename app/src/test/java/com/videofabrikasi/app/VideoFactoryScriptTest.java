@@ -1,6 +1,8 @@
 package com.videofabrikasi.app;
 
 import org.junit.Test;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,11 +33,19 @@ public class VideoFactoryScriptTest {
         String s = VideoFactoryScript.build("Türkçe fikir: çığlık atan mektup", "syntax-test");
         Path dir = Files.createTempDirectory("video-factory-python-test");
         Path py = dir.resolve("generated.py");
-        Files.writeString(py, s, StandardCharsets.UTF_8);
+        Files.write(py, s.getBytes(StandardCharsets.UTF_8));
+
         Process p = new ProcessBuilder("python3", "-m", "py_compile", py.toString())
                 .redirectErrorStream(true).start();
-        String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        InputStream in = p.getInputStream();
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        byte[] chunk = new byte[4096];
+        int read;
+        while ((read = in.read(chunk)) != -1) {
+            buffer.write(chunk, 0, read);
+        }
         int code = p.waitFor();
+        String output = new String(buffer.toByteArray(), StandardCharsets.UTF_8);
         assertEquals("Generated Python syntax error: " + output, 0, code);
     }
 
