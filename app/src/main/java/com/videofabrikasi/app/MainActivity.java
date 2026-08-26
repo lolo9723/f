@@ -2,9 +2,16 @@ package com.videofabrikasi.app;
 
 import android.app.Activity;
 import android.app.DownloadManager;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.database.Cursor;
 import android.graphics.Color;
+import android.media.MediaMetadataRetriever;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -31,6 +38,7 @@ public class MainActivity extends Activity {
     private EditText username, token, idea;
     private TextView status, projectInfo;
     private Button generate, refresh, retry, download, prevProject, nextProject;
+    private BroadcastReceiver downloadReceiver;
     private boolean busy = false;
 
     private final Runnable autoPoll = new Runnable() {
@@ -48,11 +56,15 @@ public class MainActivity extends Activity {
         kaggle = new KaggleClient();
         setContentView(buildUi());
         restore();
+        registerDownloadReceiver();
         handler.postDelayed(autoPoll, 1500);
     }
 
     @Override protected void onDestroy() {
         handler.removeCallbacks(autoPoll);
+        if (downloadReceiver != null) {
+            try { unregisterReceiver(downloadReceiver); } catch (Exception ignored) {}
+        }
         executor.shutdownNow();
         super.onDestroy();
     }
@@ -370,8 +382,82 @@ public class MainActivity extends Activity {
                 "VideoFabrikasi-" + slug + ".mp4");
         req.setMimeType("video/mp4");
         long id = ((DownloadManager) getSystemService(DOWNLOAD_SERVICE)).enqueue(req);
-        prefs.edit().putLong("last_download_id", id).apply();
-        toast("MP4 indirme başlatıldı.");
+        prefs.edit().putLong("last_download_id", id).putString("download_slug_" + id, slug).apply();
+        toast("MP4 indirme başlatıldı; tamamlanınca dosya doğrulanacak.");
+    }
+
+    private void registerDownloadReceiver() {
+        downloadReceiver = new BroadcastReceiver() {
+            @Override public void onReceive(Context context, Intent intent) {
+                if (!DownloadManager.ACTION_DOWNLOAD_COMPLETE.equals(intent.getAction())) return;
+                long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L);
+                if (id <= 0L) return;
+                String slug = prefs.getString("download_slug_" + id, "");
+                if (slug == null || slug.isEmpty()) return;
+                executor.execute(() -> verifyDownloadedVideo(id, slug));
+            }
+        };
+        IntentFilter filter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(downloadReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(downloadReceiver, filter);
+        }
+    }
+
+    private void verifyDownloadedVideo(long id, String slug) {
+        DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+        DownloadManager.Query q = new DownloadManager.Query().setFilterById(id);
+        try (Cursor c = dm.query(q)) {
+            if (c == null || !c.moveToFirst()) throw new IllegalStateException("İndirme kaydı bulunamadı.");
+            int state = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+            if (state != DownloadManager.STATUS_SUCCESSFUL) {
+                int reason = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
+                throw new IllegalStateException("Android indirme başarısız. Kod: " + reason);
+            }
+            long total = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+            if (total >= 0 && total < 100000) throw new IllegalStateException("İndirilen MP4 beklenmedik derecede küçük: " + total + " bayt");
+            String local = c.getString(c.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI));
+            if (local == null || local.isEmpty()) throw new IllegalStateException("İndirilen dosyanın yerel URI bilgisi yok.");
+
+            MediaMetadataRetriever mmr = new MediaMetadataRetriever();
+            try {
+                mmr.setDataSource(this, Uri.parse(local));
+                int width = parseInt(mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
+                int height = parseInt(mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
+                long duration = parseLong(mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION));
+                if (width != 1080 || height != 1920) {
+                    throw new IllegalStateException("İndirilen video 1080x1920 değil: " + width + "x" + height);
+                }
+                if (duration < 5000L) {
+                    throw new IllegalStateException("İndirilen videonun süresi şüpheli: " + duration + " ms");
+                }
+            } finally {
+                try { mmr.release(); } catch (Exception ignored) {}
+            }
+
+            project.updateStatusForSlug(slug, "AI TAMAMLANDI — İNDİRİLDİ");
+            prefs.edit().remove("download_slug_" + id).putBoolean("last_download_verified", true).apply();
+            ui(() -> {
+                if (slug.equals(project.slug())) renderProject();
+                toast("MP4 indirildi ve doğrulandı.");
+            });
+        } catch (Exception e) {
+            project.updateStatusForSlug(slug, "AI TAMAMLANDI — İNDİRME HATASI");
+            prefs.edit().remove("download_slug_" + id).putBoolean("last_download_verified", false).apply();
+            ui(() -> {
+                if (slug.equals(project.slug())) renderProject();
+                showError("MP4 indirme doğrulaması", e);
+            });
+        }
+    }
+
+    private int parseInt(String value) {
+        try { return Integer.parseInt(value == null ? "0" : value); } catch (Exception e) { return 0; }
+    }
+
+    private long parseLong(String value) {
+        try { return Long.parseLong(value == null ? "0" : value); } catch (Exception e) { return 0L; }
     }
 
     private void renderProject() {
