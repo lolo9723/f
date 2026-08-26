@@ -9,49 +9,76 @@ import java.nio.file.Path;
 import static org.junit.Assert.*;
 
 public class VideoFactoryScriptTest {
-    @Test public void scriptContainsRequiredProductionContract() {
-        String s = VideoFactoryScript.build("mektup hikayesi", "p1");
-        assertTrue(s.contains("FINAL.mp4"));
-        assertTrue(s.contains("LTX-Video"));
-        assertTrue(s.contains("PROMPTS = ["));
-        assertTrue(s.contains("GENERATING_"));
-        assertTrue(s.contains("COMPLETE"));
-        assertTrue(s.contains("fallback_video"));
-        assertTrue(s.contains("status.json"));
+    private String script() {
+        return VideoFactoryScript.build(
+                "Küçük bir anahtar panikle kilitli bir kapıya koşuyor; kapının arkasındaki sır ancak finalde anlaşılıyor.",
+                "p1");
     }
 
-    @Test public void ltxEngineIsPinnedAndUsesDirectoryOutput() {
-        String s = VideoFactoryScript.build("test", "p1");
+    @Test public void v2IsTheActiveProductionEngine() {
+        String s = script();
+        assertTrue(s.contains("story-v2"));
+        assertTrue(s.contains("CONTINUITY_STRENGTH = 0.65"));
+        assertTrue(s.contains("SCENE_ROLES = ["));
+        assertTrue(s.contains("PROMPTS = build_scene_prompts(USER_IDEA)"));
+    }
+
+    @Test public void genericStoryUsesFiveDistinctDramaticRoles() {
+        String s = script();
+        assertTrue(s.contains("'HOOK'"));
+        assertTrue(s.contains("'ESCALATION'"));
+        assertTrue(s.contains("'TURNING_POINT'"));
+        assertTrue(s.contains("'CONSEQUENCE'"));
+        assertTrue(s.contains("'PAYOFF'"));
+        assertTrue(s.contains("Scene {index}/5 role: {role}"));
+        assertTrue(s.contains("Show one dominant action only"));
+    }
+
+    @Test public void activeEngineHasNoHardCodedLetterOrMailboxPremise() {
+        String s = script().toLowerCase();
+        assertFalse(s.contains("white envelope"));
+        assertFalse(s.contains("street mailbox"));
+        assertFalse(s.contains("happy envelope"));
+        assertFalse(s.contains("worried envelope"));
+        assertTrue(s.contains("use only characters, objects, setting and events supported by the creator story"));
+    }
+
+    @Test public void firstSceneIsTextToVideoAndLaterScenesUsePreviousLastFrame() {
+        String s = script();
+        assertTrue(s.contains("continuity_frame=None"));
+        assertTrue(s.contains("'text_to_video' if i == 0 else 'previous_scene_last_frame'"));
+        assertTrue(s.contains("if i > 0:"));
+        assertTrue(s.contains("conditioning_media_paths=[str(continuity_frame)]"));
+        assertTrue(s.contains("conditioning_strengths=[CONTINUITY_STRENGTH]"));
+        assertTrue(s.contains("extract_last_frame(out, next_frame)"));
+        assertTrue(s.contains("continuity_frame=next_frame"));
+    }
+
+    @Test public void ltxEngineIsPinnedAndT4Fp16Compatible() {
+        String s = script();
         assertTrue(s.contains("LTX_COMMIT = '4b2d053057623ddd4d0a1d3e9cd28890e9ef487f'"));
-        assertTrue(s.contains("output_path=str(scene_dir)"));
-        assertTrue(s.contains("scene_dir.glob('*.mp4')"));
-        assertTrue(s.contains("prompt_enhancement_words_threshold'] = 0"));
-        assertFalse(s.contains("output_path=str(out)"));
-    }
-
-    @Test public void t4PathForcesFloat16InsteadOfNativeBfloat16() {
-        String s = VideoFactoryScript.build("test", "p1");
         assertTrue(s.contains("cfg_data['precision'] = 'float16'"));
         assertTrue(s.contains("elif precision == \"float16\":"));
         assertTrue(s.contains("to(torch.float16)"));
         assertTrue(s.contains("compute_dtype = torch.float16 if precision == \"float16\" else torch.bfloat16"));
-        assertTrue(s.contains("Pinned LTX transformer precision block changed unexpectedly"));
-        assertTrue(s.contains("Pinned LTX VAE/text encoder precision block changed unexpectedly"));
-        assertTrue(s.contains("T4-FP16"));
-    }
-
-    @Test public void kaggleRuntimeHasGpuPreflightAndCompatibleDependencyPins() {
-        String s = VideoFactoryScript.build("test", "p1");
         assertTrue(s.contains("transformers==4.49.0"));
         assertTrue(s.contains("diffusers==0.33.1"));
         assertTrue(s.contains("torch.cuda.is_available()"));
         assertTrue(s.contains("device='cuda', dtype=torch.float16"));
         assertTrue(s.contains("GPU VRAM is too small"));
-        assertTrue(s.contains("stage='GPU_READY'"));
+    }
+
+    @Test public void scenesRetryAndPipelineCanRecoverAfterFailure() {
+        String s = script();
+        assertTrue(s.contains("MAX_SCENE_ATTEMPTS = 3"));
+        assertTrue(s.contains("for attempt in range(1, MAX_SCENE_ATTEMPTS + 1):"));
+        assertTrue(s.contains("reset_pipeline_cache()"));
+        assertTrue(s.contains("failed after {MAX_SCENE_ATTEMPTS} attempts"));
+        assertTrue(s.contains("validate_scene_media(out)"));
     }
 
     @Test public void kaggleWorkingKeepsOnlyPersistentOutputsByDesign() {
-        String s = VideoFactoryScript.build("test", "p1");
+        String s = script();
         assertTrue(s.contains("WORK = Path('/kaggle/working')"));
         assertTrue(s.contains("TEMP = Path('/tmp/video-factory')"));
         assertTrue(s.contains("FINAL = WORK / 'FINAL.mp4'"));
@@ -61,13 +88,12 @@ public class VideoFactoryScriptTest {
         assertTrue(s.contains("custom_cfg = TEMP/'ltx_t4_config.yaml'"));
         assertTrue(s.contains("concat=TEMP/'concat.txt'"));
         assertFalse(s.contains("SCENES = WORK"));
-        assertFalse(s.contains("repo = WORK/'LTX-Video'"));
     }
 
     @Test public void finalProductionIncludesHighEmotionAudioAndMediaValidation() {
-        String s = VideoFactoryScript.build("test", "p1");
+        String s = script();
         assertTrue(s.contains("def build_soundtrack(path, duration):"));
-        assertTrue(s.contains("First-second cartoon scream"));
+        assertTrue(s.contains("High-arousal opening vocal-like scream"));
         assertTrue(s.contains("soundtrack.wav"));
         assertTrue(s.contains("'-c:a','aac'"));
         assertTrue(s.contains("audio='procedural_sfx_aac'"));
@@ -77,8 +103,10 @@ public class VideoFactoryScriptTest {
     }
 
     @Test public void generatedPythonPassesRealSyntaxCompilation() throws Exception {
-        String s = VideoFactoryScript.build("Türkçe fikir: çığlık atan mektup", "syntax-test");
-        Path dir = Files.createTempDirectory("video-factory-python-test");
+        String s = VideoFactoryScript.build(
+                "Türkçe fikir: korkmuş bir bavul kapıdan kaçıyor ve gizli nedeni finalde ortaya çıkıyor.",
+                "syntax-test");
+        Path dir = Files.createTempDirectory("video-factory-python-v2-test");
         Path py = dir.resolve("generated.py");
         Files.write(py, s.getBytes(StandardCharsets.UTF_8));
 
@@ -96,9 +124,10 @@ public class VideoFactoryScriptTest {
         assertEquals("Generated Python syntax error: " + output, 0, code);
     }
 
-    @Test public void userIdeaIsBase64Embedded() {
-        String s = VideoFactoryScript.build("a\"\"\"b", "id");
+    @Test public void userIdeaAndProjectIdAreBase64Embedded() {
+        String s = VideoFactoryScript.build("a\"\"\"b", "id/özel");
         assertFalse(s.contains("USER_IDEA = a\"\"\"b"));
         assertTrue(s.contains("base64.b64decode"));
+        assertTrue(s.contains("PROJECT_ID = base64.b64decode"));
     }
 }
