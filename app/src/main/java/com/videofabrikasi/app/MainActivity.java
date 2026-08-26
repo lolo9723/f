@@ -11,7 +11,6 @@ import android.database.Cursor;
 import android.graphics.Color;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -424,19 +423,18 @@ public class MainActivity extends Activity {
                 if (id <= 0L) return;
                 String slug = prefs.getString("download_slug_" + id, "");
                 if (slug == null || slug.isEmpty()) return;
-                // The receiver is exported on Android 13+ because DownloadManager is outside
-                // our app process. Spoofed broadcasts cannot mark a project successful: the ID
-                // must already exist in our pending map and verifyDownloadedVideo queries the
+                // DownloadManager sends this broadcast from outside our app process, so the
+                // receiver is exported. A spoofed broadcast cannot mark a project successful:
+                // the ID must exist in our pending map and verifyDownloadedVideo queries the
                 // authoritative DownloadManager row before accepting the file.
                 executor.execute(() -> verifyDownloadedVideo(id, slug));
             }
         };
         IntentFilter filter = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(downloadReceiver, filter, Context.RECEIVER_EXPORTED);
-        } else {
-            registerReceiver(downloadReceiver, filter);
-        }
+        // minSdk is 26, and this three-argument overload exists since API 26. Using one
+        // explicit exported-state path on every supported Android version also keeps lint
+        // and runtime semantics identical.
+        registerReceiver(downloadReceiver, filter, Context.RECEIVER_EXPORTED);
     }
 
     private void reconcilePendingDownloads() {
