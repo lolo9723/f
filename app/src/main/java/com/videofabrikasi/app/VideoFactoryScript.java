@@ -10,12 +10,13 @@ public final class VideoFactoryScript {
         String safeIdea = Base64.getEncoder().encodeToString((idea == null ? "" : idea).getBytes(StandardCharsets.UTF_8));
         String safeId = Base64.getEncoder().encodeToString((projectId == null ? "" : projectId).getBytes(StandardCharsets.UTF_8));
         return """
-import os, sys, json, subprocess, traceback, base64, shutil, wave
+import os, sys, json, subprocess, traceback, base64, shutil, wave, gc
 from pathlib import Path
 
 PROJECT_ID = base64.b64decode('__PROJECT_ID_B64__').decode('utf-8')
 USER_IDEA = base64.b64decode('__USER_IDEA_B64__').decode('utf-8')
 LTX_COMMIT = '4b2d053057623ddd4d0a1d3e9cd28890e9ef487f'
+MAX_SCENE_ATTEMPTS = 3
 WORK = Path('/kaggle/working')
 TEMP = Path('/tmp/video-factory')
 if TEMP.exists():
@@ -102,7 +103,6 @@ def build_soundtrack(path, duration):
     scream *= envelope(n, 0.015, 0.18)
     put(0.04, scream, 0.72)
 
-    # Fast whoosh as the frightened letter catches up.
     n = int(sr * 0.55)
     tt = np.arange(n, dtype=np.float32) / sr
     whoosh_noise = rng.normal(0,1,n).astype(np.float32)
@@ -110,27 +110,22 @@ def build_soundtrack(path, duration):
     whoosh *= np.sin(np.pi*np.clip(tt/0.55,0,1))**2
     put(1.05, whoosh, 0.13)
 
-    # Push / mailbox impact.
     n = int(sr * 0.38)
     tt = np.arange(n, dtype=np.float32) / sr
     impact = (np.sin(2*np.pi*72*tt) + 0.45*rng.normal(0,1,n).astype(np.float32)) * np.exp(-tt*15.0)
     put(2.00, impact, 0.42)
 
-    # Metallic mailbox clank.
     n = int(sr * 0.50)
     tt = np.arange(n, dtype=np.float32) / sr
     metal = (np.sin(2*np.pi*1180*tt) + 0.55*np.sin(2*np.pi*1830*tt)) * np.exp(-tt*8.5)
     put(6.15, metal, 0.18)
 
-    # Emotional low drone after the bad letter is read.
     n = int(sr * 2.30)
     tt = np.arange(n, dtype=np.float32) / sr
     drone = (np.sin(2*np.pi*146.8*tt) + 0.42*np.sin(2*np.pi*174.6*tt)) * envelope(n,0.35,0.70)
     put(7.65, drone, 0.10)
 
-    # Paper fall / final rustle.
     n = int(sr * 0.75)
-    tt = np.arange(n, dtype=np.float32) / sr
     paper_noise = rng.normal(0,1,n).astype(np.float32)
     paper = np.concatenate(([0.0], np.diff(paper_noise))) * envelope(n,0.02,0.35)
     put(9.20, paper, 0.09)
@@ -145,13 +140,28 @@ def build_soundtrack(path, duration):
         wf.setframerate(sr)
         wf.writeframes(pcm.tobytes())
 
+def probe_media(path):
+    raw = subprocess.check_output([
+        'ffprobe','-v','error','-show_entries','stream=codec_type,width,height:format=duration','-of','json',str(path)
+    ], text=True)
+    return json.loads(raw)
+
+def validate_scene_media(path):
+    if not path.is_file() or path.stat().st_size < 10000:
+        raise RuntimeError('Scene MP4 is unexpectedly small or missing')
+    info = probe_media(path)
+    streams = info.get('streams', [])
+    video = next((s for s in streams if s.get('codec_type') == 'video'), None)
+    if video is None or int(video.get('width',0)) != 448 or int(video.get('height',0)) != 800:
+        raise RuntimeError('Scene video stream is missing or not 448x800')
+    duration = float(info.get('format', {}).get('duration', '0') or '0')
+    if duration < 1.5:
+        raise RuntimeError(f'Scene duration is too short: {duration:.2f}s')
+
 def validate_final_media(path):
     if not path.is_file() or path.stat().st_size < 100000:
         raise RuntimeError('Final MP4 is unexpectedly small or missing')
-    raw = subprocess.check_output([
-        'ffprobe','-v','error','-show_entries','stream=codec_type,width,height','-of','json',str(path)
-    ], text=True)
-    info = json.loads(raw)
+    info = probe_media(path)
     streams = info.get('streams', [])
     video = next((s for s in streams if s.get('codec_type') == 'video'), None)
     audio = next((s for s in streams if s.get('codec_type') == 'audio'), None)
@@ -159,6 +169,9 @@ def validate_final_media(path):
         raise RuntimeError('Final video stream is missing or not 1080x1920')
     if audio is None:
         raise RuntimeError('Final audio stream is missing')
+    duration = float(info.get('format', {}).get('duration', '0') or '0')
+    if duration < 8.0:
+        raise RuntimeError(f'Final video duration is too short: {duration:.2f}s')
 
 def fallback_video():
     from PIL import Image, ImageDraw
@@ -239,8 +252,25 @@ try:
     write_status(stage='GPU_READY', engine='LTX-Video 2B distilled 0.9.6 T4-FP16', ai_ok=False,
                  gpu=gpu_name, vram_gb=gpu_vram_gb, torch=torch_version, dtype='float16')
     sys.path.insert(0,str(repo))
-    from ltx_video.inference import infer, InferenceConfig
+    import torch
     import yaml
+    import ltx_video.inference as ltx_inference
+    InferenceConfig = ltx_inference.InferenceConfig
+
+    # The upstream infer() constructs a new pipeline every call. Cache that factory so
+    # successful scenes reuse the loaded model; a failed attempt explicitly resets it.
+    _original_create_pipeline = ltx_inference.create_ltx_video_pipeline
+    _pipeline_cache = {}
+    def cached_create_ltx_video_pipeline(*args, **kwargs):
+        if 'pipeline' not in _pipeline_cache:
+            _pipeline_cache['pipeline'] = _original_create_pipeline(*args, **kwargs)
+        return _pipeline_cache['pipeline']
+    ltx_inference.create_ltx_video_pipeline = cached_create_ltx_video_pipeline
+
+    def reset_pipeline_cache():
+        _pipeline_cache.clear()
+        gc.collect()
+        torch.cuda.empty_cache()
 
     base_cfg = repo/'configs/ltxv-2b-0.9.6-distilled.yaml'
     custom_cfg = TEMP/'ltx_t4_config.yaml'
@@ -255,24 +285,42 @@ try:
         make_reference(ref,i)
         out=SCENES/f'scene_{i+1}.mp4'
         scene_dir=SCENES/f'generated_{i+1}'
-        if scene_dir.exists(): shutil.rmtree(scene_dir)
-        scene_dir.mkdir(parents=True)
-        write_status(stage=f'GENERATING_{i+1}_OF_5', engine='LTX-Video 2B distilled 0.9.6 T4-FP16', ai_ok=False,
-                     gpu=gpu_name, dtype='float16')
-        cfg=InferenceConfig(
-            pipeline_config=str(custom_cfg),
-            prompt=prompt, height=800, width=448, num_frames=49, frame_rate=24,
-            seed=12400+i, output_path=str(scene_dir), offload_to_cpu=True,
-            conditioning_media_paths=[str(ref)], conditioning_start_frames=[0],
-            conditioning_strengths=[1.0],
-        )
-        infer(config=cfg)
-        candidates=sorted(scene_dir.glob('*.mp4'), key=lambda p:p.stat().st_mtime, reverse=True)
-        if not candidates:
-            raise RuntimeError(f'Scene {i+1} produced no MP4')
-        shutil.copy2(candidates[0], out)
-        if not out.is_file() or out.stat().st_size < 10000:
-            raise RuntimeError(f'Scene {i+1} did not produce a valid MP4')
+        scene_ready=False
+        last_scene_error=None
+
+        for attempt in range(1, MAX_SCENE_ATTEMPTS + 1):
+            if scene_dir.exists(): shutil.rmtree(scene_dir)
+            scene_dir.mkdir(parents=True)
+            write_status(stage=f'GENERATING_{i+1}_OF_5_ATTEMPT_{attempt}',
+                         engine='LTX-Video 2B distilled 0.9.6 T4-FP16', ai_ok=False,
+                         gpu=gpu_name, dtype='float16', scene=i+1, attempt=attempt)
+            try:
+                cfg=InferenceConfig(
+                    pipeline_config=str(custom_cfg),
+                    prompt=prompt, height=800, width=448, num_frames=49, frame_rate=24,
+                    seed=12400+(i*10)+attempt, output_path=str(scene_dir), offload_to_cpu=True,
+                    conditioning_media_paths=[str(ref)], conditioning_start_frames=[0],
+                    conditioning_strengths=[1.0],
+                )
+                ltx_inference.infer(config=cfg)
+                candidates=sorted(scene_dir.glob('*.mp4'), key=lambda p:p.stat().st_mtime, reverse=True)
+                if not candidates:
+                    raise RuntimeError(f'Scene {i+1} produced no MP4')
+                shutil.copy2(candidates[0], out)
+                validate_scene_media(out)
+                scene_ready=True
+                last_scene_error=None
+                break
+            except Exception as scene_error:
+                last_scene_error=scene_error
+                write_status(stage=f'SCENE_{i+1}_ATTEMPT_{attempt}_FAILED',
+                             engine='LTX-Video 2B distilled 0.9.6 T4-FP16', ai_ok=False,
+                             gpu=gpu_name, dtype='float16', scene=i+1, attempt=attempt,
+                             error=str(scene_error))
+                reset_pipeline_cache()
+
+        if not scene_ready:
+            raise RuntimeError(f'Scene {i+1} failed after {MAX_SCENE_ATTEMPTS} attempts: {last_scene_error}')
         generated.append(out)
         write_status(stage=f'SCENE_{i+1}_READY', engine='LTX-Video 2B distilled 0.9.6 T4-FP16', ai_ok=False,
                      scene=i+1, scene_file=out.name, gpu=gpu_name, dtype='float16')
