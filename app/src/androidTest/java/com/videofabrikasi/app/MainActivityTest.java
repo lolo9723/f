@@ -33,6 +33,7 @@ public class MainActivityTest {
         onView(withId(R.id.refresh)).check(matches(isDisplayed()));
         onView(withId(R.id.retry)).check(matches(isDisplayed()));
         onView(withId(R.id.download)).check(matches(isDisplayed()));
+        onView(withId(R.id.play_pause)).check(matches(isDisplayed()));
         String sample="Bu test için yeterince uzun örnek bir video hikâyesidir.";
         onView(withId(R.id.idea)).perform(replaceText(sample), closeSoftKeyboard());
         onView(withId(R.id.idea)).check(matches(withText(sample)));
@@ -43,6 +44,11 @@ public class MainActivityTest {
         onView(withId(R.id.token)).perform(replaceText(""), closeSoftKeyboard());
         onView(withId(R.id.generate)).perform(click());
         onView(withId(R.id.generate)).check(matches(isDisplayed()));
+    }
+
+    @Test public void playRejectsMissingVerifiedVideoWithoutCrash() {
+        onView(withId(R.id.play_pause)).perform(click());
+        onView(withId(R.id.play_pause)).check(matches(isDisplayed()));
     }
 
     @Test public void aiOutputMustBeExplicitlySuccessfulOnAndroid() throws Exception {
