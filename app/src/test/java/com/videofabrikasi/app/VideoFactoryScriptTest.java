@@ -1,6 +1,9 @@
 package com.videofabrikasi.app;
 
 import org.junit.Test;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import static org.junit.Assert.*;
 
 public class VideoFactoryScriptTest {
@@ -22,6 +25,18 @@ public class VideoFactoryScriptTest {
         assertTrue(s.contains("scene_dir.glob('*.mp4')"));
         assertTrue(s.contains("prompt_enhancement_words_threshold'] = 0"));
         assertFalse(s.contains("output_path=str(out)"));
+    }
+
+    @Test public void generatedPythonPassesRealSyntaxCompilation() throws Exception {
+        String s = VideoFactoryScript.build("Türkçe fikir: çığlık atan mektup", "syntax-test");
+        Path dir = Files.createTempDirectory("video-factory-python-test");
+        Path py = dir.resolve("generated.py");
+        Files.writeString(py, s, StandardCharsets.UTF_8);
+        Process p = new ProcessBuilder("python3", "-m", "py_compile", py.toString())
+                .redirectErrorStream(true).start();
+        String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        int code = p.waitFor();
+        assertEquals("Generated Python syntax error: " + output, 0, code);
     }
 
     @Test public void userIdeaIsBase64Embedded() {
