@@ -32,6 +32,15 @@ public final class KaggleClient {
         public boolean redirect() { return code >= 300 && code < 400 && !location.isEmpty(); }
     }
 
+    public static final class AccountIdentity {
+        public final boolean active;
+        public final String username;
+        AccountIdentity(boolean active, String username) {
+            this.active = active;
+            this.username = username == null ? "" : username.trim();
+        }
+    }
+
     public static final class PushResult {
         public final int version;
         public final String url;
@@ -50,6 +59,47 @@ public final class KaggleClient {
             this.url = requireHttpsUrl(url);
             this.authRequired = authRequired;
         }
+    }
+
+    public AccountIdentity introspectToken(String token) throws Exception {
+        String value = token == null ? "" : token.trim();
+        if (value.isEmpty()) throw new IllegalArgumentException("Kaggle token boş.");
+        JSONObject body = new JSONObject();
+        body.put("token", value);
+        Result r = request(
+                "POST",
+                "https://www.kaggle.com/api/v1/oauth2/introspect",
+                null,
+                body.toString(),
+                true);
+        if (!r.ok()) {
+            throw new IllegalStateException("Kaggle token introspection HTTP " + r.code + ": " + compact(r.body));
+        }
+        return accountIdentityFromIntrospectionJson(r.body);
+    }
+
+    static AccountIdentity accountIdentityFromIntrospectionJson(String jsonText) throws Exception {
+        JSONObject j = new JSONObject(jsonText == null ? "{}" : jsonText);
+        return new AccountIdentity(j.optBoolean("active", false), j.optString("username", ""));
+    }
+
+    static String tokenFromImportedText(String raw) throws Exception {
+        String text = raw == null ? "" : raw.trim();
+        if (text.isEmpty()) return "";
+        if (text.startsWith("KGAT_")) return text.split("\\s+")[0].trim();
+
+        try {
+            JSONObject j = new JSONObject(text);
+            for (String key : new String[]{"token", "access_token", "api_token"}) {
+                String candidate = j.optString(key, "").trim();
+                if (candidate.startsWith("KGAT_")) return candidate;
+            }
+        } catch (Exception ignored) {}
+
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("(KGAT_[A-Za-z0-9._\\-]+)")
+                .matcher(text);
+        return m.find() ? m.group(1) : "";
     }
 
     public Result validateToken(String token) throws Exception {
