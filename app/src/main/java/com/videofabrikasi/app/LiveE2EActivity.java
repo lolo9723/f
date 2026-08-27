@@ -297,7 +297,8 @@ public final class LiveE2EActivity extends Activity {
 
                 ui(() -> {
                     username.setText(identity.username);
-                    token.setText(parsed);
+                    token.setText("");
+                    token.setHint("Token Android Keystore’da güvenli kayıtlı");
                     workInFlight = false;
                     if (connectKaggle != null) connectKaggle.setEnabled(true);
                     if (importTokenFile != null) importTokenFile.setEnabled(true);
@@ -323,7 +324,9 @@ public final class LiveE2EActivity extends Activity {
             return;
         }
         String user = username.getText().toString().trim();
+        if (user.isEmpty()) user = prefs.getString("username", "").trim();
         String tokenValue = token.getText().toString().trim();
+        if (tokenValue.isEmpty()) tokenValue = secure.get("kaggle_token").trim();
         if (user.isEmpty() || tokenValue.isEmpty()) {
             toast("Kaggle kullanıcı adı ve API token gerekli.");
             return;
