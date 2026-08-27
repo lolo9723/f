@@ -34,17 +34,19 @@ public class LiveE2EActivityTest {
         String json = "{"
                 + "\"stage\":\"COMPLETE\","
                 + "\"ai_ok\":true,"
-                + "\"engine\":\"LTX-Video 2B distilled 0.9.6 T4-FP16 story-v3\","
+                + "\"engine\":\"LTX-Video 2B distilled 0.9.6 T4-FP16 story-v4\","
                 + "\"scenes\":5,"
                 + "\"prompt_language\":\"English\","
                 + "\"translation\":{\"mode\":\"tr_to_en\"},"
                 + "\"continuity\":\"previous_scene_last_frame\","
                 + "\"continuity_strength\":0.65,"
                 + "\"audio\":\"procedural_generic_emotion_sfx_aac\","
+                + "\"quality_gate\":\"siglip_semantic_plus_visual_integrity\","
+                + "\"quality\":[{\"pass\":true},{\"pass\":true},{\"pass\":true},{\"pass\":true},{\"pass\":true}],"
                 + "\"final\":\"FINAL.mp4\"} ";
         LiveE2ECertificate c = LiveE2ECertificate.parse(json);
-        assertTrue(c.passesCanonicalV3());
-        assertTrue(c.summary().contains("story-v3"));
+        assertTrue(c.passesCanonicalV4());
+        assertTrue(c.summary().contains("story-v4"));
         assertTrue(c.summary().contains("tr_to_en"));
     }
 
@@ -52,7 +54,7 @@ public class LiveE2EActivityTest {
         LiveE2ECertificate c = LiveE2ECertificate.parse(
                 "{\"stage\":\"COMPLETE_FALLBACK\",\"ai_ok\":false,"
                         + "\"engine\":\"fallback renderer\",\"error\":\"LTX failed\"}");
-        assertFalse(c.passesCanonicalV3());
+        assertFalse(c.passesCanonicalV4());
         assertTrue(c.failureReason().contains("ai_ok=false"));
     }
 }
