@@ -51,9 +51,11 @@ jobs:
           java -cp /tmp/vf-e2e-dry/classes com.videofabrikasi.app.GenerateE2EScript vf-ci-dry-run \
             > /tmp/vf-e2e-dry/kernel.py
           python3 -m py_compile /tmp/vf-e2e-dry/kernel.py
-          grep -q "story-v3" /tmp/vf-e2e-dry/kernel.py
+          grep -q "story-v4" /tmp/vf-e2e-dry/kernel.py
           grep -q "Helsinki-NLP/opus-mt-tr-en" /tmp/vf-e2e-dry/kernel.py
           grep -q "CONTINUITY_STRENGTH = 0.65" /tmp/vf-e2e-dry/kernel.py
+          grep -q "QC_MODEL = 'google/siglip-base-patch16-224'" /tmp/vf-e2e-dry/kernel.py
+          grep -q "quality_gate='siglip_semantic_plus_visual_integrity'" /tmp/vf-e2e-dry/kernel.py
           echo "Live E2E tooling dry contract PASS"
       - name: Lint
         run: gradle lintDebug --stacktrace
