@@ -118,6 +118,11 @@ public class MainActivity extends Activity {
         save.setOnClickListener(v -> saveAuth());
         test.setOnClickListener(v -> testConnection());
 
+        Button easyConnect = button("KAGGLE’I KOLAY BAĞLA / CANLI TEST");
+        easyConnect.setId(R.id.open_live_e2e);
+        root.addView(easyConnect, full());
+        easyConnect.setOnClickListener(v -> startActivity(new Intent(this, LiveE2EActivity.class)));
+
         root.addView(section("2 — Video fikri"));
         idea = edit("Video fikri / hikâye");
         idea.setId(R.id.idea);
