@@ -15,6 +15,9 @@
     <item name="next_project" type="id"/>
     <item name="status_text" type="id"/>
     <item name="project_text" type="id"/>
+    <item name="e2e_connect_kaggle" type="id"/>
+    <item name="e2e_import_token_file" type="id"/>
+    <item name="e2e_import_clipboard" type="id"/>
     <item name="e2e_username" type="id"/>
     <item name="e2e_token" type="id"/>
     <item name="e2e_start" type="id"/>
