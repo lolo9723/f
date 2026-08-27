@@ -3,6 +3,7 @@ package com.videofabrikasi.app;
 import android.app.Activity;
 import android.app.DownloadManager;
 import android.content.BroadcastReceiver;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -24,6 +25,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.text.DateFormat;
 import java.util.Date;
 import java.util.concurrent.ExecutorService;
@@ -44,6 +47,8 @@ public final class LiveE2EActivity extends Activity {
     private static final long POLL_MS = 20_000L;
     private static final long MAX_RUN_MS = 4L * 60L * 60L * 1000L;
     private static final int MAX_DOWNLOAD_ATTEMPTS = 3;
+    private static final int REQUEST_TOKEN_FILE = 4107;
+    private static final String KAGGLE_API_SETTINGS = "https://www.kaggle.com/settings/api";
 
     private static final String CANONICAL_STORY =
             "İki beyaz mektup aynı kişiye gidiyor. Biri iyi haber taşıyor ve özgüvenli, "
@@ -62,6 +67,8 @@ public final class LiveE2EActivity extends Activity {
     private TextView status;
     private TextView details;
     private Button start;
+    private Button connectKaggle;
+    private Button importTokenFile;
     private BroadcastReceiver downloadReceiver;
     private boolean workInFlight;
 
@@ -81,6 +88,37 @@ public final class LiveE2EActivity extends Activity {
         registerDownloadReceiver();
         executor.execute(this::reconcileDownload);
         handler.postDelayed(poll, 2_000L);
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (prefs != null && prefs.getBoolean("waiting_for_kaggle_token", false)
+                && !workInFlight && !RUNNING.equals(state()) && !DOWNLOADING.equals(state())) {
+            handler.postDelayed(() -> tryImportClipboard(true), 450L);
+        }
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_TOKEN_FILE || resultCode != RESULT_OK || data == null || data.getData() == null) {
+            return;
+        }
+        Uri uri = data.getData();
+        try (InputStream in = getContentResolver().openInputStream(uri)) {
+            if (in == null) throw new IllegalStateException("Token dosyası açılamadı.");
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            int read;
+            int total = 0;
+            while ((read = in.read(buffer)) != -1) {
+                total += read;
+                if (total > 65536) throw new IllegalStateException("Token dosyası beklenenden büyük.");
+                out.write(buffer, 0, read);
+            }
+            importCredentialText(out.toString("UTF-8"), true);
+        } catch (Exception e) {
+            fail("Token dosyası okunamadı: " + safe(e));
+        }
     }
 
     @Override protected void onDestroy() {
@@ -112,10 +150,29 @@ public final class LiveE2EActivity extends Activity {
         TextView title = text("VF CANLI E2E SERTİFİKA", 25, true);
         root.addView(title, full());
         TextView note = text(
-                "Bu ekran gerçek Kaggle GPU kotası kullanır. PASS ancak gerçek T4 üretimi, V4 Türkçe→İngilizce + 5/5 semantic QC, 5 AI sahnesi, continuity, ses, FINAL.mp4 indirme ve Android medya doğrulaması birlikte geçerse verilir.",
+                "Kolay bağlantı: KAGGLE’I BAĞLA düğmesine bas. Kaggle açılınca hesabına giriş yap, API bölümünde Generate New Token oluştur ve tokenı kopyala. Uygulamaya döndüğünde kullanıcı adı/token otomatik tanınır ve gerçek T4 testi kendiliğinden başlar. JSON, GitHub Secret veya teknik ayar gerekmez.",
                 13, false);
         note.setTextColor(Color.DKGRAY);
         root.addView(note, full());
+
+        connectKaggle = button("KAGGLE’I BAĞLA — KOLAY KURULUM");
+        connectKaggle.setId(R.id.e2e_connect_kaggle);
+        root.addView(connectKaggle, full());
+        connectKaggle.setOnClickListener(v -> openKaggleSetup());
+
+        importTokenFile = button("İNDİRİLEN TOKEN DOSYASINI SEÇ");
+        importTokenFile.setId(R.id.e2e_import_token_file);
+        root.addView(importTokenFile, full());
+        importTokenFile.setOnClickListener(v -> pickTokenFile());
+
+        Button clipboard = button("PANODAKİ TOKENI OTOMATİK AL");
+        clipboard.setId(R.id.e2e_import_clipboard);
+        root.addView(clipboard, full());
+        clipboard.setOnClickListener(v -> tryImportClipboard(false));
+
+        TextView advanced = text("Gelişmiş / yedek alanlar (normalde doldurman gerekmez):", 12, true);
+        advanced.setTextColor(Color.GRAY);
+        root.addView(advanced, full());
 
         username = edit("Kaggle kullanıcı adı");
         username.setId(R.id.e2e_username);
@@ -157,6 +214,106 @@ public final class LiveE2EActivity extends Activity {
         username.setText(prefs.getString("username", mainPrefs.getString("username", "")));
         token.setText(secure.get("kaggle_token"));
         render();
+    }
+
+    private void openKaggleSetup() {
+        prefs.edit().putBoolean("waiting_for_kaggle_token", true).apply();
+        status.setText("KAGGLE BAĞLANTISI BEKLENİYOR…");
+        details.setText("Kaggle açılıyor. Giriş yap → API → Generate New Token → tokenı kopyala → uygulamaya geri dön. Gerisini uygulama yapacak.");
+        try {
+            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(KAGGLE_API_SETTINGS));
+            startActivity(i);
+        } catch (Exception e) {
+            fail("Kaggle token sayfası açılamadı: " + safe(e));
+        }
+    }
+
+    private void pickTokenFile() {
+        try {
+            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            i.addCategory(Intent.CATEGORY_OPENABLE);
+            i.setType("*/*");
+            startActivityForResult(i, REQUEST_TOKEN_FILE);
+        } catch (Exception e) {
+            fail("Token dosya seçicisi açılamadı: " + safe(e));
+        }
+    }
+
+    private void tryImportClipboard(boolean quiet) {
+        try {
+            ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (cm == null || !cm.hasPrimaryClip() || cm.getPrimaryClip() == null
+                    || cm.getPrimaryClip().getItemCount() == 0) {
+                if (!quiet) toast("Panoda Kaggle token bulunamadı.");
+                return;
+            }
+            CharSequence value = cm.getPrimaryClip().getItemAt(0).coerceToText(this);
+            String raw = value == null ? "" : value.toString();
+            String parsed = KaggleClient.tokenFromImportedText(raw);
+            if (parsed.isEmpty()) {
+                if (!quiet) toast("Panoda KGAT_ ile başlayan Kaggle token bulunamadı.");
+                return;
+            }
+            importCredentialText(parsed, true);
+        } catch (Exception e) {
+            if (!quiet) fail("Panodaki token okunamadı: " + safe(e));
+        }
+    }
+
+    private void importCredentialText(String raw, boolean autoStart) {
+        if (workInFlight) return;
+        final String parsed;
+        try {
+            parsed = KaggleClient.tokenFromImportedText(raw);
+        } catch (Exception e) {
+            fail("Kaggle token biçimi okunamadı: " + safe(e));
+            return;
+        }
+        if (parsed.isEmpty()) {
+            fail("Geçerli Kaggle API token bulunamadı. Kaggle API sayfasında Generate New Token kullan.");
+            return;
+        }
+        workInFlight = true;
+        start.setEnabled(false);
+        if (connectKaggle != null) connectKaggle.setEnabled(false);
+        if (importTokenFile != null) importTokenFile.setEnabled(false);
+        status.setText("KAGGLE HESABI OTOMATİK DOĞRULANIYOR…");
+        executor.execute(() -> {
+            try {
+                KaggleClient.AccountIdentity identity = kaggle.introspectToken(parsed);
+                if (!identity.active) throw new IllegalStateException("Kaggle token aktif değil.");
+                if (identity.username.isEmpty()) throw new IllegalStateException("Kaggle kullanıcı adı token üzerinden alınamadı.");
+
+                KaggleClient.Result validation = kaggle.validateToken(parsed);
+                if (!validation.ok()) throw new IllegalStateException("Kaggle API doğrulaması HTTP " + validation.code);
+
+                secure.put("kaggle_token", parsed);
+                prefs.edit()
+                        .putString("username", identity.username)
+                        .putBoolean("waiting_for_kaggle_token", false)
+                        .apply();
+                getSharedPreferences("video_factory_settings", MODE_PRIVATE)
+                        .edit().putString("username", identity.username).apply();
+
+                ui(() -> {
+                    username.setText(identity.username);
+                    token.setText(parsed);
+                    workInFlight = false;
+                    if (connectKaggle != null) connectKaggle.setEnabled(true);
+                    if (importTokenFile != null) importTokenFile.setEnabled(true);
+                    toast("Kaggle bağlandı: " + identity.username);
+                    render();
+                    if (autoStart) handler.postDelayed(this::startLiveTest, 250L);
+                });
+            } catch (Exception e) {
+                ui(() -> {
+                    workInFlight = false;
+                    if (connectKaggle != null) connectKaggle.setEnabled(true);
+                    if (importTokenFile != null) importTokenFile.setEnabled(true);
+                    fail("Kaggle bağlantısı doğrulanamadı: " + safe(e));
+                });
+            }
+        });
     }
 
     private void startLiveTest() {
@@ -493,6 +650,8 @@ public final class LiveE2EActivity extends Activity {
 
         boolean active = RUNNING.equals(current) || DOWNLOADING.equals(current) || workInFlight;
         start.setEnabled(!active);
+        if (connectKaggle != null) connectKaggle.setEnabled(!active);
+        if (importTokenFile != null) importTokenFile.setEnabled(!active);
         start.setText(PASS.equals(current) ? "CANLI SİSTEM TESTİNİ TEKRARLA"
                 : active ? "CANLI TEST DEVAM EDİYOR" : "CANLI SİSTEM TESTİNİ BAŞLAT");
     }
