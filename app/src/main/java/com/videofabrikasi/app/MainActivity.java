@@ -253,8 +253,8 @@ public class MainActivity extends Activity {
             return;
         }
         try {
-            secure.put("kaggle_token", resolvedToken);
-            prefs.edit().putString("username", resolvedUser).apply();
+            secure.put("kaggle_token", t);
+            prefs.edit().putString("username", u).apply();
             token.setText("");
             token.setHint("Kaggle bağlı — token Keystore’da güvenli");
             toast("Bilgiler Android Keystore ile güvenli kaydedildi.");
