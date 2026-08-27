@@ -37,7 +37,7 @@ jobs:
           test -n "$KAGGLE_API_TOKEN" || { echo "Missing GitHub secret: KAGGLE_API_TOKEN"; exit 2; }
           echo "Required Kaggle secrets are present."
 
-      - name: Prepare exact Android V3 production kernel
+      - name: Prepare exact Android V4 production kernel
         shell: bash
         run: |
           set -euo pipefail
@@ -46,6 +46,7 @@ jobs:
             app/src/main/java/com/videofabrikasi/app/VideoFactoryScript.java \
             app/src/main/java/com/videofabrikasi/app/VideoFactoryScriptV2.java \
             app/src/main/java/com/videofabrikasi/app/VideoFactoryScriptV3.java \
+            app/src/main/java/com/videofabrikasi/app/VideoFactoryScriptV4.java \
             tools/com/videofabrikasi/app/GenerateE2EScript.java
           slug="vf-gh-e2e-$(date +%s%3N)"
           echo "E2E_KERNEL_SLUG=$slug" >> "$GITHUB_ENV"
@@ -53,7 +54,10 @@ jobs:
           java -cp e2e/classes com.videofabrikasi.app.GenerateE2EScript "$slug" > e2e/kernel.py
           python3 -m py_compile e2e/kernel.py
           test -s e2e/kernel.py
-          echo "Production V3 Python generated and py_compile passed."
+          grep -q "story-v4" e2e/kernel.py
+          grep -q "QC_MODEL = 'google/siglip-base-patch16-224'" e2e/kernel.py
+          grep -q "quality_gate='siglip_semantic_plus_visual_integrity'" e2e/kernel.py
+          echo "Production V4 Python generated, semantic QC contract present, and py_compile passed."
 
       - name: Install E2E runner dependencies
         shell: bash
