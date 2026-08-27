@@ -119,3 +119,43 @@ Kanıt yoksa PASS yok.
 - The next required external action is to add repository Actions secrets `KAGGLE_USERNAME` and `KAGGLE_API_TOKEN` (never paste the token into chat), then retrigger the live E2E workflow.
 - Scope is frozen until live E2E: do not add bulk queue, provider fallback, cross-run repair UI, scoring UI, Drive/YouTube integrations, etc.
 - Once live E2E passes: download latest green APK artifact, inspect it, and deliver.
+
+
+## EN GÜNCEL DEVAM NOKTASI — 27 Ağustos 2026, ~09:30 TRT
+
+**Bu bölüm üstteki eski V3/önceki-run notlarından daha günceldir ve yeni sohbette öncelikle buna göre hareket edilmelidir.**
+
+- Repo: `lolo9723/f`
+- Branch: `video-fabrikasi-android`
+- Branch HEAD kontrolünde görülen son commit: `29d2db1e2bd9557d03a73d5ff9c2085e52f7fe44` — “Canlı T4 sertifika kilidini emülatörde test et”.
+- Production engine: **V4**.
+- V4 normal CI son doğrulamalarında:
+  - unit tests = PASS
+  - generated Python / py_compile / dry E2E = PASS
+  - lint = PASS
+  - APK build + structural check = PASS
+  - Android API35 instrumentation = PASS
+  - Android API36 instrumentation = PASS
+- Daha önce yeşil V4 candidate APK artifact’ı üretildi; bu yalnız **candidate** sayılır, gerçek Kaggle T4 E2E geçmeden final teslim edilmez.
+- Gerçek Kaggle T4 workflow iki kez denendi. En son live run: `33044331432`.
+- Live run GPU’ya ulaşmadan şu kapıda durdu: **Verify E2E secrets exist without printing them**.
+- Eksik kimlik bilgileri: `KAGGLE_USERNAME` / `KAGGLE_API_TOKEN`.
+- Kullanıcı açıkça “token/secret işini bana bırakma, ben anlamam; çöz ve öyle teslim et” dedi. Bu nedenle yeni sohbette kullanıcıya GitHub Secrets/JSON/token kopyala-yapıştır işi yüklenmemeli.
+- Bu sohbetin en son çözüm yönü: teknik kimlik bilgisi yükünü ürün içine almak. Kaggle doğrudan OAuth 2.0 + PKCE desteklese de üçüncü taraf public client için önceden Kaggle client registration gerektiği için otomatik client ID üretilemiyor. Bu yüzden **APK içinde kullanıcı dostu Kaggle bağlantı sihirbazı** yaklaşımı değerlendirildi:
+  1. “Kaggle’ı Bağla” düğmesi.
+  2. Kaggle hesabı/token oluşturma sayfasını aç.
+  3. Kullanıcı yalnız giriş/onay/generate-new-token gibi kaçınılmaz hesabına özgü tıklamaları yapar.
+  4. APK indirilen token dosyasını mümkünse Android file picker ile içe alır, username/tokenı otomatik parse eder.
+  5. Token SecureStore/Android Keystore AES-GCM ile saklanır.
+  6. Token doğrulanır ve **uygulama kendi Live E2E testini** başlatır; GitHub Secrets’a bağımlılık kullanıcı açısından ortadan kalkar.
+  7. Gerçek T4 → V4 → 5/5 semantic QC → 1080×1920 H.264/AAC FINAL.mp4 → Android download/media verification → CANLI E2E PASS.
+- **Önemli:** Bu Kaggle bağlantı sihirbazı henüz tamamlandı/commitlendi diye varsayma. Yeni sohbet branch HEAD’ini ve dosyaları tekrar okuyup gerçekten hangi kısmın uygulanmış olduğunu kontrol et.
+- Scope frozen: yeni bulk queue, ekstra özellik, yeni provider vb. ekleme. Öncelik sadece **kimlik bilgisini kullanıcı için zahmetsiz hale getir → gerçek T4 E2E → final APK**.
+- Kullanıcıya tokenı sohbet içine yapıştırmasını asla isteme.
+- Yeni sohbet açıldığında ilk işler:
+  1. `VIDEO_FACTORY_HANDOFF.md` + `VIDEO_FACTORY_ACCEPTANCE_100.md` oku.
+  2. branch HEAD + en son `Video Factory Android` ve `Kaggle Live T4 E2E Certificate` Actions runlarını kontrol et.
+  3. En güncel kodda Kaggle bağlantı sihirbazı / token import mekanizması var mı doğrula.
+  4. Yoksa testleri gevşetmeden bunu uygula.
+  5. Normal CI API35+API36 tamamen yeşil kalsın.
+  6. Gerçek T4 canlı E2E PASS olmadan final deme.
