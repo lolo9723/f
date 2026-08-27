@@ -160,7 +160,7 @@ def assert_status_certificate(data):
     checks = {
         "ai_ok": data.get("ai_ok") is True,
         "stage_complete": str(data.get("stage", "")).upper() == "COMPLETE",
-        "story_v3": "story-v3" in str(data.get("engine", "")).lower(),
+        "story_v4": "story-v4" in str(data.get("engine", "")).lower(),
         "five_scenes": int(data.get("scenes", 0) or 0) == 5,
         "english_prompt": str(data.get("prompt_language", "")).lower() == "english",
         "translation_tr_to_en": str(translation.get("mode", "")).lower() == "tr_to_en",
@@ -168,6 +168,9 @@ def assert_status_certificate(data):
         "continuity_strength": 0.55 <= float(data.get("continuity_strength", -1)) <= 0.75,
         "audio_aac": "aac" in str(data.get("audio", "")).lower(),
         "final_name": data.get("final") == "FINAL.mp4",
+        "quality_gate": data.get("quality_gate") == "siglip_semantic_plus_visual_integrity",
+        "quality_five_pass": len(data.get("quality") or []) == 5
+            and all(bool((q or {}).get("pass")) for q in (data.get("quality") or [])),
         "no_error": not str(data.get("error", "")).strip(),
     }
     failed = [name for name, ok in checks.items() if not ok]
