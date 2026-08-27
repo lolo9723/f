@@ -171,6 +171,118 @@ public final class KaggleClient {
         return normalizeStatus(j.optString("status", ""));
     }
 
+    public String getAcceleratorQuotaSummary(String token) throws Exception {
+        Result r = rpc("GetAcceleratorQuotaStatistics", token, new JSONObject(), true);
+        if (!r.ok()) return "GPU kota sorgusu HTTP " + r.code + ": " + compact(r.body);
+        try {
+            JSONObject j = new JSONObject(r.body);
+            JSONObject gpu = j.optJSONObject("gpuQuota");
+            if (gpu == null) gpu = j.optJSONObject("gpu_quota");
+            if (gpu == null) return "GPU kota bilgisi dönmedi.";
+            String used = String.valueOf(gpu.opt("timeUsed"));
+            if ("null".equals(used)) used = String.valueOf(gpu.opt("time_used"));
+            String reserved = String.valueOf(gpu.opt("timeReserved"));
+            if ("null".equals(reserved)) reserved = String.valueOf(gpu.opt("time_reserved"));
+            String allowed = String.valueOf(gpu.opt("totalTimeAllowed"));
+            if ("null".equals(allowed)) allowed = String.valueOf(gpu.opt("total_time_allowed"));
+            return "used=" + used + ", reserved=" + reserved + ", allowed=" + allowed;
+        } catch (Exception e) {
+            return "GPU kota yanıtı: " + compactWide(r.body, 800);
+        }
+    }
+
+    public String getFailureDiagnostics(String username, String slug, String token) {
+        StringBuilder out = new StringBuilder();
+        try {
+            JSONObject body = new JSONObject();
+            body.put("userName", username);
+            body.put("kernelSlug", slug);
+            body.put("pageSize", 100);
+            Result r = rpc("ListKernelSessionOutput", token, body, true);
+            if (!r.ok()) {
+                return "Kaggle çıktı/log sorgusu HTTP " + r.code + ": " + compactWide(r.body, 1200);
+            }
+            JSONObject j = new JSONObject(r.body);
+            String log = j.optString("log", "");
+            String logSummary = diagnosticLogSummary(log);
+            if (!logSummary.isEmpty()) {
+                out.append("Kaggle log özeti:\n").append(logSummary);
+            }
+
+            JSONArray files = j.optJSONArray("files");
+            if (files != null) {
+                for (String wanted : new String[]{"status.json", "ai_error.txt"}) {
+                    String url = "";
+                    for (int i = 0; i < files.length(); i++) {
+                        JSONObject item = files.optJSONObject(i);
+                        if (item == null) continue;
+                        String name = item.optString("fileName", item.optString("file_name", ""));
+                        if (wanted.equals(name)) {
+                            url = item.optString("url", "");
+                            break;
+                        }
+                    }
+                    if (!url.isEmpty()) {
+                        try {
+                            Result file = request("GET", requireHttpsUrl(url), null, null, true);
+                            if (file.ok()) {
+                                if (out.length() > 0) out.append("\n");
+                                if ("status.json".equals(wanted)) {
+                                    JSONObject status = new JSONObject(file.body);
+                                    out.append("status.json: stage=")
+                                            .append(status.optString("stage", ""))
+                                            .append(", error=")
+                                            .append(compactWide(status.optString("error", ""), 1200));
+                                } else {
+                                    out.append("ai_error.txt:\n")
+                                        .append(diagnosticLogSummary(file.body));
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }
+        } catch (Exception e) {
+            if (out.length() > 0) out.append("\n");
+            out.append("Tanılama alınamadı: ").append(compactWide(e.getMessage(), 700));
+        }
+        String result = out.toString().trim();
+        return result.isEmpty() ? "Kaggle ayrıntılı log/çıktı döndürmedi." : compactWide(result, 4200);
+    }
+
+    static String diagnosticLogSummary(String raw) {
+        String text = raw == null ? "" : raw.replace("\r", "");
+        if (text.trim().isEmpty()) return "";
+        String[] lines = text.split("\n");
+        StringBuilder important = new StringBuilder();
+        for (String line : lines) {
+            String lower = line.toLowerCase(Locale.US);
+            if (lower.contains("traceback") || lower.contains("error") || lower.contains("exception")
+                    || lower.contains("failed") || lower.contains("cuda") || lower.contains("out of memory")
+                    || lower.contains("no space") || lower.contains("modulenotfound")
+                    || lower.contains("importerror") || lower.contains("runtimeerror")
+                    || lower.contains("valueerror") || lower.contains("assertionerror")
+                    || lower.contains("killed") || lower.contains("terminated")) {
+                important.append(line.trim()).append('\n');
+            }
+        }
+        String chosen = important.toString().trim();
+        if (chosen.isEmpty()) {
+            int start = Math.max(0, lines.length - 35);
+            StringBuilder tail = new StringBuilder();
+            for (int i = start; i < lines.length; i++) tail.append(lines[i]).append('\n');
+            chosen = tail.toString().trim();
+        }
+        return compactWide(chosen, 3000);
+    }
+
+    private static String compactWide(String s, int limit) {
+        if (s == null) return "";
+        String x = s.trim();
+        if (x.length() <= limit) return x;
+        return "…" + x.substring(x.length() - limit);
+    }
+
     public DownloadTarget resolveOutputDownload(String username, String slug, int version,
                                                  String filePath, String token) throws Exception {
         // Primary path mirrors the current official Kaggle CLI: list session outputs
