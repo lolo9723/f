@@ -112,6 +112,18 @@ public class MainActivity extends Activity {
         root.addView(sub);
 
         root.addView(section("1 — Kaggle bağlantısı"));
+        TextView connectNote = label("Önerilen: aşağıdaki tek düğmeyi kullan. Kullanıcı adı, token dosyası ve güvenli saklama işlemlerini uygulama yönetecek.", 13, false);
+        connectNote.setTextColor(Color.DKGRAY);
+        root.addView(connectNote, full());
+
+        Button easyConnect = button("KAGGLE’I KOLAY BAĞLA / CANLI TEST");
+        easyConnect.setId(R.id.open_live_e2e);
+        root.addView(easyConnect, full());
+        easyConnect.setOnClickListener(v -> startActivity(new Intent(this, LiveE2EActivity.class)));
+
+        TextView advancedAuth = label("Gelişmiş / yedek bağlantı alanları", 12, true);
+        advancedAuth.setTextColor(Color.GRAY);
+        root.addView(advancedAuth, full());
         username = edit("Kaggle kullanıcı adı");
         username.setId(R.id.username);
         root.addView(username);
@@ -129,11 +141,6 @@ public class MainActivity extends Activity {
         root.addView(auth);
         save.setOnClickListener(v -> saveAuth());
         test.setOnClickListener(v -> testConnection());
-
-        Button easyConnect = button("KAGGLE’I KOLAY BAĞLA / CANLI TEST");
-        easyConnect.setId(R.id.open_live_e2e);
-        root.addView(easyConnect, full());
-        easyConnect.setOnClickListener(v -> startActivity(new Intent(this, LiveE2EActivity.class)));
 
         root.addView(section("2 — Video fikri"));
         idea = edit("Video fikri / hikâye");
