@@ -31,7 +31,7 @@ import java.util.concurrent.Executors;
 
 /**
  * Temporary live certification harness. It intentionally uses a fixed Turkish story so the
- * real test exercises V3 Turkish->English prompt preparation, Kaggle T4 generation, five-scene
+ * real test exercises V4 Turkish->English prompt preparation plus semantic QC, Kaggle T4 generation, five-scene
  * continuity, status.json proof, signed output download and Android media validation.
  */
 public final class LiveE2EActivity extends Activity {
@@ -112,7 +112,7 @@ public final class LiveE2EActivity extends Activity {
         TextView title = text("VF CANLI E2E SERTİFİKA", 25, true);
         root.addView(title, full());
         TextView note = text(
-                "Bu ekran gerçek Kaggle GPU kotası kullanır. PASS ancak gerçek T4 üretimi, V3 Türkçe→İngilizce katmanı, 5 AI sahnesi, continuity, ses, FINAL.mp4 indirme ve Android medya doğrulaması birlikte geçerse verilir.",
+                "Bu ekran gerçek Kaggle GPU kotası kullanır. PASS ancak gerçek T4 üretimi, V4 Türkçe→İngilizce + 5/5 semantic QC, 5 AI sahnesi, continuity, ses, FINAL.mp4 indirme ve Android medya doğrulaması birlikte geçerse verilir.",
                 13, false);
         note.setTextColor(Color.DKGRAY);
         root.addView(note, full());
@@ -285,7 +285,7 @@ public final class LiveE2EActivity extends Activity {
                 return;
             }
 
-            if (!certificate.passesCanonicalV3()) {
+            if (!certificate.passesCanonicalV4()) {
                 String why = certificate.failureReason();
                 ui(() -> {
                     workInFlight = false;
