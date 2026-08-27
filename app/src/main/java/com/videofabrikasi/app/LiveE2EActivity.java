@@ -212,7 +212,10 @@ public final class LiveE2EActivity extends Activity {
     private void restore() {
         SharedPreferences mainPrefs = getSharedPreferences("video_factory_settings", MODE_PRIVATE);
         username.setText(prefs.getString("username", mainPrefs.getString("username", "")));
-        token.setText(secure.get("kaggle_token"));
+        token.setText("");
+        if (!secure.get("kaggle_token").isEmpty()) {
+            token.setHint("Kaggle bağlı — token Keystore’da güvenli");
+        }
         render();
     }
 
