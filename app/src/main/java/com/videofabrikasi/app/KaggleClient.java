@@ -86,16 +86,22 @@ public final class KaggleClient {
     static String tokenFromImportedText(String raw) throws Exception {
         String text = raw == null ? "" : raw.trim();
         if (text.isEmpty()) return "";
-        if (text.startsWith("KGAT_")) return text.split("\\s+")[0].trim();
+
+        // Current Kaggle API tokens are opaque values. The official SDK accepts the
+        // KAGGLE_API_TOKEN/access_token contents as-is and does not require a KGAT_ prefix.
+        // A plain clipboard/file token is therefore accepted here and then cryptographically
+        // validated by Kaggle introspection before it is ever persisted in SecureStore.
+        if (!text.startsWith("{") && !text.matches(".*\\s+.*")) return text;
 
         try {
             JSONObject j = new JSONObject(text);
             for (String key : new String[]{"token", "access_token", "api_token"}) {
                 String candidate = j.optString(key, "").trim();
-                if (candidate.startsWith("KGAT_")) return candidate;
+                if (!candidate.isEmpty() && !candidate.matches(".*\\s+.*")) return candidate;
             }
         } catch (Exception ignored) {}
 
+        // Keep support for a KGAT_ token embedded in copied explanatory text.
         java.util.regex.Matcher m = java.util.regex.Pattern
                 .compile("(KGAT_[A-Za-z0-9._\\-]+)")
                 .matcher(text);
