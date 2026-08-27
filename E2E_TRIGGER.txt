@@ -1,0 +1,3 @@
+Video Fabrikasi V4 canonical Kaggle T4 E2E trigger
+Base production commit: fc655d0fd76247ea74b5a7399706a94fceba5ed2
+Required certificate: story-v4 + 5/5 semantic QC + FINAL.mp4 1080x1920 + AAC
