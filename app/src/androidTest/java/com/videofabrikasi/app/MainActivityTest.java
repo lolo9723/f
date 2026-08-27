@@ -12,6 +12,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import static org.junit.Assert.*;
 import static androidx.test.espresso.Espresso.onView;
+import static androidx.test.espresso.Espresso.pressBack;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.action.ViewActions.closeSoftKeyboard;
 import static androidx.test.espresso.action.ViewActions.replaceText;
@@ -51,6 +52,14 @@ public class MainActivityTest {
 
         onView(withId(R.id.idea)).perform(scrollTo(), replaceText("Bu test için yeterince uzun örnek bir video hikâyesidir."), closeSoftKeyboard());
         onView(withId(R.id.idea)).perform(scrollTo()).check(matches(withText("Bu test için yeterince uzun örnek bir video hikâyesidir.")));
+    }
+
+    @Test public void easyKaggleConnectionEntryActuallyOpensWizard() {
+        onView(withId(R.id.open_live_e2e)).perform(scrollTo()).check(matches(isDisplayed())).perform(click());
+        onView(withId(R.id.e2e_status)).check(matches(isDisplayed()));
+        onView(withId(R.id.e2e_connect_kaggle)).check(matches(isDisplayed()));
+        pressBack();
+        onView(withId(R.id.generate)).perform(scrollTo()).check(matches(isDisplayed()));
     }
 
     @Test public void generateRejectsMissingCredentialsWithoutCrash() {
