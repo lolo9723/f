@@ -87,6 +87,7 @@ public final class LiveE2EActivity extends Activity {
         restore();
         registerDownloadReceiver();
         executor.execute(this::reconcileDownload);
+        executor.execute(this::diagnoseStoredFailureIfNeeded);
         handler.postDelayed(poll, 2_000L);
     }
 
@@ -368,6 +369,7 @@ public final class LiveE2EActivity extends Activity {
                         .putString("certificate", "")
                         .putInt("download_attempts", 0)
                         .remove("download_id")
+                        .remove("diagnosed_slug")
                         .apply();
                 ui(() -> {
                     workInFlight = false;
@@ -417,9 +419,17 @@ public final class LiveE2EActivity extends Activity {
             String remote = kaggle.getStatus(user, slug, tokenValue);
             prefs.edit().putString("last_remote", remote).apply();
             if (remote.startsWith("HATALI") || "DURDURULDU".equals(remote)) {
+                String diagnostics = kaggle.getFailureDiagnostics(user, slug, tokenValue);
+                String quota;
+                try { quota = kaggle.getAcceleratorQuotaSummary(tokenValue); }
+                catch (Exception e) { quota = "GPU kota tanısı alınamadı: " + safe(e); }
+                String failureText = "Kaggle işi başarısız: " + remote
+                        + "\n" + diagnostics
+                        + "\nGPU kota: " + quota;
+                prefs.edit().putString("diagnosed_slug", slug).apply();
                 ui(() -> {
                     workInFlight = false;
-                    fail("Kaggle işi başarısız: " + remote);
+                    fail(failureText);
                 });
                 return;
             }
@@ -473,6 +483,38 @@ public final class LiveE2EActivity extends Activity {
             });
         } catch (Exception e) {
             prefs.edit().putString("last_error", safe(e)).apply();
+            ui(() -> {
+                workInFlight = false;
+                render();
+            });
+        }
+    }
+
+    private void diagnoseStoredFailureIfNeeded() {
+        if (!FAIL.equals(state())) return;
+        String slug = prefs.getString("slug", "");
+        if (slug.isEmpty() || slug.equals(prefs.getString("diagnosed_slug", ""))) return;
+        String user = prefs.getString("username", "");
+        String tokenValue = secure.get("kaggle_token");
+        if (user.isEmpty() || tokenValue.isEmpty()) return;
+        workInFlight = true;
+        try {
+            String diagnostics = kaggle.getFailureDiagnostics(user, slug, tokenValue);
+            String quota;
+            try { quota = kaggle.getAcceleratorQuotaSummary(tokenValue); }
+            catch (Exception e) { quota = "GPU kota tanısı alınamadı: " + safe(e); }
+            String old = prefs.getString("last_error", "");
+            String enriched = old
+                    + "\n" + diagnostics
+                    + "\nGPU kota: " + quota;
+            prefs.edit()
+                    .putString("last_error", enriched.trim())
+                    .putString("diagnosed_slug", slug)
+                    .apply();
+        } catch (Exception e) {
+            prefs.edit().putString("last_error",
+                    prefs.getString("last_error", "") + "\nTanılama: " + safe(e)).apply();
+        } finally {
             ui(() -> {
                 workInFlight = false;
                 render();
