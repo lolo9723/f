@@ -20,6 +20,12 @@ public class LiveE2EActivityTest {
     @Rule public ActivityScenarioRule<LiveE2EActivity> rule =
             new ActivityScenarioRule<>(LiveE2EActivity.class);
 
+    @Test public void easyKaggleConnectionControlsAreVisible() {
+        onView(withId(R.id.e2e_connect_kaggle)).check(matches(isDisplayed()));
+        onView(withId(R.id.e2e_import_token_file)).check(matches(isDisplayed()));
+        onView(withId(R.id.e2e_import_clipboard)).check(matches(isDisplayed()));
+    }
+
     @Test public void liveCertificationUiIsVisibleAndMissingCredentialsDoNotCrash() {
         onView(withId(R.id.e2e_username)).check(matches(isDisplayed()))
                 .perform(replaceText(""), closeSoftKeyboard());
