@@ -298,6 +298,11 @@ public class MainActivity extends Activity {
 
     private void startGeneration(boolean retrying) {
         if (busy) return;
+        if (!liveE2ePassed()) {
+            toast("İlk kullanımda gerçek Kaggle T4 canlı sistem testi geçmelidir.");
+            startActivity(new Intent(this, LiveE2EActivity.class));
+            return;
+        }
         String u = username.getText().toString().trim();
         if (u.isEmpty()) u = prefs.getString("username", "").trim();
         String t = effectiveToken();
@@ -604,6 +609,11 @@ public class MainActivity extends Activity {
             player.setVisibility(View.VISIBLE);
             playPause.setText("▶ İNDİRİLENİ OYNAT");
         }
+    }
+
+    private boolean liveE2ePassed() {
+        return "PASS".equals(getSharedPreferences("live_e2e_certificate", MODE_PRIVATE)
+                .getString("state", "IDLE"));
     }
 
     private String effectiveToken() {
