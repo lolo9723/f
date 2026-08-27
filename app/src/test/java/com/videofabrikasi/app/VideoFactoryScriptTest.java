@@ -15,10 +15,13 @@ public class VideoFactoryScriptTest {
                 "p1");
     }
 
-    @Test public void v3IsTheActiveProductionEngine() {
+    @Test public void v4IsTheActiveProductionEngine() {
         String s = script();
-        assertTrue(s.contains("story-v3"));
+        assertTrue(s.contains("story-v4"));
+        assertFalse(s.contains("story-v3"));
         assertFalse(s.contains("story-v2"));
+        assertTrue(s.contains("QC_MODEL = 'google/siglip-base-patch16-224'"));
+        assertTrue(s.contains("quality_gate='siglip_semantic_plus_visual_integrity'"));
         assertTrue(s.contains("CONTINUITY_STRENGTH = 0.65"));
         assertTrue(s.contains("SCENE_ROLES = ["));
         assertTrue(s.contains("PROMPTS = build_scene_prompts(LTX_STORY)"));
@@ -178,7 +181,7 @@ print(json.dumps(result, ensure_ascii=False))
         String s = VideoFactoryScript.build(
                 "Türkçe fikir: korkmuş bir bavul kapıdan kaçıyor ve gizli nedeni finalde ortaya çıkıyor.",
                 "syntax-test");
-        Path dir = Files.createTempDirectory("video-factory-python-v3-test");
+        Path dir = Files.createTempDirectory("video-factory-python-v4-test");
         Path py = dir.resolve("generated.py");
         Files.write(py, s.getBytes(StandardCharsets.UTF_8));
 
