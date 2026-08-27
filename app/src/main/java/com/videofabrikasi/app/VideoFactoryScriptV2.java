@@ -251,6 +251,7 @@ def fallback_video():
 
 def patch_ltx_for_t4_fp16(repo):
     inference_file = repo/'ltx_video'/'inference.py'
+    pipeline_file = repo/'ltx_video'/'pipelines'/'pipeline_ltx_video.py'
     src = inference_file.read_text(encoding='utf-8')
     transformer_old = '''    elif precision == "bfloat16":
         return Transformer3DModel.from_pretrained(ckpt_path).to(torch.bfloat16)
@@ -264,6 +265,22 @@ def patch_ltx_for_t4_fp16(repo):
     else:
         return Transformer3DModel.from_pretrained(ckpt_path)
 '''
+    placement_old = '''    transformer = transformer.to(device)
+    vae = vae.to(device)
+    text_encoder = text_encoder.to(device)
+'''
+    placement_new = '''    low_vram_t4 = device == "cuda" and get_total_gpu_memory() < 24
+    if low_vram_t4:
+        # T4-safe bootstrap: do not materialize the 2B transformer, T5-XXL text
+        # encoder and VAE on the GPU at the same time before offload is active.
+        transformer = transformer.to("cpu")
+        vae = vae.to("cpu")
+        text_encoder = text_encoder.to("cpu")
+    else:
+        transformer = transformer.to(device)
+        vae = vae.to(device)
+        text_encoder = text_encoder.to(device)
+'''
     cast_old = '''    vae = vae.to(torch.bfloat16)
     text_encoder = text_encoder.to(torch.bfloat16)
 '''
@@ -271,12 +288,52 @@ def patch_ltx_for_t4_fp16(repo):
     vae = vae.to(compute_dtype)
     text_encoder = text_encoder.to(compute_dtype)
 '''
+    pipeline_old = '''    pipeline = LTXVideoPipeline(**submodel_dict)
+    pipeline = pipeline.to(device)
+    return pipeline
+'''
+    pipeline_new = '''    pipeline = LTXVideoPipeline(**submodel_dict)
+    if low_vram_t4:
+        # Diffusers' model CPU offload keeps only the active whole model on T4.
+        # The pipeline's model_cpu_offload_seq is text_encoder->transformer->vae.
+        pipeline.enable_model_cpu_offload(gpu_id=0, device=device)
+    else:
+        pipeline = pipeline.to(device)
+    return pipeline
+'''
     if transformer_old not in src:
         raise RuntimeError('Pinned LTX transformer precision block changed unexpectedly')
+    if placement_old not in src:
+        raise RuntimeError('Pinned LTX initial device placement block changed unexpectedly')
     if cast_old not in src:
         raise RuntimeError('Pinned LTX VAE/text encoder precision block changed unexpectedly')
-    src = src.replace(transformer_old, transformer_new, 1).replace(cast_old, cast_new, 1)
+    if pipeline_old not in src:
+        raise RuntimeError('Pinned LTX pipeline device block changed unexpectedly')
+    src = (
+        src.replace(transformer_old, transformer_new, 1)
+           .replace(placement_old, placement_new, 1)
+           .replace(cast_old, cast_new, 1)
+           .replace(pipeline_old, pipeline_new, 1)
+    )
     inference_file.write_text(src, encoding='utf-8')
+
+    pipeline_src = pipeline_file.read_text(encoding='utf-8')
+    text_offload_old = '''        if offload_to_cpu and self.text_encoder is not None:
+            self.text_encoder = self.text_encoder.cpu()
+
+        self.transformer = self.transformer.to(self._execution_device)
+'''
+    text_offload_new = '''        if offload_to_cpu and self.text_encoder is not None:
+            self.text_encoder = self.text_encoder.cpu()
+            if self._execution_device == "cuda":
+                torch.cuda.empty_cache()
+
+        self.transformer = self.transformer.to(self._execution_device)
+'''
+    if text_offload_old not in pipeline_src:
+        raise RuntimeError('Pinned LTX text-encoder offload block changed unexpectedly')
+    pipeline_src = pipeline_src.replace(text_offload_old, text_offload_new, 1)
+    pipeline_file.write_text(pipeline_src, encoding='utf-8')
 
 def gpu_preflight():
     import torch
@@ -300,7 +357,7 @@ try:
     subprocess.check_call(['git','-C',str(repo),'fetch','--depth','1','origin',LTX_COMMIT])
     subprocess.check_call(['git','-C',str(repo),'checkout','--detach','FETCH_HEAD'])
     patch_ltx_for_t4_fp16(repo)
-    subprocess.check_call([sys.executable,'-m','pip','install','-q','transformers==4.49.0','diffusers==0.33.1'])
+    subprocess.check_call([sys.executable,'-m','pip','install','-q','transformers==4.49.0','diffusers==0.33.1','accelerate==1.6.0'])
     subprocess.check_call([sys.executable,'-m','pip','install','-q','-e',str(repo)+'[inference]'])
 
     gpu_name, gpu_vram_gb, torch_version = gpu_preflight()
