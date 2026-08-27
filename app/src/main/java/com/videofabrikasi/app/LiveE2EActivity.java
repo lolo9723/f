@@ -331,10 +331,12 @@ public final class LiveE2EActivity extends Activity {
             toast("Kaggle kullanıcı adı ve API token gerekli.");
             return;
         }
+        final String resolvedUser = user;
+        final String resolvedTokenValue = tokenValue;
         try {
-            secure.put("kaggle_token", tokenValue);
+            secure.put("kaggle_token", resolvedTokenValue);
             getSharedPreferences("video_factory_settings", MODE_PRIVATE)
-                    .edit().putString("username", user).apply();
+                    .edit().putString("username", resolvedUser).apply();
         } catch (Exception e) {
             fail("Token güvenli kaydedilemedi: " + safe(e));
             return;
@@ -345,16 +347,16 @@ public final class LiveE2EActivity extends Activity {
         start.setEnabled(false);
         executor.execute(() -> {
             try {
-                KaggleClient.Result auth = kaggle.validateToken(tokenValue);
+                KaggleClient.Result auth = kaggle.validateToken(resolvedTokenValue);
                 if (!auth.ok()) throw new IllegalStateException("Kaggle token HTTP " + auth.code);
 
                 String stamp = String.valueOf(System.currentTimeMillis());
                 String slug = "vf-e2e-" + stamp;
                 String script = VideoFactoryScript.build(CANONICAL_STORY, slug);
-                KaggleClient.PushResult pushed = kaggle.pushKernel(user, slug, slug, script, tokenValue);
+                KaggleClient.PushResult pushed = kaggle.pushKernel(resolvedUser, slug, slug, script, resolvedTokenValue);
                 prefs.edit()
                         .putString("state", RUNNING)
-                        .putString("username", user)
+                        .putString("username", resolvedUser)
                         .putString("slug", slug)
                         .putInt("version", pushed.version)
                         .putLong("started_at", System.currentTimeMillis())
