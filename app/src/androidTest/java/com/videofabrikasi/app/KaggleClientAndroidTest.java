@@ -29,6 +29,11 @@ public class KaggleClientAndroidTest {
         assertEquals("KGAT_JSON456", KaggleClient.tokenFromImportedText("{\"token\":\"KGAT_JSON456\"}"));
         assertEquals("KGAT_ACCESS789", KaggleClient.tokenFromImportedText("{\"access_token\":\"KGAT_ACCESS789\"}"));
         assertEquals("KGAT_WRAP999", KaggleClient.tokenFromImportedText("copied token: KGAT_WRAP999 end"));
+        assertEquals("opaque-modern-token-2026_ABC.xyz",
+                KaggleClient.tokenFromImportedText("opaque-modern-token-2026_ABC.xyz"));
+        assertEquals("opaque-json-token-2026",
+                KaggleClient.tokenFromImportedText("{\"token\":\"opaque-json-token-2026\"}"));
+        assertEquals("", KaggleClient.tokenFromImportedText("ordinary clipboard words are not a token"));
 
         KaggleClient.AccountIdentity id = KaggleClient.accountIdentityFromIntrospectionJson(
                 "{\"active\":true,\"username\":\"demo_user\"}");
