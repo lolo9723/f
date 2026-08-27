@@ -1,5 +1,6 @@
 package com.videofabrikasi.app;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.Locale;
 
@@ -15,11 +16,21 @@ final class LiveE2ECertificate {
     final double continuityStrength;
     final String audio;
     final String finalFile;
+    final String qualityGate;
+    final int qualityPassedScenes;
     final String error;
 
     LiveE2ECertificate(String stage, boolean aiOk, String engine, int scenes,
                        String promptLanguage, String translationMode, String continuity,
                        double continuityStrength, String audio, String finalFile, String error) {
+        this(stage, aiOk, engine, scenes, promptLanguage, translationMode, continuity,
+                continuityStrength, audio, finalFile, "", 0, error);
+    }
+
+    LiveE2ECertificate(String stage, boolean aiOk, String engine, int scenes,
+                       String promptLanguage, String translationMode, String continuity,
+                       double continuityStrength, String audio, String finalFile,
+                       String qualityGate, int qualityPassedScenes, String error) {
         this.stage = clean(stage);
         this.aiOk = aiOk;
         this.engine = clean(engine);
@@ -30,12 +41,22 @@ final class LiveE2ECertificate {
         this.continuityStrength = continuityStrength;
         this.audio = clean(audio);
         this.finalFile = clean(finalFile);
+        this.qualityGate = clean(qualityGate);
+        this.qualityPassedScenes = qualityPassedScenes;
         this.error = clean(error);
     }
 
     static LiveE2ECertificate parse(String jsonText) throws Exception {
         JSONObject j = new JSONObject(jsonText == null ? "{}" : jsonText);
         JSONObject translation = j.optJSONObject("translation");
+        JSONArray quality = j.optJSONArray("quality");
+        int passed = 0;
+        if (quality != null) {
+            for (int i = 0; i < quality.length(); i++) {
+                JSONObject q = quality.optJSONObject(i);
+                if (q != null && q.optBoolean("pass", false)) passed++;
+            }
+        }
         return new LiveE2ECertificate(
                 j.optString("stage", ""),
                 j.optBoolean("ai_ok", false),
@@ -47,14 +68,16 @@ final class LiveE2ECertificate {
                 j.optDouble("continuity_strength", -1.0),
                 j.optString("audio", ""),
                 j.optString("final", ""),
+                j.optString("quality_gate", ""),
+                passed,
                 j.optString("error", "")
         );
     }
 
-    boolean passesCanonicalV3() {
+    boolean passesCanonicalV4() {
         return aiOk
                 && "COMPLETE".equals(stage.toUpperCase(Locale.US))
-                && engine.toLowerCase(Locale.US).contains("story-v3")
+                && engine.toLowerCase(Locale.US).contains("story-v4")
                 && scenes == 5
                 && "english".equals(promptLanguage.toLowerCase(Locale.US))
                 && "tr_to_en".equals(translationMode.toLowerCase(Locale.US))
@@ -62,14 +85,16 @@ final class LiveE2ECertificate {
                 && continuityStrength >= 0.55 && continuityStrength <= 0.75
                 && audio.toLowerCase(Locale.US).contains("aac")
                 && "FINAL.mp4".equals(finalFile)
+                && "siglip_semantic_plus_visual_integrity".equals(qualityGate)
+                && qualityPassedScenes == 5
                 && error.isEmpty();
     }
 
     String failureReason() {
-        if (passesCanonicalV3()) return "";
+        if (passesCanonicalV4()) return "";
         if (!aiOk) return "ai_ok=false" + suffixError();
         if (!"COMPLETE".equals(stage.toUpperCase(Locale.US))) return "stage=" + stage;
-        if (!engine.toLowerCase(Locale.US).contains("story-v3")) return "engine=" + engine;
+        if (!engine.toLowerCase(Locale.US).contains("story-v4")) return "engine=" + engine;
         if (scenes != 5) return "scenes=" + scenes;
         if (!"english".equals(promptLanguage.toLowerCase(Locale.US))) return "prompt_language=" + promptLanguage;
         if (!"tr_to_en".equals(translationMode.toLowerCase(Locale.US))) return "translation.mode=" + translationMode;
@@ -77,6 +102,8 @@ final class LiveE2ECertificate {
         if (continuityStrength < 0.55 || continuityStrength > 0.75) return "continuity_strength=" + continuityStrength;
         if (!audio.toLowerCase(Locale.US).contains("aac")) return "audio=" + audio;
         if (!"FINAL.mp4".equals(finalFile)) return "final=" + finalFile;
+        if (!"siglip_semantic_plus_visual_integrity".equals(qualityGate)) return "quality_gate=" + qualityGate;
+        if (qualityPassedScenes != 5) return "quality_passed_scenes=" + qualityPassedScenes;
         if (!error.isEmpty()) return "error=" + error;
         return "unknown certificate mismatch";
     }
@@ -89,6 +116,7 @@ final class LiveE2ECertificate {
                 + ", continuity=" + continuity
                 + "@" + continuityStrength
                 + ", audio=" + audio
+                + ", quality=" + qualityGate + "(" + qualityPassedScenes + "/5)"
                 + ", final=" + finalFile;
     }
 
