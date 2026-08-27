@@ -107,3 +107,15 @@ Kanıt yoksa PASS yok.
 6. `status.json` + gerçek `FINAL.mp4` + Android download/playback sertifikasını kaydet.
 7. Release signing ve fiziksel telefon son kabul turu.
 8. Yalnız tüm kritik maddeler yeşil olduğunda final APK artifact'ını kullanıcıya teslim et.
+
+## CANLI E2E BLOKAJI — 27 Ağustos 2026
+
+- Production engine: **V4** (`VideoFactoryScript -> VideoFactoryScriptV4`).
+- V4 normal CI: unit + generated Python py_compile + dry E2E + lint + APK + Android API35 + API36 = **PASS**.
+- V4 live certificate requires: `story-v4`, 5 scenes, English prompt, tr_to_en, continuity, AAC, `FINAL.mp4`, exact SigLIP quality gate and **5/5 QC pass**.
+- Real Kaggle T4 workflow was triggered by `E2E_TRIGGER.txt`.
+- Live run: `33042460128`.
+- It stopped **before GPU use** at the secret preflight. Confirmed log: `Missing GitHub secret: KAGGLE_USERNAME`.
+- The next required external action is to add repository Actions secrets `KAGGLE_USERNAME` and `KAGGLE_API_TOKEN` (never paste the token into chat), then retrigger the live E2E workflow.
+- Scope is frozen until live E2E: do not add bulk queue, provider fallback, cross-run repair UI, scoring UI, Drive/YouTube integrations, etc.
+- Once live E2E passes: download latest green APK artifact, inspect it, and deliver.
