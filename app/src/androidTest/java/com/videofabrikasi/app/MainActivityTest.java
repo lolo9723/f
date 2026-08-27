@@ -43,8 +43,13 @@ public class MainActivityTest {
         onView(withId(R.id.token)).perform(scrollTo()).check(matches(isDisplayed()));
         onView(withId(R.id.idea)).perform(scrollTo()).check(matches(isDisplayed()));
         onView(withId(R.id.generate)).perform(scrollTo()).check(matches(isDisplayed()));
-        onView(withId(R.id.prev_project)).perform(scrollTo()).check(matches(isDisplayed()));
-        onView(withId(R.id.next_project)).perform(scrollTo()).check(matches(isDisplayed()));
+
+        // The easy Kaggle entry made the page taller. Row children near the fold are verified
+        // with the same physical swipe a real user performs; ScrollToAction is unreliable for
+        // weighted children nested inside a horizontal row on edge-to-edge API35/36.
+        swipeContentUp();
+        onView(withId(R.id.prev_project)).check(matches(isDisplayed()));
+        onView(withId(R.id.next_project)).check(matches(isDisplayed()));
 
         // For the bottom section use the same physical gesture a user performs. Espresso's
         // ScrollToAction can fail on Android 15 edge-to-edge layouts even when the ScrollView
@@ -81,6 +86,9 @@ public class MainActivityTest {
     }
 
     @Test public void generateRejectsMissingCredentialsWithoutCrash() {
+        // This test exercises the post-certification credential guard specifically. The
+        // separate productionIsLockedUntilRealLiveE2ePass test keeps the live E2E gate strict.
+        markLiveE2ePassedForNonNetworkUiTests();
         onView(withId(R.id.username)).perform(scrollTo(), replaceText(""), closeSoftKeyboard());
         onView(withId(R.id.token)).perform(scrollTo(), replaceText(""), closeSoftKeyboard());
         onView(withId(R.id.generate)).perform(scrollTo(), click());
@@ -101,12 +109,15 @@ public class MainActivityTest {
         onView(withId(R.id.token)).perform(scrollTo(), replaceText(""), closeSoftKeyboard());
 
         int[] upperIds = new int[] {
-                R.id.save_auth, R.id.test_auth, R.id.generate,
-                R.id.prev_project, R.id.next_project
+                R.id.save_auth, R.id.test_auth, R.id.generate
         };
         for (int id : upperIds) {
             onView(withId(id)).perform(scrollTo()).check(matches(isDisplayed())).perform(click());
         }
+
+        swipeContentUp();
+        onView(withId(R.id.prev_project)).check(matches(isDisplayed())).perform(click());
+        onView(withId(R.id.next_project)).check(matches(isDisplayed())).perform(click());
 
         swipeContentUp();
         int[] lowerIds = new int[] {
