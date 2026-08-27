@@ -24,6 +24,23 @@ public class KaggleClientAndroidTest {
         assertNull(KaggleClient.outputTargetFromListJson(json, "missing.mp4"));
     }
 
+    @Test public void importedTokenFormatsAndIntrospectionIdentityWorkOnAndroid() throws Exception {
+        assertEquals("KGAT_ABC123", KaggleClient.tokenFromImportedText("KGAT_ABC123"));
+        assertEquals("KGAT_JSON456", KaggleClient.tokenFromImportedText("{\"token\":\"KGAT_JSON456\"}"));
+        assertEquals("KGAT_ACCESS789", KaggleClient.tokenFromImportedText("{\"access_token\":\"KGAT_ACCESS789\"}"));
+        assertEquals("KGAT_WRAP999", KaggleClient.tokenFromImportedText("copied token: KGAT_WRAP999 end"));
+
+        KaggleClient.AccountIdentity id = KaggleClient.accountIdentityFromIntrospectionJson(
+                "{\"active\":true,\"username\":\"demo_user\"}");
+        assertTrue(id.active);
+        assertEquals("demo_user", id.username);
+
+        KaggleClient.AccountIdentity inactive = KaggleClient.accountIdentityFromIntrospectionJson(
+                "{\"active\":false}");
+        assertFalse(inactive.active);
+        assertEquals("", inactive.username);
+    }
+
     @Test public void snakeCaseOutputFieldsAlsoWorkOnAndroid() throws Exception {
         String json = "{\"files\":[{\"file_name\":\"FINAL.mp4\",\"url\":\"https://storage.example/snake\"}]}";
         KaggleClient.DownloadTarget target = KaggleClient.outputTargetFromListJson(json, "FINAL.mp4");
