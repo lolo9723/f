@@ -32,6 +32,12 @@ public class MainActivityTest {
         onView(isAssignableFrom(ScrollView.class)).perform(swipeUp());
     }
 
+    private void markLiveE2ePassedForNonNetworkUiTests() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        context.getSharedPreferences("live_e2e_certificate", Context.MODE_PRIVATE)
+                .edit().putString("state", "PASS").commit();
+    }
+
     @Test public void criticalControlsAreVisibleAndIdeaEditable() {
         onView(withId(R.id.username)).perform(scrollTo()).check(matches(isDisplayed()));
         onView(withId(R.id.token)).perform(scrollTo()).check(matches(isDisplayed()));
@@ -62,6 +68,18 @@ public class MainActivityTest {
         onView(withId(R.id.generate)).perform(scrollTo()).check(matches(isDisplayed()));
     }
 
+    @Test public void productionIsLockedUntilRealLiveE2ePass() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        context.getSharedPreferences("live_e2e_certificate", Context.MODE_PRIVATE)
+                .edit().clear().commit();
+
+        onView(withId(R.id.generate)).perform(scrollTo()).check(matches(isDisplayed())).perform(click());
+        onView(withId(R.id.e2e_status)).check(matches(isDisplayed()));
+        onView(withId(R.id.e2e_connect_kaggle)).check(matches(isDisplayed()));
+        pressBack();
+        onView(withId(R.id.generate)).perform(scrollTo()).check(matches(isDisplayed()));
+    }
+
     @Test public void generateRejectsMissingCredentialsWithoutCrash() {
         onView(withId(R.id.username)).perform(scrollTo(), replaceText(""), closeSoftKeyboard());
         onView(withId(R.id.token)).perform(scrollTo(), replaceText(""), closeSoftKeyboard());
@@ -76,6 +94,7 @@ public class MainActivityTest {
     }
 
     @Test public void allSafeControlsAreActuallyClickableWithoutCrash() {
+        markLiveE2ePassedForNonNetworkUiTests();
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         new ProjectStore(context).clearForTests();
         onView(withId(R.id.username)).perform(scrollTo(), replaceText(""), closeSoftKeyboard());
