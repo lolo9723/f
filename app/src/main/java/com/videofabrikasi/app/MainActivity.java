@@ -63,6 +63,18 @@ public class MainActivity extends Activity {
         handler.postDelayed(autoPoll, 1500);
     }
 
+    @Override protected void onResume() {
+        super.onResume();
+        if (prefs != null && username != null) {
+            String savedUser = prefs.getString("username", "").trim();
+            if (!savedUser.isEmpty()) username.setText(savedUser);
+        }
+        if (secure != null && token != null && !secure.get("kaggle_token").isEmpty()) {
+            token.setText("");
+            token.setHint("Kaggle bağlı — token Keystore’da güvenli");
+        }
+    }
+
     @Override protected void onDestroy() {
         handler.removeCallbacks(autoPoll);
         if (downloadReceiver != null) {
@@ -209,7 +221,10 @@ public class MainActivity extends Activity {
 
     private void restore() {
         username.setText(prefs.getString("username", ""));
-        token.setText(secure.get("kaggle_token"));
+        token.setText("");
+        if (!secure.get("kaggle_token").isEmpty()) {
+            token.setHint("Kaggle bağlı — token Keystore’da güvenli");
+        }
         String saved = project.idea();
         if (saved.isEmpty()) {
             saved = "İki aynı beyaz mektup aynı kişiye gidiyor. Biri iyi haber taşıyor ve özgüvenli; diğeri kötü haber taşıyor ve panik içinde. Mutlu mektup posta kutusuna girmek isterken kötü haber mektubu çığlık atarak arkasından yetişip onu kutuya iter. Kişi önce kötü haberi okuyunca çöker ve iyi haberi açmadan yere düşürür.";
@@ -238,8 +253,8 @@ public class MainActivity extends Activity {
             return;
         }
         try {
-            secure.put("kaggle_token", t);
-            prefs.edit().putString("username", u).apply();
+            secure.put("kaggle_token", resolvedToken);
+            prefs.edit().putString("username", resolvedUser).apply();
             toast("Bilgiler Android Keystore ile güvenli kaydedildi.");
         } catch (Exception e) {
             showError("Güvenli kayıt başarısız", e);
@@ -248,15 +263,16 @@ public class MainActivity extends Activity {
 
     private void testConnection() {
         if (busy) return;
-        String t = token.getText().toString().trim();
+        String t = effectiveToken();
         if (t.isEmpty()) {
-            toast("Önce API token gir.");
+            toast("Kaggle bağlantısı yok. KAGGLE’I KOLAY BAĞLA düğmesini kullan.");
             return;
         }
+        final String resolvedToken = t;
         setBusy(true, "BAĞLANTI TEST EDİLİYOR…");
         executor.execute(() -> {
             try {
-                KaggleClient.Result r = kaggle.validateToken(t);
+                KaggleClient.Result r = kaggle.validateToken(resolvedToken);
                 if (!r.ok()) throw new IllegalStateException("HTTP " + r.code + " " + r.body);
                 ui(() -> {
                     setBusy(false, "BAĞLANTI TAMAM");
@@ -274,12 +290,15 @@ public class MainActivity extends Activity {
     private void startGeneration(boolean retrying) {
         if (busy) return;
         String u = username.getText().toString().trim();
-        String t = token.getText().toString().trim();
+        if (u.isEmpty()) u = prefs.getString("username", "").trim();
+        String t = effectiveToken();
         String story = idea.getText().toString().trim();
         if (u.isEmpty() || t.isEmpty()) {
-            toast("Önce Kaggle kullanıcı adı ve token gir.");
+            toast("Kaggle bağlantısı yok. KAGGLE’I KOLAY BAĞLA düğmesini kullan.");
             return;
         }
+        final String resolvedUser = u;
+        final String resolvedToken = t;
         if (story.length() < 20) {
             toast("Hikâye çok kısa.");
             return;
@@ -297,15 +316,15 @@ public class MainActivity extends Activity {
         String slug = "vf-" + base.substring(0, Math.min(base.length(), 20)) + "-" + stamp;
         String title = slug;
         String script = VideoFactoryScript.build(story, slug);
-        project.save(u, slug, title, story, "GÖNDERİLİYOR", 0);
+        project.save(resolvedUser, slug, title, story, "GÖNDERİLİYOR", 0);
         resetPlayerForProject();
         renderProject();
         setBusy(true, retrying ? "TÜM VİDEO YENİDEN GÖNDERİLİYOR…" : "GPU İŞİ GÖNDERİLİYOR…");
 
         executor.execute(() -> {
             try {
-                KaggleClient.PushResult r = kaggle.pushKernel(u, slug, title, script, t);
-                project.save(u, slug, title, story, "KUYRUKTA", r.version);
+                KaggleClient.PushResult r = kaggle.pushKernel(resolvedUser, slug, title, script, resolvedToken);
+                project.save(resolvedUser, slug, title, story, "KUYRUKTA", r.version);
                 ui(() -> {
                     setBusy(false, "KUYRUKTA");
                     renderProject();
@@ -576,6 +595,12 @@ public class MainActivity extends Activity {
             player.setVisibility(View.VISIBLE);
             playPause.setText("▶ İNDİRİLENİ OYNAT");
         }
+    }
+
+    private String effectiveToken() {
+        String typed = token == null ? "" : token.getText().toString().trim();
+        if (!typed.isEmpty()) return typed;
+        return secure == null ? "" : secure.get("kaggle_token").trim();
     }
 
     private int parseInt(String value) {
