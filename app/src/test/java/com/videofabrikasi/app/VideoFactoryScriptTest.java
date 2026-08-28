@@ -139,6 +139,10 @@ print(json.dumps(result, ensure_ascii=False))
         assertTrue(s.contains("VIDEO_FACTORY_INTERNET_REQUIRED"));
         assertTrue(s.contains("https://codeload.github.com/Lightricks/LTX-Video/tar.gz/{LTX_COMMIT}"));
         assertTrue(s.contains("urllib.request.urlopen(req, timeout=120)"));
+        assertTrue(s.contains("archive.stat().st_size < 4096"));
+        assertFalse(s.contains("archive.stat().st_size < 100000"));
+        assertTrue(s.contains("(p/'ltx_video'/'inference.py').is_file()"));
+        assertTrue(s.contains("(p/'configs'/'ltxv-2b-0.9.6-distilled.yaml').is_file()"));
         assertTrue(s.contains("repo = materialize_ltx_source(TEMP/'LTX-Video')"));
         assertTrue(s.contains("http.version=HTTP/1.1"));
         assertFalse(s.contains("['git','clone','--filter=blob:none'"));
