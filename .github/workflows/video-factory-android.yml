@@ -40,6 +40,40 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m py_compile tools/kaggle_live_e2e.py
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+
+          spec = importlib.util.spec_from_file_location("vf_live", "tools/kaggle_live_e2e.py")
+          vf = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(vf)
+
+          sample = Path("/tmp/vf-e2e-media-contract.mp4")
+          sample.write_bytes(b"0" * 100001)
+          good = {
+              "streams": [
+                  {"codec_type": "video", "codec_name": "h264", "width": 1080, "height": 1920},
+                  {"codec_type": "audio", "codec_name": "aac"},
+              ],
+              "format": {"duration": "8.25"},
+          }
+          result = vf.assert_media(sample, good)
+          assert result["video_codec"] == "h264"
+          assert result["audio_codec"] == "aac"
+
+          for field, value in (("video", "hevc"), ("audio", "mp3")):
+              bad = {
+                  "streams": [dict(good["streams"][0]), dict(good["streams"][1])],
+                  "format": dict(good["format"]),
+              }
+              bad["streams"][0 if field == "video" else 1]["codec_name"] = value
+              try:
+                  vf.assert_media(sample, bad)
+              except RuntimeError:
+                  pass
+              else:
+                  raise AssertionError(f"{field} codec rejection did not execute")
+          PY
           rm -rf /tmp/vf-e2e-dry
           mkdir -p /tmp/vf-e2e-dry/classes
           javac -encoding UTF-8 -d /tmp/vf-e2e-dry/classes \
