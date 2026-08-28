@@ -10,7 +10,7 @@ final class VideoFactoryScriptV2 {
         String safeIdea = Base64.getEncoder().encodeToString((idea == null ? "" : idea).getBytes(StandardCharsets.UTF_8));
         String safeId = Base64.getEncoder().encodeToString((projectId == null ? "" : projectId).getBytes(StandardCharsets.UTF_8));
         return """
-import os, sys, json, subprocess, traceback, base64, shutil, wave, gc
+import os, sys, json, subprocess, traceback, base64, shutil, wave, gc, tarfile, urllib.request, time
 from pathlib import Path
 
 PROJECT_ID = base64.b64decode('__PROJECT_ID_B64__').decode('utf-8')
@@ -229,6 +229,7 @@ def validate_final_media(path):
 def fallback_video():
     from PIL import Image, ImageDraw
     import imageio.v2 as imageio
+    import numpy as np
     clips=[]
     for i in range(5):
         frames=[]
@@ -252,6 +253,89 @@ def fallback_video():
         '-vf','scale=1080:1920:flags=lanczos','-c:v','libx264','-pix_fmt','yuv420p',
         '-movflags','+faststart',str(FINAL)
     ])
+
+def materialize_ltx_source(repo):
+    archive = TEMP/'ltx-source.tar.gz'
+    unpack_root = TEMP/'ltx-source-unpacked'
+    urls = [
+        f'https://codeload.github.com/Lightricks/LTX-Video/tar.gz/{LTX_COMMIT}',
+        f'https://github.com/Lightricks/LTX-Video/archive/{LTX_COMMIT}.tar.gz',
+    ]
+    errors=[]
+
+    def clean_attempt():
+        if archive.exists():
+            archive.unlink()
+        if unpack_root.exists():
+            shutil.rmtree(unpack_root)
+        if repo.exists():
+            shutil.rmtree(repo)
+
+    for attempt in range(1, 4):
+        for url in urls:
+            clean_attempt()
+            try:
+                req = urllib.request.Request(
+                    url,
+                    headers={
+                        'User-Agent':'VideoFabrikasi-Kaggle/1.0',
+                        'Accept':'application/octet-stream',
+                    },
+                )
+                with urllib.request.urlopen(req, timeout=120) as response, open(archive, 'wb') as out:
+                    shutil.copyfileobj(response, out)
+                if not archive.is_file() or archive.stat().st_size < 100000:
+                    raise RuntimeError(
+                        f'Pinned LTX archive is unexpectedly small: '
+                        f'{archive.stat().st_size if archive.exists() else 0} bytes'
+                    )
+
+                unpack_root.mkdir(parents=True)
+                with tarfile.open(archive, 'r:gz') as tf:
+                    members = tf.getmembers()
+                    if not members:
+                        raise RuntimeError('Pinned LTX archive is empty')
+                    for member in members:
+                        p = Path(member.name)
+                        if p.is_absolute() or '..' in p.parts:
+                            raise RuntimeError('Unsafe path in pinned LTX archive: ' + member.name)
+                    tf.extractall(unpack_root)
+
+                candidates = [
+                    p for p in unpack_root.iterdir()
+                    if p.is_dir()
+                    and (p/'ltx_video'/'inference.py').is_file()
+                    and (p/'configs'/'ltxv-2b-0.9.6-distilled.yaml').is_file()
+                ]
+                if len(candidates) != 1:
+                    raise RuntimeError(
+                        f'Pinned LTX archive layout unexpected: {len(candidates)} source roots'
+                    )
+                shutil.move(str(candidates[0]), str(repo))
+                if not (repo/'ltx_video'/'inference.py').is_file():
+                    raise RuntimeError('Pinned LTX source verification failed')
+                return repo
+            except Exception as e:
+                errors.append(f'archive attempt {attempt} {url}: {type(e).__name__}: {e}')
+                time.sleep(min(6, attempt * 2))
+
+    # Last-resort GitHub path: force HTTP/1.1 and fetch only the exact pinned commit.
+    clean_attempt()
+    try:
+        subprocess.check_call(['git','init',str(repo)])
+        subprocess.check_call([
+            'git','-C',str(repo),'-c','http.version=HTTP/1.1',
+            'fetch','--depth','1','https://github.com/Lightricks/LTX-Video.git',LTX_COMMIT
+        ])
+        subprocess.check_call(['git','-C',str(repo),'checkout','--detach','FETCH_HEAD'])
+        if not (repo/'ltx_video'/'inference.py').is_file():
+            raise RuntimeError('Git fallback source verification failed')
+        return repo
+    except Exception as e:
+        errors.append(f'git HTTP/1.1 fallback: {type(e).__name__}: {e}')
+        raise RuntimeError(
+            'Pinned LTX source could not be materialized. ' + ' | '.join(errors[-5:])
+        ) from e
 
 def patch_ltx_for_t4_fp16(repo):
     inference_file = repo/'ltx_video'/'inference.py'
@@ -356,10 +440,7 @@ def gpu_preflight():
     return gpu_name, round(total_gb, 1), torch.__version__
 
 try:
-    repo = TEMP/'LTX-Video'
-    subprocess.check_call(['git','clone','--filter=blob:none','https://github.com/Lightricks/LTX-Video.git',str(repo)])
-    subprocess.check_call(['git','-C',str(repo),'fetch','--depth','1','origin',LTX_COMMIT])
-    subprocess.check_call(['git','-C',str(repo),'checkout','--detach','FETCH_HEAD'])
+    repo = materialize_ltx_source(TEMP/'LTX-Video')
     patch_ltx_for_t4_fp16(repo)
     subprocess.check_call([sys.executable,'-m','pip','install','-q','transformers==4.49.0','diffusers==0.33.1','accelerate==1.6.0'])
     subprocess.check_call([sys.executable,'-m','pip','install','-q','-e',str(repo)+'[inference]'])
