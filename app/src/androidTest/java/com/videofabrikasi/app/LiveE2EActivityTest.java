@@ -22,6 +22,7 @@ public class LiveE2EActivityTest {
 
     @Test public void easyKaggleConnectionControlsAreVisible() {
         onView(withId(R.id.e2e_connect_kaggle)).check(matches(isDisplayed()));
+        onView(withId(R.id.e2e_enable_kaggle_internet)).check(matches(isDisplayed()));
         onView(withId(R.id.e2e_import_token_file)).check(matches(isDisplayed()));
         onView(withId(R.id.e2e_import_clipboard)).check(matches(isDisplayed()));
     }
