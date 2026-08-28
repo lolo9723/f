@@ -17,6 +17,7 @@
     <item name="project_text" type="id"/>
     <item name="open_live_e2e" type="id"/>
     <item name="e2e_connect_kaggle" type="id"/>
+    <item name="e2e_enable_kaggle_internet" type="id"/>
     <item name="e2e_import_token_file" type="id"/>
     <item name="e2e_import_clipboard" type="id"/>
     <item name="e2e_username" type="id"/>
