@@ -56,6 +56,17 @@ public class LiveE2EActivityTest {
         assertTrue(c.summary().contains("tr_to_en"));
     }
 
+    @Test public void androidFinalTrackContractRequiresH264AndAac() {
+        assertTrue(LiveE2EActivity.hasCanonicalH264AacTracks(
+                new String[]{"video/avc", "audio/mp4a-latm"}));
+        assertFalse(LiveE2EActivity.hasCanonicalH264AacTracks(
+                new String[]{"video/hevc", "audio/mp4a-latm"}));
+        assertFalse(LiveE2EActivity.hasCanonicalH264AacTracks(
+                new String[]{"video/avc", "audio/mpeg"}));
+        assertFalse(LiveE2EActivity.hasCanonicalH264AacTracks(
+                new String[]{"video/avc"}));
+    }
+
     @Test public void fallbackStatusJsonIsRejectedOnRealAndroidJson() throws Exception {
         LiveE2ECertificate c = LiveE2ECertificate.parse(
                 "{\"stage\":\"COMPLETE_FALLBACK\",\"ai_ok\":false,"
