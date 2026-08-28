@@ -187,7 +187,7 @@ def build_soundtrack(path, duration):
 def probe_media(path):
     raw = subprocess.check_output([
         'ffprobe','-v','error',
-        '-show_entries','stream=codec_type,width,height:format=duration',
+        '-show_entries','stream=codec_name,codec_type,width,height:format=duration',
         '-of','json',str(path)
     ], text=True)
     return json.loads(raw)
@@ -216,8 +216,12 @@ def validate_final_media(path):
     audio = next((s for s in streams if s.get('codec_type') == 'audio'), None)
     if video is None or int(video.get('width',0)) != 1080 or int(video.get('height',0)) != 1920:
         raise RuntimeError('Final video stream is missing or not 1080x1920')
+    if video.get('codec_name') != 'h264':
+        raise RuntimeError("Final video codec is not H.264: " + str(video.get('codec_name')))
     if audio is None:
         raise RuntimeError('Final audio stream is missing')
+    if audio.get('codec_name') != 'aac':
+        raise RuntimeError("Final audio codec is not AAC: " + str(audio.get('codec_name')))
     duration = float(info.get('format', {}).get('duration', '0') or '0')
     if duration < 8.0:
         raise RuntimeError(f'Final video duration is too short: {duration:.2f}s')
