@@ -132,6 +132,11 @@ print(json.dumps(result, ensure_ascii=False))
     @Test public void ltxEngineIsPinnedAndT4Fp16Compatible() {
         String s = script();
         assertTrue(s.contains("LTX_COMMIT = '4b2d053057623ddd4d0a1d3e9cd28890e9ef487f'"));
+        assertTrue(s.contains("class InternetUnavailableError(RuntimeError):"));
+        assertTrue(s.contains("def external_internet_preflight():"));
+        assertTrue(s.contains("('github.com', 'huggingface.co', 'pypi.org')"));
+        assertTrue(s.contains("stage='INTERNET_REQUIRED'"));
+        assertTrue(s.contains("VIDEO_FACTORY_INTERNET_REQUIRED"));
         assertTrue(s.contains("https://codeload.github.com/Lightricks/LTX-Video/tar.gz/{LTX_COMMIT}"));
         assertTrue(s.contains("urllib.request.urlopen(req, timeout=120)"));
         assertTrue(s.contains("repo = materialize_ltx_source(TEMP/'LTX-Video')"));
