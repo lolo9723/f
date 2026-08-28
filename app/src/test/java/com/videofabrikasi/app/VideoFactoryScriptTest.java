@@ -132,6 +132,11 @@ print(json.dumps(result, ensure_ascii=False))
     @Test public void ltxEngineIsPinnedAndT4Fp16Compatible() {
         String s = script();
         assertTrue(s.contains("LTX_COMMIT = '4b2d053057623ddd4d0a1d3e9cd28890e9ef487f'"));
+        assertTrue(s.contains("https://codeload.github.com/Lightricks/LTX-Video/tar.gz/{LTX_COMMIT}"));
+        assertTrue(s.contains("urllib.request.urlopen(req, timeout=120)"));
+        assertTrue(s.contains("repo = materialize_ltx_source(TEMP/'LTX-Video')"));
+        assertTrue(s.contains("http.version=HTTP/1.1"));
+        assertFalse(s.contains("['git','clone','--filter=blob:none'"));
         assertTrue(s.contains("cfg_data['precision'] = 'float16'"));
         assertTrue(s.contains("elif precision == \"float16\":"));
         assertTrue(s.contains("to(torch.float16)"));
@@ -164,7 +169,7 @@ print(json.dumps(result, ensure_ascii=False))
         assertTrue(s.contains("FINAL = WORK / 'FINAL.mp4'"));
         assertTrue(s.contains("STATUS = WORK / 'status.json'"));
         assertTrue(s.contains("SCENES = TEMP / 'scenes'"));
-        assertTrue(s.contains("repo = TEMP/'LTX-Video'"));
+        assertTrue(s.contains("repo = materialize_ltx_source(TEMP/'LTX-Video')"));
         assertTrue(s.contains("custom_cfg = TEMP/'ltx_t4_config.yaml'"));
         assertTrue(s.contains("concat=TEMP/'concat.txt'"));
         assertFalse(s.contains("SCENES = WORK"));
@@ -173,6 +178,8 @@ print(json.dumps(result, ensure_ascii=False))
     @Test public void finalProductionIncludesHighEmotionAudioAndMediaValidation() {
         String s = script();
         assertTrue(s.contains("def build_soundtrack(path, duration):"));
+        assertTrue(s.contains("def fallback_video():"));
+        assertTrue(s.contains("import numpy as np"));
         assertTrue(s.contains("High-arousal opening vocal-like scream"));
         assertTrue(s.contains("soundtrack.wav"));
         assertTrue(s.contains("'-c:a','aac'"));
