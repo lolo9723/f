@@ -10,6 +10,8 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.graphics.Color;
+import android.media.MediaExtractor;
+import android.media.MediaFormat;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Bundle;
@@ -628,6 +630,35 @@ public final class LiveE2EActivity extends Activity {
         } finally {
             try { mmr.release(); } catch (Exception ignored) {}
         }
+
+        MediaExtractor extractor = new MediaExtractor();
+        try {
+            extractor.setDataSource(this, uri, null);
+            String[] mimes = new String[extractor.getTrackCount()];
+            for (int i = 0; i < extractor.getTrackCount(); i++) {
+                MediaFormat format = extractor.getTrackFormat(i);
+                mimes[i] = format.containsKey(MediaFormat.KEY_MIME)
+                        ? format.getString(MediaFormat.KEY_MIME) : "";
+            }
+            if (!hasCanonicalH264AacTracks(mimes)) {
+                throw new IllegalStateException(
+                        "Android track doğrulaması H.264/AAC bulamadı: " + java.util.Arrays.toString(mimes));
+            }
+        } finally {
+            try { extractor.release(); } catch (Exception ignored) {}
+        }
+    }
+
+    static boolean hasCanonicalH264AacTracks(String[] mimes) {
+        boolean h264 = false;
+        boolean aac = false;
+        if (mimes != null) {
+            for (String mime : mimes) {
+                if ("video/avc".equalsIgnoreCase(mime)) h264 = true;
+                if ("audio/mp4a-latm".equalsIgnoreCase(mime)) aac = true;
+            }
+        }
+        return h264 && aac;
     }
 
     private void retryFinalDownload(String cause) {
