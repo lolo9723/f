@@ -304,12 +304,15 @@ def materialize_ltx_source(repo):
                 )
                 with urllib.request.urlopen(req, timeout=120) as response, open(archive, 'wb') as out:
                     shutil.copyfileobj(response, out)
-                if not archive.is_file() or archive.stat().st_size < 100000:
+                if not archive.is_file() or archive.stat().st_size < 4096:
                     raise RuntimeError(
-                        f'Pinned LTX archive is unexpectedly small: '
+                        f'Pinned LTX archive download is empty/truncated: '
                         f'{archive.stat().st_size if archive.exists() else 0} bytes'
                     )
 
+                # Do not use an arbitrary large byte threshold here: the pinned source-only
+                # archive is intentionally small. Integrity is proven by gzip/tar parsing,
+                # safe paths and the exact required source/config files below.
                 unpack_root.mkdir(parents=True)
                 with tarfile.open(archive, 'r:gz') as tf:
                     members = tf.getmembers()
