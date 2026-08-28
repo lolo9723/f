@@ -178,7 +178,10 @@ print(json.dumps(result, ensure_ascii=False))
         assertTrue(s.contains("'-c:a','aac'"));
         assertTrue(s.contains("audio='procedural_generic_emotion_sfx_aac'"));
         assertTrue(s.contains("def validate_final_media(path):"));
+        assertTrue(s.contains("stream=codec_name,codec_type,width,height:format=duration"));
+        assertTrue(s.contains("Final video codec is not H.264"));
         assertTrue(s.contains("Final audio stream is missing"));
+        assertTrue(s.contains("Final audio codec is not AAC"));
         assertTrue(s.contains("not 1080x1920"));
     }
 
