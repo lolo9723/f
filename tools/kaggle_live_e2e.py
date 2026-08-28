@@ -183,7 +183,7 @@ def ffprobe(path):
     raw = subprocess.check_output(
         [
             "ffprobe", "-v", "error",
-            "-show_entries", "stream=codec_type,width,height:format=duration",
+            "-show_entries", "stream=codec_name,codec_type,width,height:format=duration",
             "-of", "json", str(path),
         ],
         text=True,
@@ -204,12 +204,24 @@ def assert_media(path, probe):
         raise RuntimeError("FINAL.mp4 has no video stream")
     if int(video.get("width", 0) or 0) != 1080 or int(video.get("height", 0) or 0) != 1920:
         raise RuntimeError(f"FINAL.mp4 wrong dimensions: {video.get('width')}x{video.get('height')}")
+    if str(video.get("codec_name", "")).lower() != "h264":
+        raise RuntimeError(f"FINAL.mp4 video codec is not H.264: {video.get('codec_name')}")
     if not audio:
         raise RuntimeError("FINAL.mp4 has no audio stream")
+    if str(audio.get("codec_name", "")).lower() != "aac":
+        raise RuntimeError(f"FINAL.mp4 audio codec is not AAC: {audio.get('codec_name')}")
     duration = float((probe.get("format") or {}).get("duration", 0) or 0)
     if duration < 8.0:
         raise RuntimeError(f"FINAL.mp4 too short: {duration:.3f}s")
-    return {"bytes": size, "duration_seconds": duration, "width": 1080, "height": 1920, "audio_stream": True}
+    return {
+        "bytes": size,
+        "duration_seconds": duration,
+        "width": 1080,
+        "height": 1920,
+        "video_codec": "h264",
+        "audio_codec": "aac",
+        "audio_stream": True,
+    }
 
 
 def main():
