@@ -51,6 +51,7 @@ public final class LiveE2EActivity extends Activity {
     private static final int MAX_DOWNLOAD_ATTEMPTS = 3;
     private static final int REQUEST_TOKEN_FILE = 4107;
     private static final String KAGGLE_API_SETTINGS = "https://www.kaggle.com/settings/api";
+    private static final String KAGGLE_ACCOUNT_SETTINGS = "https://www.kaggle.com/settings";
 
     private static final String CANONICAL_STORY =
             "İki beyaz mektup aynı kişiye gidiyor. Biri iyi haber taşıyor ve özgüvenli, "
@@ -70,6 +71,7 @@ public final class LiveE2EActivity extends Activity {
     private TextView details;
     private Button start;
     private Button connectKaggle;
+    private Button internetSetup;
     private Button importTokenFile;
     private BroadcastReceiver downloadReceiver;
     private boolean workInFlight;
@@ -163,6 +165,11 @@ public final class LiveE2EActivity extends Activity {
         root.addView(connectKaggle, full());
         connectKaggle.setOnClickListener(v -> openKaggleSetup());
 
+        internetSetup = button("KAGGLE İNTERNET İZNİNİ AÇ");
+        internetSetup.setId(R.id.e2e_enable_kaggle_internet);
+        root.addView(internetSetup, full());
+        internetSetup.setOnClickListener(v -> openKaggleInternetSetup());
+
         importTokenFile = button("İNDİRİLEN TOKEN DOSYASINI SEÇ");
         importTokenFile.setId(R.id.e2e_import_token_file);
         root.addView(importTokenFile, full());
@@ -231,6 +238,20 @@ public final class LiveE2EActivity extends Activity {
             startActivity(i);
         } catch (Exception e) {
             fail("Kaggle token sayfası açılamadı: " + safe(e));
+        }
+    }
+
+    private void openKaggleInternetSetup() {
+        prefs.edit().putBoolean("internet_setup_required", true).apply();
+        status.setText("KAGGLE INTERNET İZNİ BEKLENİYOR…");
+        details.setText(
+                "Kaggle Settings açılıyor. İstenirse Phone/Identity doğrulamasını bir kez tamamla. "
+                        + "Bu izin açıldıktan sonra uygulama yeni T4 işini yine enableInternet=true ile kendisi gönderecek."
+        );
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(KAGGLE_ACCOUNT_SETTINGS)));
+        } catch (Exception e) {
+            fail("Kaggle ayarları açılamadı: " + safe(e));
         }
     }
 
@@ -463,6 +484,17 @@ public final class LiveE2EActivity extends Activity {
             }
 
             if (!certificate.passesCanonicalV4()) {
+                if ("INTERNET_REQUIRED".equalsIgnoreCase(certificate.stage)) {
+                    prefs.edit().putBoolean("internet_setup_required", true).apply();
+                    ui(() -> {
+                        workInFlight = false;
+                        fail("Kaggle dış Internet erişimi kapalı. Bu hesapta bir kez Kaggle Settings "
+                                + "üzerinden Phone/Identity doğrulamasını tamamla ve Internet iznini aç. "
+                                + "Sonra uygulamaya dönüp CANLI SİSTEM TESTİNİ BAŞLAT'a yeniden bas. "
+                                + "Token veya GitHub Secret işlemi gerekmiyor.");
+                    });
+                    return;
+                }
                 String why = certificate.failureReason();
                 ui(() -> {
                     workInFlight = false;
