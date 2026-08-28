@@ -10,7 +10,7 @@ final class VideoFactoryScriptV2 {
         String safeIdea = Base64.getEncoder().encodeToString((idea == null ? "" : idea).getBytes(StandardCharsets.UTF_8));
         String safeId = Base64.getEncoder().encodeToString((projectId == null ? "" : projectId).getBytes(StandardCharsets.UTF_8));
         return """
-import os, sys, json, subprocess, traceback, base64, shutil, wave, gc, tarfile, urllib.request, time
+import os, sys, json, subprocess, traceback, base64, shutil, wave, gc, tarfile, urllib.request, time, socket
 from pathlib import Path
 
 PROJECT_ID = base64.b64decode('__PROJECT_ID_B64__').decode('utf-8')
@@ -254,6 +254,26 @@ def fallback_video():
         '-movflags','+faststart',str(FINAL)
     ])
 
+class InternetUnavailableError(RuntimeError):
+    pass
+
+def external_internet_preflight():
+    hosts = ('github.com', 'huggingface.co', 'pypi.org')
+    failures = []
+    for host in hosts:
+        try:
+            answers = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
+            if not answers:
+                raise OSError('no DNS answers')
+        except OSError as e:
+            failures.append(f'{host}: {e}')
+    if failures:
+        raise InternetUnavailableError(
+            'Kaggle external Internet/DNS is unavailable. '
+            'Enable Internet access for the Kaggle account/session, then retry. '
+            + ' | '.join(failures)
+        )
+
 def materialize_ltx_source(repo):
     archive = TEMP/'ltx-source.tar.gz'
     unpack_root = TEMP/'ltx-source-unpacked'
@@ -440,6 +460,12 @@ def gpu_preflight():
     return gpu_name, round(total_gb, 1), torch.__version__
 
 try:
+    external_internet_preflight()
+    write_status(
+        stage='INTERNET_READY',
+        engine='LTX-Video 2B distilled 0.9.6 T4-FP16 story-v2',
+        ai_ok=False
+    )
     repo = materialize_ltx_source(TEMP/'LTX-Video')
     patch_ltx_for_t4_fp16(repo)
     subprocess.check_call([sys.executable,'-m','pip','install','-q','transformers==4.49.0','diffusers==0.33.1','accelerate==1.6.0'])
@@ -582,6 +608,15 @@ try:
         continuity_strength=CONTINUITY_STRENGTH,
         gpu=gpu_name, dtype='float16', audio='procedural_generic_emotion_sfx_aac'
     )
+except InternetUnavailableError as e:
+    (WORK/'ai_error.txt').write_text(traceback.format_exc(),encoding='utf-8')
+    write_status(
+        stage='INTERNET_REQUIRED',
+        engine='LTX-Video 2B distilled 0.9.6 T4-FP16 story-v2',
+        ai_ok=False,
+        error=str(e)
+    )
+    print('VIDEO_FACTORY_INTERNET_REQUIRED', str(e))
 except Exception as e:
     (WORK/'ai_error.txt').write_text(traceback.format_exc(),encoding='utf-8')
     write_status(stage='AI_FAILED_FALLBACK', engine='fallback renderer', ai_ok=False, error=str(e))
