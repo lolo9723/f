@@ -496,9 +496,12 @@ public final class LiveE2EActivity extends Activity {
                     return;
                 }
                 String why = certificate.failureReason();
+                String diagnostics = kaggle.getFailureDiagnostics(user, slug, tokenValue);
+                String failure = "AI sertifika koşulu geçmedi: " + why + "\n" + diagnostics;
+                prefs.edit().putString("diagnosed_slug", slug).apply();
                 ui(() -> {
                     workInFlight = false;
-                    fail("AI sertifika koşulu geçmedi: " + why);
+                    fail(failure);
                 });
                 return;
             }
