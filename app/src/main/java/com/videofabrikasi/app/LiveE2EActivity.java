@@ -163,12 +163,12 @@ public final class LiveE2EActivity extends Activity {
         TextView title = text("VF CANLI E2E SERTİFİKA", 25, true);
         root.addView(title, full());
         TextView note = text(
-                "Kolay bağlantı: KAGGLE’I BAĞLA düğmesine bas. Kaggle açılınca hesabına giriş yap ve API bölümünde Generate New Token oluştur. Uygulamaya dönünce pano uygunsa otomatik alınır; değilse indirilen token dosyası seçici kendiliğinden açılır. Kullanıcı adı otomatik bulunur ve gerçek T4 testi başlar. GitHub Secret veya teknik ayar gerekmez.",
+                "Tek dokunuş bağlantı: KAGGLE’A GİRİŞ YAP düğmesine bas. Uygulama Kaggle’ın resmi SDK’sıyla aynı PKCE/OAuth akışını açar; hesabına giriş yapıp izin verirsin. Token kopyalama, JSON, GitHub Secret veya teknik ayar gerekmez. Onaydan sonra gerçek T4 testi otomatik başlar.",
                 13, false);
         note.setTextColor(Color.DKGRAY);
         root.addView(note, full());
 
-        connectKaggle = button("KAGGLE’I BAĞLA — KOLAY KURULUM");
+        connectKaggle = button("KAGGLE’A GİRİŞ YAP — TEK DOKUNUŞ");
         connectKaggle.setId(R.id.e2e_connect_kaggle);
         root.addView(connectKaggle, full());
         connectKaggle.setOnClickListener(v -> openKaggleSetup());
@@ -188,7 +188,7 @@ public final class LiveE2EActivity extends Activity {
         root.addView(clipboard, full());
         clipboard.setOnClickListener(v -> tryImportClipboard(false));
 
-        TextView advanced = text("Gelişmiş / yedek alanlar (normalde doldurman gerekmez):", 12, true);
+        TextView advanced = text("Yedek bağlantı seçenekleri (OAuth çalışmazsa):", 12, true);
         advanced.setTextColor(Color.GRAY);
         root.addView(advanced, full());
 
