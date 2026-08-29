@@ -191,6 +191,19 @@ print(json.dumps(result, ensure_ascii=False))
         assertFalse(s.contains("SCENES = WORK"));
     }
 
+    @Test public void certificationFailureCannotManufactureFallbackFinal() {
+        String s = script();
+        assertTrue(s.contains("stage='AI_FAILED'"));
+        assertFalse(s.contains("stage='AI_FAILED_FALLBACK'"));
+        assertFalse(s.contains("stage='COMPLETE_FALLBACK'"));
+        assertFalse(s.contains("\n    fallback_video()\n"));
+        assertTrue(s.contains("Never allow a prior/degraded artifact"));
+        assertTrue(s.contains("WORK/'ai_error.txt'"));
+        assertTrue(s.contains("WORK/'quality_report.json'"));
+        assertTrue(s.contains("WORK.glob('scene_*.mp4')"));
+        assertTrue(s.contains("VIDEO_FACTORY_AI_FAILED"));
+    }
+
     @Test public void finalProductionIncludesHighEmotionAudioAndMediaValidation() {
         String s = script();
         assertTrue(s.contains("def build_soundtrack(path, duration):"));
