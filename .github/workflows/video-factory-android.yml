@@ -40,6 +40,9 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m py_compile tools/kaggle_live_e2e.py
+          bash -n tools/run_certified_android_media_check.sh
+          grep -q "liveArtifact true" tools/run_certified_android_media_check.sh
+          grep -q "LiveFinalArtifactTest" tools/run_certified_android_media_check.sh
           python3 - <<'PY'
           import importlib.util
           from pathlib import Path
