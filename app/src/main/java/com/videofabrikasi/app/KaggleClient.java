@@ -139,7 +139,9 @@ public final class KaggleClient {
     private static String firstNonEmpty(JSONObject j, String... keys) {
         if (j == null || keys == null) return "";
         for (String key : keys) {
-            String value = j.optString(key, "").trim();
+            String raw = j.optString(key, "");
+            if (raw == null) continue;
+            String value = raw.trim();
             if (!value.isEmpty()) return value;
         }
         return "";
