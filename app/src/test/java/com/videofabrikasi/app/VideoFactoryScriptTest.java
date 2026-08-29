@@ -164,6 +164,10 @@ print(json.dumps(result, ensure_ascii=False))
         assertTrue(s.contains("diffusers==0.33.1"));
         assertTrue(s.contains("accelerate==1.6.0"));
         assertTrue(s.contains("low_vram_t4 = device == \"cuda\" and get_total_gpu_memory() < 24"));
+        assertTrue(s.contains("CausalVideoAutoencoder.from_pretrained("));
+        assertTrue(s.contains("torch_dtype=(torch.float16 if precision == \"float16\" else torch.bfloat16)"));
+        assertTrue(s.contains("Pinned LTX VAE loader block changed unexpectedly"));
+        assertTrue(s.contains("Pinned LTX text-encoder loader block changed unexpectedly"));
         assertTrue(s.contains("pipeline.enable_model_cpu_offload(gpu_id=0, device=device)"));
         assertTrue(s.contains("Pinned LTX text-encoder offload block changed unexpectedly"));
         assertTrue(s.contains("torch.cuda.empty_cache()"));
