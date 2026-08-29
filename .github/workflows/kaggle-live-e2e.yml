@@ -76,6 +76,48 @@ jobs:
           set -euo pipefail
           python tools/kaggle_live_e2e.py
 
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Enable KVM for exact FINAL Android verification
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Verify exact Kaggle FINAL.mp4 with Android API 36 media framework
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: bash tools/run_certified_android_media_check.sh
+
+      - name: Stage certified APK only after all critical gates pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s e2e_certificate.json
+          test -s android_media_certificate.json
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          cp app/build/outputs/apk/debug/app-debug.apk Video-Fabrikasi-FINAL-Certified.apk
+          sha256sum Video-Fabrikasi-FINAL-Certified.apk > Video-Fabrikasi-FINAL-Certified.sha256
+
+      - name: Upload certified final APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Video-Fabrikasi-FINAL-Certified
+          path: |
+            Video-Fabrikasi-FINAL-Certified.apk
+            Video-Fabrikasi-FINAL-Certified.sha256
+            e2e_certificate.json
+            android_media_certificate.json
+            android-live-media-instrumentation.txt
+          if-no-files-found: error
+
       - name: Preserve live E2E certificate and diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -86,4 +128,6 @@ jobs:
             e2e_failure.json
             status.json
             ffprobe.json
+            android_media_certificate.json
+            android-live-media-instrumentation.txt
           if-no-files-found: warn
