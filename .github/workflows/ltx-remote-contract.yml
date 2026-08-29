@@ -2,6 +2,13 @@ name: LTX Remote Dependency Contract
 
 on:
   workflow_dispatch:
+  push:
+    branches: [video-fabrikasi-android]
+    paths:
+      - "app/src/main/java/com/videofabrikasi/app/VideoFactoryScriptV2.java"
+      - "app/src/main/java/com/videofabrikasi/app/VideoFactoryScriptV3.java"
+      - "app/src/main/java/com/videofabrikasi/app/VideoFactoryScriptV4.java"
+      - ".github/workflows/ltx-remote-contract.yml"
 
 jobs:
   remote-contract:
