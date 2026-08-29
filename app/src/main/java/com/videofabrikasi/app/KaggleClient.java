@@ -247,33 +247,43 @@ public final class KaggleClient {
             out.append("Tanılama alınamadı: ").append(compactWide(e.getMessage(), 700));
         }
         String result = out.toString().trim();
-        return result.isEmpty() ? "Kaggle ayrıntılı log/çıktı döndürmedi." : compactWide(result, 4200);
+        return result.isEmpty() ? "Kaggle ayrıntılı log/çıktı döndürmedi." : compactWide(result, 9000);
     }
 
     static String diagnosticLogSummary(String raw) {
         String text = raw == null ? "" : raw.replace("\r", "");
         if (text.trim().isEmpty()) return "";
+
+        // ai_error.txt is plain Python traceback text. Preserve its stack frames
+        // instead of filtering away the crucial "File ..., line ..." locations.
+        int traceback = text.lastIndexOf("Traceback (most recent call last):");
+        if (traceback >= 0 && !text.contains("\"stream_name\"")) {
+            return compactWide(text.substring(traceback).trim(), 6500);
+        }
+
         String[] lines = text.split("\n");
         StringBuilder important = new StringBuilder();
         for (String line : lines) {
             String lower = line.toLowerCase(Locale.US);
+            String trimmed = line.trim();
             if (lower.contains("traceback") || lower.contains("error") || lower.contains("exception")
                     || lower.contains("failed") || lower.contains("cuda") || lower.contains("out of memory")
                     || lower.contains("no space") || lower.contains("modulenotfound")
                     || lower.contains("importerror") || lower.contains("runtimeerror")
                     || lower.contains("valueerror") || lower.contains("assertionerror")
-                    || lower.contains("killed") || lower.contains("terminated")) {
-                important.append(line.trim()).append('\n');
+                    || lower.contains("killed") || lower.contains("terminated")
+                    || trimmed.startsWith("File ") || trimmed.startsWith("at ")) {
+                important.append(trimmed).append('\n');
             }
         }
         String chosen = important.toString().trim();
         if (chosen.isEmpty()) {
-            int start = Math.max(0, lines.length - 35);
+            int start = Math.max(0, lines.length - 45);
             StringBuilder tail = new StringBuilder();
             for (int i = start; i < lines.length; i++) tail.append(lines[i]).append('\n');
             chosen = tail.toString().trim();
         }
-        return compactWide(chosen, 3000);
+        return compactWide(chosen, 6500);
     }
 
     private static String compactWide(String s, int limit) {
