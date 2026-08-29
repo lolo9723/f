@@ -576,45 +576,66 @@ public final class LiveE2EActivity extends Activity {
     }
 
     private void startLiveTest() {
-        String state = state();
-        if (RUNNING.equals(state) || DOWNLOADING.equals(state) || workInFlight) {
+        String currentState = state();
+        if (RUNNING.equals(currentState) || DOWNLOADING.equals(currentState) || workInFlight) {
             toast("Canlı test zaten devam ediyor.");
             return;
         }
+
         String user = username.getText().toString().trim();
         if (user.isEmpty()) user = prefs.getString("username", "").trim();
-        String tokenValue = token.getText().toString().trim();
-        if (tokenValue.isEmpty()) tokenValue = secure.get("kaggle_token").trim();
-        if (user.isEmpty() || tokenValue.isEmpty()) {
-            toast("Kaggle kullanıcı adı ve API token gerekli.");
-            return;
-        }
-        final String resolvedUser = user;
-        final String resolvedTokenValue = tokenValue;
-        try {
-            secure.put("kaggle_token", resolvedTokenValue);
-            getSharedPreferences("video_factory_settings", MODE_PRIVATE)
-                    .edit().putString("username", resolvedUser).apply();
-        } catch (Exception e) {
-            fail("Token güvenli kaydedilemedi: " + safe(e));
+        String typedToken = token.getText().toString().trim();
+        String storedAccess = secure.get("kaggle_token").trim();
+        String storedRefresh = secure.get("kaggle_refresh_token").trim();
+        if (typedToken.isEmpty() && storedAccess.isEmpty() && storedRefresh.isEmpty()) {
+            toast("Önce KAGGLE’A GİRİŞ YAP düğmesiyle hesabını bağla.");
             return;
         }
 
+        final String requestedUser = user;
+        final String manualToken = typedToken;
         workInFlight = true;
-        status.setText("TOKEN DOĞRULANIYOR…");
+        status.setText("KAGGLE OTURUMU DOĞRULANIYOR…");
         start.setEnabled(false);
+
         executor.execute(() -> {
             try {
-                KaggleClient.Result auth = kaggle.validateToken(resolvedTokenValue);
-                if (!auth.ok()) throw new IllegalStateException("Kaggle token HTTP " + auth.code);
+                String tokenToUse;
+                if (!manualToken.isEmpty()) {
+                    secure.put("kaggle_token", manualToken);
+                    secure.put("kaggle_refresh_token", "");
+                    prefs.edit().remove("oauth_access_expires_at").apply();
+                    tokenToUse = manualToken;
+                } else {
+                    tokenToUse = usableKaggleToken();
+                }
+
+                KaggleClient.AccountIdentity identity = kaggle.introspectToken(tokenToUse);
+                if (!identity.active || identity.username.isEmpty()) {
+                    throw new IllegalStateException("Kaggle oturumu aktif değil.");
+                }
+                final String activeUser = requestedUser.isEmpty()
+                        ? identity.username : requestedUser;
+                if (!activeUser.equalsIgnoreCase(identity.username)) {
+                    throw new IllegalStateException(
+                            "Kaggle hesabı uyuşmuyor: bağlı hesap " + identity.username);
+                }
+
+                KaggleClient.Result auth = kaggle.validateToken(tokenToUse);
+                if (!auth.ok()) {
+                    throw new IllegalStateException("Kaggle API doğrulaması HTTP " + auth.code);
+                }
+                getSharedPreferences("video_factory_settings", MODE_PRIVATE)
+                        .edit().putString("username", activeUser).apply();
 
                 String stamp = String.valueOf(System.currentTimeMillis());
                 String slug = "vf-e2e-" + stamp;
                 String script = VideoFactoryScript.build(CANONICAL_STORY, slug);
-                KaggleClient.PushResult pushed = kaggle.pushKernel(resolvedUser, slug, slug, script, resolvedTokenValue);
+                KaggleClient.PushResult pushed =
+                        kaggle.pushKernel(activeUser, slug, slug, script, tokenToUse);
                 prefs.edit()
                         .putString("state", RUNNING)
-                        .putString("username", resolvedUser)
+                        .putString("username", activeUser)
                         .putString("slug", slug)
                         .putInt("version", pushed.version)
                         .putLong("started_at", System.currentTimeMillis())
@@ -625,10 +646,13 @@ public final class LiveE2EActivity extends Activity {
                         .remove("download_id")
                         .remove("diagnosed_slug")
                         .apply();
+
                 ui(() -> {
+                    username.setText(activeUser);
+                    token.setText("");
                     workInFlight = false;
                     render();
-                    toast("Gerçek Kaggle E2E işi başlatıldı.");
+                    toast("Gerçek Kaggle T4 E2E işi başlatıldı.");
                     handler.postDelayed(this::pollOnce, 5_000L);
                 });
             } catch (Exception e) {
