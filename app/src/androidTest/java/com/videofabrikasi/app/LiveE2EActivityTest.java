@@ -57,6 +57,28 @@ public class LiveE2EActivityTest {
         assertTrue(c.summary().contains("tr_to_en"));
     }
 
+    @Test public void sixQualityRecordsCannotPassCanonicalCertificate() throws Exception {
+        String json = "{"
+                + "\"stage\":\"COMPLETE\","
+                + "\"ai_ok\":true,"
+                + "\"engine\":\"LTX-Video 2B distilled 0.9.6 T4-FP16 story-v4\","
+                + "\"scenes\":5,"
+                + "\"prompt_language\":\"English\","
+                + "\"translation\":{\"mode\":\"tr_to_en\"},"
+                + "\"continuity\":\"previous_scene_last_frame\","
+                + "\"continuity_strength\":0.65,"
+                + "\"audio\":\"procedural_generic_emotion_sfx_aac\","
+                + "\"quality_gate\":\"siglip_semantic_plus_visual_integrity\","
+                + "\"quality\":[{\"pass\":true},{\"pass\":true},{\"pass\":true},"
+                + "{\"pass\":true},{\"pass\":true},{\"pass\":false}],"
+                + "\"final\":\"FINAL.mp4\"}";
+        LiveE2ECertificate cert = LiveE2ECertificate.parse(json);
+        assertEquals(6, cert.qualityTotalScenes);
+        assertEquals(5, cert.qualityPassedScenes);
+        assertFalse(cert.passesCanonicalV4());
+        assertEquals("quality_total_scenes=6", cert.failureReason());
+    }
+
     @Test public void androidFinalTrackContractRequiresH264AndAac() {
         assertTrue(LiveE2EActivity.hasCanonicalH264AacTracks(
                 new String[]{"video/avc", "audio/mp4a-latm"}));
