@@ -378,6 +378,29 @@ def patch_ltx_for_t4_fp16(repo):
     inference_file = repo/'ltx_video'/'inference.py'
     pipeline_file = repo/'ltx_video'/'pipelines'/'pipeline_ltx_video.py'
     src = inference_file.read_text(encoding='utf-8')
+    checkpoint_download_old = '''        ltxv_model_path = hf_hub_download(
+            repo_id="Lightricks/LTX-Video",
+            filename=ltxv_model_name_or_path,
+            repo_type="model",
+        )
+'''
+    checkpoint_download_new = '''        ltxv_model_path = hf_hub_download(
+            repo_id="Lightricks/LTX-Video",
+            filename=ltxv_model_name_or_path,
+            repo_type="model",
+            revision="bfb3a79a6bbe89f1bffbe7a4b3a4002599ed80ab",
+        )
+'''
+    tokenizer_old = '''    tokenizer = T5Tokenizer.from_pretrained(
+        text_encoder_model_name_or_path, subfolder="tokenizer"
+    )
+'''
+    tokenizer_new = '''    tokenizer = T5Tokenizer.from_pretrained(
+        text_encoder_model_name_or_path,
+        subfolder="tokenizer",
+        revision="b89adadeccd9ead2adcb9fa2825d3fabec48d404",
+    )
+'''
     transformer_old = '''    elif precision == "bfloat16":
         return Transformer3DModel.from_pretrained(ckpt_path).to(torch.bfloat16)
     else:
@@ -404,7 +427,10 @@ def patch_ltx_for_t4_fp16(repo):
     text_encoder_new = '''    text_encoder = T5EncoderModel.from_pretrained(
         text_encoder_model_name_or_path,
         subfolder="text_encoder",
+        revision="b89adadeccd9ead2adcb9fa2825d3fabec48d404",
         torch_dtype=(torch.float16 if precision == "float16" else torch.bfloat16),
+        low_cpu_mem_usage=True,
+        use_safetensors=True,
     )
 '''
     placement_old = '''    transformer = transformer.to(device)
@@ -443,6 +469,10 @@ def patch_ltx_for_t4_fp16(repo):
         pipeline = pipeline.to(device)
     return pipeline
 '''
+    if checkpoint_download_old not in src:
+        raise RuntimeError('Pinned LTX checkpoint download block changed unexpectedly')
+    if tokenizer_old not in src:
+        raise RuntimeError('Pinned PixArt tokenizer loader block changed unexpectedly')
     if transformer_old not in src:
         raise RuntimeError('Pinned LTX transformer precision block changed unexpectedly')
     if vae_old not in src:
@@ -456,9 +486,11 @@ def patch_ltx_for_t4_fp16(repo):
     if pipeline_old not in src:
         raise RuntimeError('Pinned LTX pipeline device block changed unexpectedly')
     src = (
-        src.replace(transformer_old, transformer_new, 1)
+        src.replace(checkpoint_download_old, checkpoint_download_new, 1)
+           .replace(transformer_old, transformer_new, 1)
            .replace(vae_old, vae_new, 1)
            .replace(text_encoder_old, text_encoder_new, 1)
+           .replace(tokenizer_old, tokenizer_new, 1)
            .replace(placement_old, placement_new, 1)
            .replace(cast_old, cast_new, 1)
            .replace(pipeline_old, pipeline_new, 1)
