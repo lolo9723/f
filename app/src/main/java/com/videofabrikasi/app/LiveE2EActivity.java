@@ -99,7 +99,7 @@ public final class LiveE2EActivity extends Activity {
         super.onResume();
         if (prefs != null && prefs.getBoolean("waiting_for_kaggle_token", false)
                 && !workInFlight && !RUNNING.equals(state()) && !DOWNLOADING.equals(state())) {
-            handler.postDelayed(() -> tryImportClipboard(true), 450L);
+            handler.postDelayed(this::resumeKaggleConnect, 450L);
         }
     }
 
@@ -155,7 +155,7 @@ public final class LiveE2EActivity extends Activity {
         TextView title = text("VF CANLI E2E SERTİFİKA", 25, true);
         root.addView(title, full());
         TextView note = text(
-                "Kolay bağlantı: KAGGLE’I BAĞLA düğmesine bas. Kaggle açılınca hesabına giriş yap, API bölümünde Generate New Token oluştur ve tokenı kopyala. Uygulamaya döndüğünde kullanıcı adı/token otomatik tanınır ve gerçek T4 testi kendiliğinden başlar. JSON, GitHub Secret veya teknik ayar gerekmez.",
+                "Kolay bağlantı: KAGGLE’I BAĞLA düğmesine bas. Kaggle açılınca hesabına giriş yap ve API bölümünde Generate New Token oluştur. Uygulamaya dönünce pano uygunsa otomatik alınır; değilse indirilen token dosyası seçici kendiliğinden açılır. Kullanıcı adı otomatik bulunur ve gerçek T4 testi başlar. GitHub Secret veya teknik ayar gerekmez.",
                 13, false);
         note.setTextColor(Color.DKGRAY);
         root.addView(note, full());
@@ -230,9 +230,12 @@ public final class LiveE2EActivity extends Activity {
     }
 
     private void openKaggleSetup() {
-        prefs.edit().putBoolean("waiting_for_kaggle_token", true).apply();
+        prefs.edit()
+                .putBoolean("waiting_for_kaggle_token", true)
+                .putBoolean("token_picker_auto_prompted", false)
+                .apply();
         status.setText("KAGGLE BAĞLANTISI BEKLENİYOR…");
-        details.setText("Kaggle açılıyor. Giriş yap → API → Generate New Token → tokenı kopyala → uygulamaya geri dön. Gerisini uygulama yapacak.");
+        details.setText("Kaggle açılıyor. Giriş yap → API → Generate New Token → uygulamaya geri dön. Pano uygunsa otomatik alınacak; değilse indirilen dosyayı seçmen için ekran kendiliğinden açılacak.");
         try {
             Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(KAGGLE_API_SETTINGS));
             startActivity(i);
@@ -266,24 +269,39 @@ public final class LiveE2EActivity extends Activity {
         }
     }
 
-    private void tryImportClipboard(boolean quiet) {
+    private void resumeKaggleConnect() {
+        if (tryImportClipboard(true)) return;
+        if (prefs == null || !prefs.getBoolean("waiting_for_kaggle_token", false)
+                || prefs.getBoolean("token_picker_auto_prompted", false)
+                || workInFlight || RUNNING.equals(state()) || DOWNLOADING.equals(state())) {
+            return;
+        }
+        prefs.edit().putBoolean("token_picker_auto_prompted", true).apply();
+        status.setText("İNDİRİLEN KAGGLE TOKEN DOSYASINI SEÇ");
+        details.setText("Kaggle tokenı panoda bulunamadı. İndirilen dosya seçici açılıyor; yalnız Kaggle’dan az önce indirdiğin token dosyasına dokun. Kullanıcı adı ve token uygulama tarafından otomatik okunacak.");
+        pickTokenFile();
+    }
+
+    private boolean tryImportClipboard(boolean quiet) {
         try {
             ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
             if (cm == null || !cm.hasPrimaryClip() || cm.getPrimaryClip() == null
                     || cm.getPrimaryClip().getItemCount() == 0) {
                 if (!quiet) toast("Panoda Kaggle token bulunamadı.");
-                return;
+                return false;
             }
             CharSequence value = cm.getPrimaryClip().getItemAt(0).coerceToText(this);
             String raw = value == null ? "" : value.toString();
             String parsed = KaggleClient.tokenFromImportedText(raw);
             if (parsed.isEmpty()) {
-                if (!quiet) toast("Panoda KGAT_ ile başlayan Kaggle token bulunamadı.");
-                return;
+                if (!quiet) toast("Panoda geçerli Kaggle token bulunamadı.");
+                return false;
             }
             importCredentialText(parsed, true);
+            return true;
         } catch (Exception e) {
             if (!quiet) fail("Panodaki token okunamadı: " + safe(e));
+            return false;
         }
     }
 
