@@ -117,8 +117,8 @@ final class LiveE2ECertificate {
         if (!audio.toLowerCase(Locale.US).contains("aac")) return "audio=" + audio;
         if (!"FINAL.mp4".equals(finalFile)) return "final=" + finalFile;
         if (!"siglip_semantic_plus_visual_integrity".equals(qualityGate)) return "quality_gate=" + qualityGate;
-        if (qualityTotalScenes != 5) return "quality_total_scenes=" + qualityTotalScenes;
         if (qualityPassedScenes != 5) return "quality_passed_scenes=" + qualityPassedScenes;
+        if (qualityTotalScenes != 5) return "quality_total_scenes=" + qualityTotalScenes;
         if (!error.isEmpty()) return "error=" + error;
         return "unknown certificate mismatch";
     }
