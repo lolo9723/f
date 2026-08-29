@@ -16,13 +16,13 @@ jobs:
       - name: Install pinned lightweight dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "transformers==4.49.0" "sentencepiece==0.2.0" "huggingface-hub==0.30.2" "safetensors==0.5.3" "pillow<12"
+          python -m pip install "transformers==4.49.0" "sentencepiece==0.2.0" "huggingface-hub==0.30.2" "safetensors==0.5.3" "protobuf==5.29.5" "pillow<12"
       - name: Verify PixArt tokenizer and SigLIP processor contracts
         run: |
           python - <<'PY'
           import os
           from huggingface_hub import hf_hub_download, HfApi
-          from transformers import T5Tokenizer, AutoProcessor
+          from transformers import T5Tokenizer, AutoProcessor, AutoTokenizer, AutoConfig
 
           repo = "PixArt-alpha/PixArt-XL-2-1024-MS"
           vocab = hf_hub_download(repo_id=repo, filename="tokenizer/spiece.model")
@@ -32,6 +32,15 @@ jobs:
           tok = T5Tokenizer.from_pretrained(repo, subfolder="tokenizer")
           assert tok.vocab_file and os.path.isfile(tok.vocab_file), tok.vocab_file
           print("TOKENIZER_OK", tok.vocab_file, len(tok))
+
+          tr_model = "Helsinki-NLP/opus-mt-tr-en"
+          tr_revision = "8f0734f08b3e19c8ef655c26625f725bc9b73d10"
+          tr_tok = AutoTokenizer.from_pretrained(tr_model, revision=tr_revision)
+          sample = tr_tok("İki beyaz mektup aynı kişiye gidiyor.", return_tensors=None)
+          assert sample.get("input_ids"), sample
+          print("TRANSLATION_TOKENIZER_OK", type(tr_tok).__name__, len(tr_tok))
+          tr_cfg = AutoConfig.from_pretrained(tr_model, revision=tr_revision)
+          print("TRANSLATION_CONFIG_OK", tr_cfg.model_type)
 
           proc = AutoProcessor.from_pretrained(
               "google/siglip-base-patch16-224",
