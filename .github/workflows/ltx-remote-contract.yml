@@ -1,8 +1,6 @@
 name: LTX Remote Dependency Contract
 
 on:
-  push:
-    branches: [video-fabrikasi-android]
   workflow_dispatch:
 
 jobs:
