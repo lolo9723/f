@@ -13,7 +13,7 @@ final class VideoFactoryScriptV4 {
 
         script = requireReplace(script,
                 "TRANSLATION_REVISION = '19c65427cc2af5f191337d4899e0348c4af25902'\n",
-                "TRANSLATION_REVISION = '8f0734f08b3e19c8ef655c26625f725bc9b73d10'\n"
+                "TRANSLATION_REVISION = '19c65427cc2af5f191337d4899e0348c4af25902'\n"
                         + "QC_MODEL = 'google/siglip-base-patch16-224'\n"
                         + "QC_REVISION = '8d307961cfc45a1bbceecac290bec0a07e9a48db'\n"
                         + "QC_MIN_PROMPT_COSINE = 0.04\n"
