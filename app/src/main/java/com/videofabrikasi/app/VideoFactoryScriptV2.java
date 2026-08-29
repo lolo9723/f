@@ -390,6 +390,23 @@ def patch_ltx_for_t4_fp16(repo):
     else:
         return Transformer3DModel.from_pretrained(ckpt_path)
 '''
+    vae_old = '''    vae = CausalVideoAutoencoder.from_pretrained(ckpt_path)
+'''
+    vae_new = '''    vae = CausalVideoAutoencoder.from_pretrained(
+        ckpt_path,
+        torch_dtype=(torch.float16 if precision == "float16" else torch.bfloat16),
+    )
+'''
+    text_encoder_old = '''    text_encoder = T5EncoderModel.from_pretrained(
+        text_encoder_model_name_or_path, subfolder="text_encoder"
+    )
+'''
+    text_encoder_new = '''    text_encoder = T5EncoderModel.from_pretrained(
+        text_encoder_model_name_or_path,
+        subfolder="text_encoder",
+        torch_dtype=(torch.float16 if precision == "float16" else torch.bfloat16),
+    )
+'''
     placement_old = '''    transformer = transformer.to(device)
     vae = vae.to(device)
     text_encoder = text_encoder.to(device)
@@ -428,6 +445,10 @@ def patch_ltx_for_t4_fp16(repo):
 '''
     if transformer_old not in src:
         raise RuntimeError('Pinned LTX transformer precision block changed unexpectedly')
+    if vae_old not in src:
+        raise RuntimeError('Pinned LTX VAE loader block changed unexpectedly')
+    if text_encoder_old not in src:
+        raise RuntimeError('Pinned LTX text-encoder loader block changed unexpectedly')
     if placement_old not in src:
         raise RuntimeError('Pinned LTX initial device placement block changed unexpectedly')
     if cast_old not in src:
@@ -436,6 +457,8 @@ def patch_ltx_for_t4_fp16(repo):
         raise RuntimeError('Pinned LTX pipeline device block changed unexpectedly')
     src = (
         src.replace(transformer_old, transformer_new, 1)
+           .replace(vae_old, vae_new, 1)
+           .replace(text_encoder_old, text_encoder_new, 1)
            .replace(placement_old, placement_new, 1)
            .replace(cast_old, cast_new, 1)
            .replace(pipeline_old, pipeline_new, 1)
