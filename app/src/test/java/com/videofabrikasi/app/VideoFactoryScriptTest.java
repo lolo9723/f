@@ -51,15 +51,22 @@ public class VideoFactoryScriptTest {
     @Test public void turkishStoryIsPreparedInEnglishOnCpuBeforeLtxPrompts() {
         String s = script();
         assertTrue(s.contains("TRANSLATION_MODEL = 'Helsinki-NLP/opus-mt-tr-en'"));
-        assertTrue(s.contains("TRANSLATION_REVISION = '8f0734f08b3e19c8ef655c26625f725bc9b73d10'"));
-        assertTrue(s.contains("AutoTokenizer.from_pretrained"));
-        assertTrue(s.contains("AutoModelForSeq2SeqLM.from_pretrained"));
+        assertTrue(s.contains("TRANSLATION_REVISION = '19c65427cc2af5f191337d4899e0348c4af25902'"));
+        assertTrue(s.contains("MarianTokenizer("));
+        assertTrue(s.contains("MarianMTModel.from_pretrained"));
+        assertTrue(s.contains("filename='source.spm'"));
+        assertTrue(s.contains("filename='target.spm'"));
+        assertTrue(s.contains("filename='vocab.json'"));
+        assertFalse(s.contains("AutoTokenizer.from_pretrained"));
+        assertFalse(s.contains("AutoModelForSeq2SeqLM.from_pretrained"));
         assertTrue(s.contains("revision=TRANSLATION_REVISION"));
         assertTrue(s.contains(".to('cpu')"));
         assertTrue(s.contains("torch.inference_mode()"));
         assertTrue(s.contains("num_beams=4"));
         assertTrue(s.contains("do_sample=False"));
         assertTrue(s.contains("sentencepiece==0.2.0"));
+        assertTrue(s.contains("protobuf==5.29.5"));
+        assertTrue(s.contains("sacremoses==0.1.1"));
         assertTrue(s.contains("LTX_STORY, TRANSLATION_INFO = prepare_story_for_ltx(USER_IDEA)"));
         assertTrue(s.contains("prompt_language='English'"));
         assertTrue(s.contains("translation_still_turkish(result)"));
