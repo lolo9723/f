@@ -503,9 +503,11 @@ public final class LiveE2EActivity extends Activity {
                 if (!validation.ok()) throw new IllegalStateException("Kaggle API doğrulaması HTTP " + validation.code);
 
                 secure.put("kaggle_token", parsed);
+                secure.put("kaggle_refresh_token", "");
                 prefs.edit()
                         .putString("username", identity.username)
                         .putBoolean("waiting_for_kaggle_token", false)
+                        .remove("oauth_access_expires_at")
                         .apply();
                 getSharedPreferences("video_factory_settings", MODE_PRIVATE)
                         .edit().putString("username", identity.username).apply();
@@ -530,6 +532,47 @@ public final class LiveE2EActivity extends Activity {
                 });
             }
         });
+    }
+
+    private String usableKaggleToken() throws Exception {
+        String access = secure.get("kaggle_token").trim();
+        String refresh = secure.get("kaggle_refresh_token").trim();
+        if (refresh.isEmpty()) {
+            if (access.isEmpty()) throw new IllegalStateException("Kaggle bağlantısı bulunamadı.");
+            return access;
+        }
+
+        long now = System.currentTimeMillis();
+        long expiresAt = prefs.getLong("oauth_access_expires_at", 0L);
+        if (!access.isEmpty() && expiresAt > now + 30L * 60L * 1000L) {
+            return access;
+        }
+
+        try {
+            KaggleClient.OAuthToken renewed = kaggle.refreshOAuthToken(refresh);
+            String renewedRefresh = renewed.refreshToken.isEmpty() ? refresh : renewed.refreshToken;
+            KaggleClient.AccountIdentity identity = kaggle.introspectToken(renewed.accessToken);
+            if (!identity.active || identity.username.isEmpty()) {
+                throw new IllegalStateException("Yenilenen Kaggle OAuth oturumu doğrulanamadı.");
+            }
+            secure.put("kaggle_token", renewed.accessToken);
+            secure.put("kaggle_refresh_token", renewedRefresh);
+            long newExpiresAt = renewed.expiresInSeconds > 0
+                    ? now + renewed.expiresInSeconds * 1000L
+                    : now + 60L * 60L * 1000L;
+            prefs.edit()
+                    .putLong("oauth_access_expires_at", newExpiresAt)
+                    .putString("username", identity.username)
+                    .apply();
+            return renewed.accessToken;
+        } catch (Exception refreshFailure) {
+            // If refresh itself is temporarily unavailable but the current token still
+            // has a safe validity window, keep the live job running rather than failing.
+            if (!access.isEmpty() && expiresAt > now + 2L * 60L * 1000L) {
+                return access;
+            }
+            throw refreshFailure;
+        }
     }
 
     private void startLiveTest() {
