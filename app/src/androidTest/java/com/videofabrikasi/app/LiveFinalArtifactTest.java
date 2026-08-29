@@ -3,9 +3,11 @@ package com.videofabrikasi.app;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.MediaMetadataRetriever;
+import android.os.Bundle;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 
+import org.junit.Assume;
 import org.junit.Test;
 
 import java.io.File;
@@ -23,6 +25,10 @@ import static org.junit.Assert.*;
  */
 public class LiveFinalArtifactTest {
     @Test public void liveFinalMp4PassesRealAndroidMediaFramework() throws Exception {
+        Bundle args = InstrumentationRegistry.getArguments();
+        Assume.assumeTrue("Live FINAL artifact test is enabled only by the certified E2E workflow",
+                "true".equalsIgnoreCase(args.getString("liveArtifact", "false")));
+
         File root = InstrumentationRegistry.getInstrumentation()
                 .getTargetContext().getExternalFilesDir(null);
         assertNotNull("External files directory is unavailable", root);
