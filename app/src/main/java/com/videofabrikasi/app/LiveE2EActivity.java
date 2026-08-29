@@ -304,9 +304,6 @@ public final class LiveE2EActivity extends Activity {
                         throw new IllegalStateException(reason.trim());
                     }
 
-                    writeOAuthBrowserResponse(socket, 200,
-                            "Kaggle bağlantısı başarılı. Video Fabrikası’na geri dönebilirsin; gerçek T4 testi otomatik başlayacak.");
-
                     KaggleClient.OAuthToken oauth =
                             kaggle.exchangeOAuthCode(callback.code, verifier);
                     KaggleClient.AccountIdentity identity =
@@ -335,6 +332,9 @@ public final class LiveE2EActivity extends Activity {
                             .apply();
                     getSharedPreferences("video_factory_settings", MODE_PRIVATE)
                             .edit().putString("username", identity.username).apply();
+
+                    writeOAuthBrowserResponse(socket, 200,
+                            "Kaggle bağlantısı başarılı. Video Fabrikası’na geri dönebilirsin; gerçek T4 testi otomatik başlayacak.");
 
                     ui(() -> {
                         username.setText(identity.username);
