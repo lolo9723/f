@@ -1,4 +1,5 @@
 Video Fabrikasi V4 canonical Kaggle T4 E2E trigger
-Base production commit: e7d5b8e9807b4733225b9f76487d2c3b5fc80dde
-Required certificate: story-v4 + 5/5 semantic QC + FINAL.mp4 1080x1920 + AAC
-Trigger retry: 2026-08-27T08:07+03:00
+Base production commit: e1f950ac5f2bb12ff1d4af41ddc8ad6926cbd1a4
+Required certificate: story-v4 + exact 5/5 semantic QC + FINAL.mp4 1080x1920 H.264/AAC + Android media verification
+Fixes under certificate: valid Marian revision 19c65427cc2af5f191337d4899e0348c4af25902; no fallback FINAL; immutable LTX/PixArt pins; FP16 low-memory T4 loading
+Trigger retry: 2026-08-29T06:00Z
