@@ -31,6 +31,21 @@ public class KaggleClientTest {
         assertFalse(summary.contains("boot ok"));
     }
 
+    @Test public void diagnosticLogSummaryPreservesPythonStackFrames() {
+        String raw = "preface noise\n"
+                + "Traceback (most recent call last):\n"
+                + "  File \"/kaggle/working/script.py\", line 211, in <module>\n"
+                + "    tokenizer = MarianTokenizer(...)\n"
+                + "  File \"/usr/local/lib/python3.12/site-packages/x.py\", line 7, in load\n"
+                + "    open(path)\n"
+                + "TypeError: expected str, bytes or os.PathLike object, not NoneType\n";
+        String summary = KaggleClient.diagnosticLogSummary(raw);
+        assertTrue(summary.contains("script.py"));
+        assertTrue(summary.contains("line 211"));
+        assertTrue(summary.contains("TypeError"));
+        assertFalse(summary.contains("preface noise"));
+    }
+
     @Test public void officialKaggleRpcHostIsUsed() {
         assertEquals("https://api.kaggle.com/v1", KaggleClient.RPC);
         assertEquals("https://api.kaggle.com/api/v1", KaggleClient.REST);
