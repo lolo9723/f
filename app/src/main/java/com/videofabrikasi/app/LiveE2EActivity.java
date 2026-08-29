@@ -27,8 +27,17 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.text.DateFormat;
 import java.util.Date;
 import java.util.concurrent.ExecutorService;
@@ -74,6 +83,7 @@ public final class LiveE2EActivity extends Activity {
     private Button internetSetup;
     private Button importTokenFile;
     private BroadcastReceiver downloadReceiver;
+    private volatile ServerSocket oauthServer;
     private boolean workInFlight;
 
     private final Runnable poll = new Runnable() {
@@ -97,10 +107,7 @@ public final class LiveE2EActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        if (prefs != null && prefs.getBoolean("waiting_for_kaggle_token", false)
-                && !workInFlight && !RUNNING.equals(state()) && !DOWNLOADING.equals(state())) {
-            handler.postDelayed(this::resumeKaggleConnect, 450L);
-        }
+        if (prefs != null) render();
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -128,6 +135,7 @@ public final class LiveE2EActivity extends Activity {
 
     @Override protected void onDestroy() {
         handler.removeCallbacks(poll);
+        closeOAuthServer();
         if (downloadReceiver != null) {
             try { unregisterReceiver(downloadReceiver); } catch (Exception ignored) {}
         }
