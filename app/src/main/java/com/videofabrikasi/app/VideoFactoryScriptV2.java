@@ -28,6 +28,20 @@ STATUS = WORK / 'status.json'
 SCENES = TEMP / 'scenes'
 SCENES.mkdir(exist_ok=True)
 
+# Certification is fail-closed. Never allow a prior/degraded artifact to be
+# mistaken for the current real-AI result.
+for stale in [FINAL, STATUS, WORK/'ai_error.txt', WORK/'quality_report.json']:
+    try:
+        if stale.exists():
+            stale.unlink()
+    except Exception:
+        pass
+for stale_scene in WORK.glob('scene_*.mp4'):
+    try:
+        stale_scene.unlink()
+    except Exception:
+        pass
+
 def write_status(**kw):
     data = {'project': PROJECT_ID}
     data.update(kw)
@@ -621,13 +635,18 @@ except InternetUnavailableError as e:
     )
     print('VIDEO_FACTORY_INTERNET_REQUIRED', str(e))
 except Exception as e:
-    (WORK/'ai_error.txt').write_text(traceback.format_exc(),encoding='utf-8')
-    write_status(stage='AI_FAILED_FALLBACK', engine='fallback renderer', ai_ok=False, error=str(e))
-    fallback_video()
+    failure_trace = traceback.format_exc()
+    (WORK/'ai_error.txt').write_text(failure_trace,encoding='utf-8')
+    # Do not manufacture a fallback FINAL.mp4 in certification mode. A failed
+    # real-AI run must remain failed so acceptance can never consume a fake final.
     write_status(
-        stage='COMPLETE_FALLBACK', engine='fallback renderer',
-        ai_ok=False, final='FINAL.mp4', error=str(e)
+        stage='AI_FAILED',
+        engine='LTX-Video 2B distilled 0.9.6 T4-FP16 story-v2',
+        ai_ok=False,
+        error=str(e)
     )
+    print('VIDEO_FACTORY_AI_FAILED')
+    print(failure_trace)
 
 print('VIDEO_FACTORY_DONE', FINAL, FINAL.exists(), FINAL.stat().st_size if FINAL.exists() else 0)
 """.replace("__PROJECT_ID_B64__", safeId).replace("__USER_IDEA_B64__", safeIdea);
