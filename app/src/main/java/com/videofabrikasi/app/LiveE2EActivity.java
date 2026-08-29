@@ -673,9 +673,9 @@ public final class LiveE2EActivity extends Activity {
                 fail("Canlı E2E 4 saatlik güvenlik sınırını aştı.");
                 return;
             }
-            String tokenValue = secure.get("kaggle_token");
-            if (tokenValue.isEmpty()) {
-                status.setText("TEST DEVAM EDİYOR — TOKEN YENİDEN GEREKLİ");
+            if (secure.get("kaggle_token").isEmpty()
+                    && secure.get("kaggle_refresh_token").isEmpty()) {
+                status.setText("TEST DEVAM EDİYOR — KAGGLE OTURUMU YENİDEN GEREKLİ");
                 return;
             }
             String user = prefs.getString("username", "");
@@ -686,7 +686,17 @@ public final class LiveE2EActivity extends Activity {
                 return;
             }
             workInFlight = true;
-            executor.execute(() -> pollRemote(user, slug, version, tokenValue));
+            executor.execute(() -> {
+                try {
+                    String tokenValue = usableKaggleToken();
+                    pollRemote(user, slug, version, tokenValue);
+                } catch (Exception authError) {
+                    ui(() -> {
+                        workInFlight = false;
+                        fail("Kaggle oturumu yenilenemedi: " + safe(authError));
+                    });
+                }
+            });
         } else if (DOWNLOADING.equals(current)) {
             executor.execute(this::reconcileDownload);
         }
