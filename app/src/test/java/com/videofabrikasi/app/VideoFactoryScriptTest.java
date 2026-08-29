@@ -167,6 +167,12 @@ print(json.dumps(result, ensure_ascii=False))
         assertTrue(s.contains("CausalVideoAutoencoder.from_pretrained("));
         assertTrue(s.contains("torch_dtype=(torch.float16 if precision == \"float16\" else torch.bfloat16)"));
         assertTrue(s.contains("Pinned LTX VAE loader block changed unexpectedly"));
+        assertTrue(s.contains("revision=\"bfb3a79a6bbe89f1bffbe7a4b3a4002599ed80ab\""));
+        assertTrue(s.contains("revision=\"b89adadeccd9ead2adcb9fa2825d3fabec48d404\""));
+        assertTrue(s.contains("low_cpu_mem_usage=True"));
+        assertTrue(s.contains("use_safetensors=True"));
+        assertTrue(s.contains("Pinned LTX checkpoint download block changed unexpectedly"));
+        assertTrue(s.contains("Pinned PixArt tokenizer loader block changed unexpectedly"));
         assertTrue(s.contains("Pinned LTX text-encoder loader block changed unexpectedly"));
         assertTrue(s.contains("pipeline.enable_model_cpu_offload(gpu_id=0, device=device)"));
         assertTrue(s.contains("Pinned LTX text-encoder offload block changed unexpectedly"));
