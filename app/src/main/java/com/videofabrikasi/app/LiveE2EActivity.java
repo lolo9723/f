@@ -972,12 +972,14 @@ public final class LiveE2EActivity extends Activity {
         String user = prefs.getString("username", "");
         String slug = prefs.getString("slug", "");
         int version = prefs.getInt("version", 0);
-        String tokenValue = secure.get("kaggle_token");
-        if (user.isEmpty() || slug.isEmpty() || version <= 0 || tokenValue.isEmpty()) {
-            ui(() -> fail("İndirme yeniden denemesi için oturum/token eksik: " + cause));
+        if (user.isEmpty() || slug.isEmpty() || version <= 0
+                || (secure.get("kaggle_token").isEmpty()
+                && secure.get("kaggle_refresh_token").isEmpty())) {
+            ui(() -> fail("İndirme yeniden denemesi için Kaggle oturumu eksik: " + cause));
             return;
         }
         try {
+            String tokenValue = usableKaggleToken();
             KaggleClient.DownloadTarget target = kaggle.resolveOutputDownload(
                     user, slug, version, "FINAL.mp4", tokenValue);
             ui(() -> {
