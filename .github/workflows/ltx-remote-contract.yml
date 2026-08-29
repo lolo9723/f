@@ -28,11 +28,12 @@ jobs:
           import torch
 
           repo = "PixArt-alpha/PixArt-XL-2-1024-MS"
-          vocab = hf_hub_download(repo_id=repo, filename="tokenizer/spiece.model")
+          pixart_revision = "b89adadeccd9ead2adcb9fa2825d3fabec48d404"
+          vocab = hf_hub_download(repo_id=repo, filename="tokenizer/spiece.model", revision=pixart_revision)
           assert vocab and os.path.isfile(vocab), vocab
           print("VOCAB_DIRECT", vocab, os.path.getsize(vocab))
 
-          tok = T5Tokenizer.from_pretrained(repo, subfolder="tokenizer")
+          tok = T5Tokenizer.from_pretrained(repo, subfolder="tokenizer", revision=pixart_revision)
           assert tok.vocab_file and os.path.isfile(tok.vocab_file), tok.vocab_file
           print("TOKENIZER_OK", tok.vocab_file, len(tok))
 
@@ -73,7 +74,8 @@ jobs:
           assert torch.isfinite(im).all() and torch.isfinite(te).all()
           print("SIGLIP_MODEL_OK", tuple(im.shape))
 
-          info = HfApi().model_info("Lightricks/LTX-Video", files_metadata=True)
+          ltx_revision = "bfb3a79a6bbe89f1bffbe7a4b3a4002599ed80ab"
+          info = HfApi().model_info("Lightricks/LTX-Video", revision=ltx_revision, files_metadata=True)
           target = "ltxv-2b-0.9.6-distilled-04-25.safetensors"
           matches = [s for s in info.siblings if s.rfilename == target]
           assert len(matches) == 1, target
