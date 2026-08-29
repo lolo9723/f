@@ -25,6 +25,7 @@ adb shell ls -l "$TARGET_DIR/FINAL.mp4"
 
 set +e
 adb shell am instrument -w -r \
+  -e liveArtifact true \
   -e class com.videofabrikasi.app.LiveFinalArtifactTest \
   com.videofabrikasi.app.test/androidx.test.runner.AndroidJUnitRunner \
   2>&1 | tee android-live-media-instrumentation.txt
