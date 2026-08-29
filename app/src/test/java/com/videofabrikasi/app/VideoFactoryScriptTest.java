@@ -67,6 +67,9 @@ public class VideoFactoryScriptTest {
         assertTrue(s.contains("sentencepiece==0.2.0"));
         assertTrue(s.contains("protobuf==5.29.5"));
         assertTrue(s.contains("sacremoses==0.1.1"));
+        assertTrue(s.contains("huggingface-hub==0.30.2"));
+        assertTrue(s.contains("safetensors==0.5.3"));
+        assertTrue(s.contains("tokenizers==0.21.4"));
         assertTrue(s.contains("LTX_STORY, TRANSLATION_INFO = prepare_story_for_ltx(USER_IDEA)"));
         assertTrue(s.contains("prompt_language='English'"));
         assertTrue(s.contains("translation_still_turkish(result)"));
