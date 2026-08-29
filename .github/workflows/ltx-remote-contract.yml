@@ -16,13 +16,16 @@ jobs:
       - name: Install pinned lightweight dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "transformers==4.49.0" "sentencepiece==0.2.0" "huggingface-hub==0.30.2" "safetensors==0.5.3" "protobuf==5.29.5" "pillow<12"
+          python -m pip install "transformers==4.49.0" "sentencepiece==0.2.0" "huggingface-hub==0.30.2" "safetensors==0.5.3" "protobuf==5.29.5" "sacremoses==0.1.1" "pillow<12"
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.7.1"
       - name: Verify PixArt tokenizer and SigLIP processor contracts
         run: |
           python - <<'PY'
           import os
           from huggingface_hub import hf_hub_download, HfApi
-          from transformers import T5Tokenizer, AutoProcessor, MarianTokenizer, AutoConfig
+          from transformers import T5Tokenizer, AutoProcessor, AutoModel, MarianTokenizer, MarianMTModel, AutoConfig
+          from PIL import Image
+          import torch
 
           repo = "PixArt-alpha/PixArt-XL-2-1024-MS"
           vocab = hf_hub_download(repo_id=repo, filename="tokenizer/spiece.model")
@@ -47,12 +50,28 @@ jobs:
           tr_cfg = AutoConfig.from_pretrained(tr_model, revision=tr_revision)
           assert tr_cfg.model_type == "marian", tr_cfg.model_type
           print("TRANSLATION_CONFIG_OK", tr_cfg.model_type)
+          tr_model_obj = MarianMTModel.from_pretrained(tr_model, revision=tr_revision).to("cpu")
+          with torch.inference_mode():
+              encoded = tr_tok("İki beyaz mektup aynı kişiye gidiyor.", return_tensors="pt")
+              translated_ids = tr_model_obj.generate(**encoded, num_beams=2, do_sample=False, max_new_tokens=64)
+          translated = tr_tok.decode(translated_ids[0], skip_special_tokens=True).strip()
+          assert len(translated) > 5, translated
+          print("TRANSLATION_MODEL_OK", translated)
+          del tr_model_obj
 
-          proc = AutoProcessor.from_pretrained(
-              "google/siglip-base-patch16-224",
-              revision="8d307961cfc45a1bbceecac290bec0a07e9a48db",
-          )
+          qc_model = "google/siglip-base-patch16-224"
+          qc_revision = "8d307961cfc45a1bbceecac290bec0a07e9a48db"
+          proc = AutoProcessor.from_pretrained(qc_model, revision=qc_revision)
           print("SIGLIP_PROCESSOR_OK", type(proc).__name__)
+          siglip = AutoModel.from_pretrained(qc_model, revision=qc_revision).to("cpu")
+          px = proc(images=[Image.new("RGB", (224,224), "white")], return_tensors="pt")
+          tx = proc(text=["a white square"], padding="max_length", truncation=True, max_length=64, return_tensors="pt")
+          with torch.inference_mode():
+              im = siglip.get_image_features(pixel_values=px["pixel_values"])
+              te = siglip.get_text_features(input_ids=tx["input_ids"], attention_mask=tx.get("attention_mask"))
+          assert tuple(im.shape) == tuple(te.shape)
+          assert torch.isfinite(im).all() and torch.isfinite(te).all()
+          print("SIGLIP_MODEL_OK", tuple(im.shape))
 
           info = HfApi().model_info("Lightricks/LTX-Video", files_metadata=True)
           target = "ltxv-2b-0.9.6-distilled-04-25.safetensors"
