@@ -41,6 +41,25 @@ public final class KaggleClient {
         }
     }
 
+    public static final class OAuthToken {
+        public final String accessToken;
+        public final String refreshToken;
+        public final String username;
+        public final long expiresInSeconds;
+        public final String scope;
+
+        OAuthToken(String accessToken, String refreshToken, String username,
+                   long expiresInSeconds, String scope) {
+            this.accessToken = accessToken == null ? "" : accessToken.trim();
+            this.refreshToken = refreshToken == null ? "" : refreshToken.trim();
+            this.username = username == null ? "" : username.trim();
+            this.expiresInSeconds = Math.max(0L, expiresInSeconds);
+            this.scope = scope == null ? "" : scope.trim();
+        }
+
+        boolean usable() { return !accessToken.isEmpty(); }
+    }
+
     public static final class PushResult {
         public final int version;
         public final String url;
@@ -59,6 +78,71 @@ public final class KaggleClient {
             this.url = requireHttpsUrl(url);
             this.authRequired = authRequired;
         }
+    }
+
+    public OAuthToken exchangeOAuthCode(String code, String codeVerifier) throws Exception {
+        String cleanCode = code == null ? "" : code.trim();
+        String cleanVerifier = codeVerifier == null ? "" : codeVerifier.trim();
+        if (cleanCode.isEmpty() || cleanVerifier.isEmpty()) {
+            throw new IllegalArgumentException("Kaggle OAuth code/verifier boş.");
+        }
+        JSONObject body = new JSONObject();
+        body.put("code", cleanCode);
+        body.put("code_verifier", cleanVerifier);
+        body.put("grant_type", "authorization_code");
+        Result r = request(
+                "POST",
+                "https://www.kaggle.com/api/v1/oauth2/token",
+                null,
+                body.toString(),
+                true);
+        if (!r.ok()) {
+            throw new IllegalStateException("Kaggle OAuth token exchange HTTP " + r.code + ": " + compact(r.body));
+        }
+        OAuthToken token = oauthTokenFromJson(r.body);
+        if (!token.usable()) throw new IllegalStateException("Kaggle OAuth erişim tokenı dönmedi.");
+        return token;
+    }
+
+    public OAuthToken refreshOAuthToken(String refreshToken) throws Exception {
+        String cleanRefresh = refreshToken == null ? "" : refreshToken.trim();
+        if (cleanRefresh.isEmpty()) throw new IllegalArgumentException("Kaggle OAuth refresh token boş.");
+        JSONObject body = new JSONObject();
+        body.put("grant_type", "refresh_token");
+        body.put("refresh_token", cleanRefresh);
+        Result r = request(
+                "POST",
+                "https://www.kaggle.com/api/v1/oauth2/token",
+                null,
+                body.toString(),
+                true);
+        if (!r.ok()) {
+            throw new IllegalStateException("Kaggle OAuth refresh HTTP " + r.code + ": " + compact(r.body));
+        }
+        OAuthToken token = oauthTokenFromJson(r.body);
+        if (!token.usable()) throw new IllegalStateException("Kaggle OAuth yenileme erişim tokenı dönmedi.");
+        return token;
+    }
+
+    static OAuthToken oauthTokenFromJson(String jsonText) throws Exception {
+        JSONObject j = new JSONObject(jsonText == null ? "{}" : jsonText);
+        String access = firstNonEmpty(j, "access_token", "accessToken", "token");
+        String refresh = firstNonEmpty(j, "refresh_token", "refreshToken");
+        String username = firstNonEmpty(j, "username", "userName");
+        String scope = firstNonEmpty(j, "scope");
+        long expires = 0L;
+        if (j.has("expires_in")) expires = j.optLong("expires_in", 0L);
+        else if (j.has("expiresIn")) expires = j.optLong("expiresIn", 0L);
+        return new OAuthToken(access, refresh, username, expires, scope);
+    }
+
+    private static String firstNonEmpty(JSONObject j, String... keys) {
+        if (j == null || keys == null) return "";
+        for (String key : keys) {
+            String value = j.optString(key, "").trim();
+            if (!value.isEmpty()) return value;
+        }
+        return "";
     }
 
     public AccountIdentity introspectToken(String token) throws Exception {
