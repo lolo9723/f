@@ -142,10 +142,15 @@ def semantic_scene_qc(video_path, semantic_text, previous_frame, scene_index, at
                         + "                    out, semantic_text, continuity_frame, i+1, attempt\n"
                         + "                )\n"
                         + "                if not qc['pass']:\n"
-                        + "                    raise RuntimeError('Semantic/visual QC failed: ' + '; '.join(qc['reasons']))\n"
+                        + "                    raise RuntimeError('Semantic/visual QC failed: ' + '; '.join(qc['reasons']))\n\n"
+                        + "                next_frame=SCENES/f'continuity_{i+1}.png'");
+
+        script = requireReplace(script,
+                "                continuity_frame=next_frame\n\n                scene_ready=True",
+                "                continuity_frame=next_frame\n"
                         + "                scene_qc_report.append(qc)\n"
                         + "                shutil.copy2(out, WORK/f'scene_{i+1}.mp4')\n\n"
-                        + "                next_frame=SCENES/f'continuity_{i+1}.png'");
+                        + "                scene_ready=True");
 
         script = requireReplace(script,
                 "            continuity_frame=continuity_frame.name\n        )",
