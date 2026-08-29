@@ -151,7 +151,7 @@ def prepare_story_for_ltx(story):
 
         script = requireReplace(script,
                 "subprocess.check_call([sys.executable,'-m','pip','install','-q','transformers==4.49.0','diffusers==0.33.1','accelerate==1.6.0'])",
-                "subprocess.check_call([sys.executable,'-m','pip','install','-q','transformers==4.49.0','diffusers==0.33.1','accelerate==1.6.0','sentencepiece==0.2.0','protobuf==5.29.5','sacremoses==0.1.1'])");
+                "subprocess.check_call([sys.executable,'-m','pip','install','-q','transformers==4.49.0','diffusers==0.33.1','accelerate==1.6.0','sentencepiece==0.2.0','protobuf==5.29.5','sacremoses==0.1.1','huggingface-hub==0.30.2','safetensors==0.5.3','tokenizers==0.21.4'])");
 
         String translationBootstrap =
                 "    subprocess.check_call([sys.executable,'-m','pip','install','-q','-e',str(repo)+'[inference]'])\n\n"
