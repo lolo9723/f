@@ -797,10 +797,11 @@ public final class LiveE2EActivity extends Activity {
         String slug = prefs.getString("slug", "");
         if (slug.isEmpty() || slug.equals(prefs.getString("diagnosed_slug", ""))) return;
         String user = prefs.getString("username", "");
-        String tokenValue = secure.get("kaggle_token");
-        if (user.isEmpty() || tokenValue.isEmpty()) return;
+        if (user.isEmpty() || (secure.get("kaggle_token").isEmpty()
+                && secure.get("kaggle_refresh_token").isEmpty())) return;
         workInFlight = true;
         try {
+            String tokenValue = usableKaggleToken();
             String diagnostics = kaggle.getFailureDiagnostics(user, slug, tokenValue);
             String quota;
             try { quota = kaggle.getAcceleratorQuotaSummary(tokenValue); }
