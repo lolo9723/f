@@ -79,6 +79,26 @@ public class LiveE2EActivityTest {
         assertEquals("quality_total_scenes=6", cert.failureReason());
     }
 
+    @Test public void oauthTokenJsonParsesOnRealAndroidJson() throws Exception {
+        KaggleClient.OAuthToken snake = KaggleClient.oauthTokenFromJson(
+                "{\"access_token\":\"a\",\"refresh_token\":\"r\","
+                        + "\"username\":\"user\",\"expires_in\":3600,"
+                        + "\"scope\":\"resources.admin:*\"}");
+        assertEquals("a", snake.accessToken);
+        assertEquals("r", snake.refreshToken);
+        assertEquals("user", snake.username);
+        assertEquals(3600L, snake.expiresInSeconds);
+        assertTrue(snake.usable());
+
+        KaggleClient.OAuthToken camel = KaggleClient.oauthTokenFromJson(
+                "{\"accessToken\":\"a2\",\"refreshToken\":\"r2\","
+                        + "\"userName\":\"user2\",\"expiresIn\":7200}");
+        assertEquals("a2", camel.accessToken);
+        assertEquals("r2", camel.refreshToken);
+        assertEquals("user2", camel.username);
+        assertEquals(7200L, camel.expiresInSeconds);
+    }
+
     @Test public void androidFinalTrackContractRequiresH264AndAac() {
         assertTrue(LiveE2EActivity.hasCanonicalH264AacTracks(
                 new String[]{"video/avc", "audio/mp4a-latm"}));
