@@ -1,0 +1,90 @@
+name: Kaggle OAuth Contract
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [video-fabrikasi-android]
+    paths:
+      - "app/src/main/java/com/videofabrikasi/app/KaggleOAuthPkce.java"
+      - "app/src/main/java/com/videofabrikasi/app/KaggleClient.java"
+      - "app/src/main/java/com/videofabrikasi/app/LiveE2EActivity.java"
+      - ".github/workflows/kaggle-oauth-contract.yml"
+
+jobs:
+  oauth-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify official Kaggle SDK PKCE public-client contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64, hashlib, json, urllib.parse, urllib.request, urllib.error
+
+          SDK_COMMIT = "f983c97287bf274ebab506aac85eda6efebe3b32"
+          sdk_url = (
+              "https://raw.githubusercontent.com/Kaggle/kaggle-sdk-python/"
+              + SDK_COMMIT + "/kagglesdk/kaggle_oauth.py"
+          )
+          source = urllib.request.urlopen(sdk_url, timeout=30).read().decode("utf-8")
+          assert 'OAUTH_CLIENT_ID = "kagglesdk"' in source
+          assert 'random.randint(8000, 9000)' in source
+          assert 'redirect_uri = f"http://localhost:{port}"' in source
+          assert 'code_challenge_method="S256"' not in source  # SDK builds this in HTTP client.
+          print("OFFICIAL_KAGGLE_SDK_PUBLIC_CLIENT_OK", SDK_COMMIT)
+
+          metadata = json.load(urllib.request.urlopen(
+              "https://www.kaggle.com/.well-known/oauth-authorization-server", timeout=30
+          ))
+          authorize = metadata.get("authorization_endpoint", "")
+          token = metadata.get("token_endpoint", "")
+          assert authorize.endswith("/api/v1/oauth2/authorize"), authorize
+          assert token.endswith("/api/v1/oauth2/token"), token
+          assert "S256" in metadata.get("code_challenge_methods_supported", []), metadata
+          print("KAGGLE_OAUTH_DISCOVERY_OK", authorize, token)
+
+          verifier = "A" * 64
+          challenge = base64.urlsafe_b64encode(
+              hashlib.sha256(verifier.encode()).digest()
+          ).decode("ascii")
+          params = urllib.parse.urlencode({
+              "response_type": "code",
+              "client_id": "kagglesdk",
+              "redirect_uri": "http://localhost:8123",
+              "scope": "resources.admin:*",
+              "state": "video-factory-contract-state",
+              "code_challenge": challenge,
+              "code_challenge_method": "S256",
+              "response_mode": "query",
+          })
+          req = urllib.request.Request(
+              authorize + "?" + params,
+              headers={"User-Agent":"VideoFabrikasiOAuthContract/1.0"}
+          )
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+
+          opener = urllib.request.build_opener(NoRedirect)
+          try:
+              response = opener.open(req, timeout=30)
+              status = response.status
+              location = response.headers.get("Location", "")
+              body = response.read(2048).decode("utf-8", "replace")
+          except urllib.error.HTTPError as e:
+              status = e.code
+              location = e.headers.get("Location", "")
+              body = e.read(2048).decode("utf-8", "replace")
+
+          assert status in (200, 302, 303), (status, location, body[:500])
+          lowered = body.lower()
+          assert "invalid_client" not in lowered, body[:500]
+          assert "invalid redirect" not in lowered, body[:500]
+          print("KAGGLE_OAUTH_AUTHORIZE_ENTRY_OK", status, location[:180])
+          PY
