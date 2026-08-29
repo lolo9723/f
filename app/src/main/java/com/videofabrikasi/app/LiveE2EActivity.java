@@ -238,17 +238,179 @@ public final class LiveE2EActivity extends Activity {
     }
 
     private void openKaggleSetup() {
+        if (workInFlight || RUNNING.equals(state()) || DOWNLOADING.equals(state())) {
+            toast("Canlı test veya bağlantı işlemi zaten devam ediyor.");
+            return;
+        }
+        workInFlight = true;
+        start.setEnabled(false);
+        if (connectKaggle != null) connectKaggle.setEnabled(false);
+        if (importTokenFile != null) importTokenFile.setEnabled(false);
         prefs.edit()
-                .putBoolean("waiting_for_kaggle_token", true)
+                .putBoolean("waiting_for_kaggle_token", false)
                 .putBoolean("token_picker_auto_prompted", false)
                 .apply();
-        status.setText("KAGGLE BAĞLANTISI BEKLENİYOR…");
-        details.setText("Kaggle açılıyor. Giriş yap → API → Generate New Token → uygulamaya geri dön. Pano uygunsa otomatik alınacak; değilse indirilen dosyayı seçmen için ekran kendiliğinden açılacak.");
+        status.setText("KAGGLE GÜVENLİ GİRİŞİ HAZIRLANIYOR…");
+        details.setText("Kaggle’ın resmi SDK’sıyla aynı localhost PKCE/OAuth oturumu hazırlanıyor. Tarayıcı açılınca hesabına giriş yapıp erişime izin ver.");
+
+        executor.execute(() -> {
+            ServerSocket server = null;
+            try {
+                server = openOAuthLoopbackServer();
+                oauthServer = server;
+                final int port = server.getLocalPort();
+                final String oauthState = KaggleOAuthPkce.newState();
+                final String verifier = KaggleOAuthPkce.newCodeVerifier();
+                final String challenge = KaggleOAuthPkce.codeChallenge(verifier);
+                final String authorizationUrl = KaggleOAuthPkce.authorizationUrl(
+                        port, oauthState, challenge);
+
+                ui(() -> {
+                    try {
+                        status.setText("KAGGLE GİRİŞİNİ ONAYLA…");
+                        details.setText("Kaggle güvenli giriş sayfası açıldı. Giriş yapıp izin ver. İşlem bitince tarayıcı ‘Bağlantı başarılı’ diyecek; uygulamaya döndüğünde test otomatik başlayacak.");
+                        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(authorizationUrl)));
+                    } catch (Exception browserError) {
+                        closeOAuthServer();
+                        workInFlight = false;
+                        fail("Kaggle güvenli giriş sayfası açılamadı: " + safe(browserError));
+                    }
+                });
+
+                try (Socket socket = server.accept()) {
+                    socket.setSoTimeout(15_000);
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(
+                            socket.getInputStream(), StandardCharsets.UTF_8));
+                    String requestLine = reader.readLine();
+                    if (requestLine == null) {
+                        writeOAuthBrowserResponse(socket, 400,
+                                "Kaggle bağlantısı tamamlanamadı. Uygulamaya dönüp yeniden dene.");
+                        throw new IllegalStateException("OAuth callback boş.");
+                    }
+                    String[] parts = requestLine.split(" ");
+                    if (parts.length < 2) {
+                        writeOAuthBrowserResponse(socket, 400,
+                                "Kaggle bağlantısı tamamlanamadı. Uygulamaya dönüp yeniden dene.");
+                        throw new IllegalStateException("OAuth callback HTTP satırı geçersiz.");
+                    }
+                    KaggleOAuthPkce.Callback callback =
+                            KaggleOAuthPkce.parseCallbackTarget(parts[1]);
+                    if (!callback.successfulFor(oauthState)) {
+                        writeOAuthBrowserResponse(socket, 400,
+                                "Kaggle erişimi onaylanmadı. Uygulamaya dönüp yeniden deneyebilirsin.");
+                        String reason = callback.error.isEmpty()
+                                ? "OAuth state/code doğrulaması başarısız"
+                                : callback.error + " " + callback.errorDescription;
+                        throw new IllegalStateException(reason.trim());
+                    }
+
+                    writeOAuthBrowserResponse(socket, 200,
+                            "Kaggle bağlantısı başarılı. Video Fabrikası’na geri dönebilirsin; gerçek T4 testi otomatik başlayacak.");
+
+                    KaggleClient.OAuthToken oauth =
+                            kaggle.exchangeOAuthCode(callback.code, verifier);
+                    KaggleClient.AccountIdentity identity =
+                            kaggle.introspectToken(oauth.accessToken);
+                    if (!identity.active || identity.username.isEmpty()) {
+                        throw new IllegalStateException("Kaggle OAuth oturumu doğrulanamadı.");
+                    }
+                    if (oauth.refreshToken.isEmpty()) {
+                        throw new IllegalStateException("Kaggle OAuth refresh token dönmedi.");
+                    }
+                    KaggleClient.Result validation = kaggle.validateToken(oauth.accessToken);
+                    if (!validation.ok()) {
+                        throw new IllegalStateException(
+                                "Kaggle OAuth API doğrulaması HTTP " + validation.code);
+                    }
+
+                    secure.put("kaggle_token", oauth.accessToken);
+                    secure.put("kaggle_refresh_token", oauth.refreshToken);
+                    long expiresAt = oauth.expiresInSeconds > 0
+                            ? System.currentTimeMillis() + oauth.expiresInSeconds * 1000L
+                            : System.currentTimeMillis() + 60L * 60L * 1000L;
+                    prefs.edit()
+                            .putString("username", identity.username)
+                            .putLong("oauth_access_expires_at", expiresAt)
+                            .putBoolean("waiting_for_kaggle_token", false)
+                            .apply();
+                    getSharedPreferences("video_factory_settings", MODE_PRIVATE)
+                            .edit().putString("username", identity.username).apply();
+
+                    ui(() -> {
+                        username.setText(identity.username);
+                        token.setText("");
+                        token.setHint("Kaggle OAuth bağlı — kimlik Android Keystore’da");
+                        workInFlight = false;
+                        if (connectKaggle != null) connectKaggle.setEnabled(true);
+                        if (importTokenFile != null) importTokenFile.setEnabled(true);
+                        render();
+                        toast("Kaggle güvenli giriş tamamlandı: " + identity.username);
+                        handler.postDelayed(this::startLiveTest, 350L);
+                    });
+                }
+            } catch (Exception e) {
+                ui(() -> {
+                    if (!RUNNING.equals(state()) && !DOWNLOADING.equals(state())) {
+                        workInFlight = false;
+                        if (connectKaggle != null) connectKaggle.setEnabled(true);
+                        if (importTokenFile != null) importTokenFile.setEnabled(true);
+                        fail("Kaggle güvenli giriş tamamlanamadı: " + safe(e));
+                    }
+                });
+            } finally {
+                if (server != null) {
+                    try { server.close(); } catch (Exception ignored) {}
+                }
+                if (oauthServer == server) oauthServer = null;
+            }
+        });
+    }
+
+    private ServerSocket openOAuthLoopbackServer() throws Exception {
+        SecureRandom random = new SecureRandom();
+        Exception last = null;
+        int range = KaggleOAuthPkce.MAX_LOOPBACK_PORT - KaggleOAuthPkce.MIN_LOOPBACK_PORT + 1;
+        for (int i = 0; i < range; i++) {
+            int port = KaggleOAuthPkce.MIN_LOOPBACK_PORT + random.nextInt(range);
+            ServerSocket server = new ServerSocket();
+            try {
+                server.setReuseAddress(true);
+                server.bind(new InetSocketAddress(
+                        InetAddress.getByName("127.0.0.1"), port), 1);
+                server.setSoTimeout(5 * 60 * 1000);
+                return server;
+            } catch (Exception bindError) {
+                last = bindError;
+                try { server.close(); } catch (Exception ignored) {}
+            }
+        }
+        throw new IllegalStateException("Kaggle OAuth için boş localhost portu bulunamadı.", last);
+    }
+
+    private void writeOAuthBrowserResponse(Socket socket, int code, String message) {
         try {
-            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(KAGGLE_API_SETTINGS));
-            startActivity(i);
-        } catch (Exception e) {
-            fail("Kaggle token sayfası açılamadı: " + safe(e));
+            String title = code == 200 ? "Kaggle bağlantısı başarılı" : "Kaggle bağlantısı tamamlanamadı";
+            String html = "<!doctype html><html><head><meta charset=\"utf-8\">"
+                    + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+                    + "<title>" + title + "</title></head><body style=\"font-family:sans-serif;padding:28px\">"
+                    + "<h2>" + title + "</h2><p>" + message + "</p></body></html>";
+            byte[] body = html.getBytes(StandardCharsets.UTF_8);
+            OutputStream out = socket.getOutputStream();
+            String header = "HTTP/1.1 " + code + (code == 200 ? " OK" : " Bad Request")
+                    + "\r\nContent-Type: text/html; charset=utf-8"
+                    + "\r\nContent-Length: " + body.length
+                    + "\r\nConnection: close\r\n\r\n";
+            out.write(header.getBytes(StandardCharsets.US_ASCII));
+            out.write(body);
+            out.flush();
+        } catch (Exception ignored) {}
+    }
+
+    private void closeOAuthServer() {
+        ServerSocket server = oauthServer;
+        oauthServer = null;
+        if (server != null) {
+            try { server.close(); } catch (Exception ignored) {}
         }
     }
 
