@@ -18,6 +18,7 @@ final class LiveE2ECertificate {
     final String finalFile;
     final String qualityGate;
     final int qualityPassedScenes;
+    final int qualityTotalScenes;
     final String error;
 
     LiveE2ECertificate(String stage, boolean aiOk, String engine, int scenes,
@@ -31,6 +32,16 @@ final class LiveE2ECertificate {
                        String promptLanguage, String translationMode, String continuity,
                        double continuityStrength, String audio, String finalFile,
                        String qualityGate, int qualityPassedScenes, String error) {
+        this(stage, aiOk, engine, scenes, promptLanguage, translationMode, continuity,
+                continuityStrength, audio, finalFile, qualityGate,
+                qualityPassedScenes, qualityPassedScenes, error);
+    }
+
+    LiveE2ECertificate(String stage, boolean aiOk, String engine, int scenes,
+                       String promptLanguage, String translationMode, String continuity,
+                       double continuityStrength, String audio, String finalFile,
+                       String qualityGate, int qualityPassedScenes, int qualityTotalScenes,
+                       String error) {
         this.stage = clean(stage);
         this.aiOk = aiOk;
         this.engine = clean(engine);
@@ -43,6 +54,7 @@ final class LiveE2ECertificate {
         this.finalFile = clean(finalFile);
         this.qualityGate = clean(qualityGate);
         this.qualityPassedScenes = qualityPassedScenes;
+        this.qualityTotalScenes = qualityTotalScenes;
         this.error = clean(error);
     }
 
@@ -70,6 +82,7 @@ final class LiveE2ECertificate {
                 j.optString("final", ""),
                 j.optString("quality_gate", ""),
                 passed,
+                quality == null ? 0 : quality.length(),
                 j.optString("error", "")
         );
     }
@@ -86,6 +99,7 @@ final class LiveE2ECertificate {
                 && audio.toLowerCase(Locale.US).contains("aac")
                 && "FINAL.mp4".equals(finalFile)
                 && "siglip_semantic_plus_visual_integrity".equals(qualityGate)
+                && qualityTotalScenes == 5
                 && qualityPassedScenes == 5
                 && error.isEmpty();
     }
@@ -103,6 +117,7 @@ final class LiveE2ECertificate {
         if (!audio.toLowerCase(Locale.US).contains("aac")) return "audio=" + audio;
         if (!"FINAL.mp4".equals(finalFile)) return "final=" + finalFile;
         if (!"siglip_semantic_plus_visual_integrity".equals(qualityGate)) return "quality_gate=" + qualityGate;
+        if (qualityTotalScenes != 5) return "quality_total_scenes=" + qualityTotalScenes;
         if (qualityPassedScenes != 5) return "quality_passed_scenes=" + qualityPassedScenes;
         if (!error.isEmpty()) return "error=" + error;
         return "unknown certificate mismatch";
@@ -116,7 +131,7 @@ final class LiveE2ECertificate {
                 + ", continuity=" + continuity
                 + "@" + continuityStrength
                 + ", audio=" + audio
-                + ", quality=" + qualityGate + "(" + qualityPassedScenes + "/5)"
+                + ", quality=" + qualityGate + "(" + qualityPassedScenes + "/" + qualityTotalScenes + ")"
                 + ", final=" + finalFile;
     }
 
