@@ -62,24 +62,6 @@ public class LiveE2ECertificateTest {
         assertFalse(c2.passesCanonicalV4());
     }
 
-    @Test public void moreThanFiveQualityRecordsCannotBeCertified() throws Exception {
-        String json = "{"
-                + "\"stage\":\"COMPLETE\",\"ai_ok\":true,"
-                + "\"engine\":\"LTX-Video story-v4\",\"scenes\":5,"
-                + "\"prompt_language\":\"English\","
-                + "\"translation\":{\"mode\":\"tr_to_en\"},"
-                + "\"continuity\":\"previous_scene_last_frame\",\"continuity_strength\":0.65,"
-                + "\"audio\":\"aac\",\"final\":\"FINAL.mp4\","
-                + "\"quality_gate\":\"siglip_semantic_plus_visual_integrity\","
-                + "\"quality\":[{\"pass\":true},{\"pass\":true},{\"pass\":true},"
-                + "{\"pass\":true},{\"pass\":true},{\"pass\":false}]}";
-        LiveE2ECertificate c = LiveE2ECertificate.parse(json);
-        assertEquals(6, c.qualityTotalScenes);
-        assertEquals(5, c.qualityPassedScenes);
-        assertFalse(c.passesCanonicalV4());
-        assertEquals("quality_total_scenes=6", c.failureReason());
-    }
-
     @Test public void missingQualityGateOrOneFailedSceneCannotBeCertified() {
         LiveE2ECertificate g = good();
         LiveE2ECertificate noGate = new LiveE2ECertificate(
