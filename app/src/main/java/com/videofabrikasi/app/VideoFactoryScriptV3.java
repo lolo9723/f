@@ -16,7 +16,7 @@ final class VideoFactoryScriptV3 {
                 "CONTINUITY_STRENGTH = 0.65\n",
                 "CONTINUITY_STRENGTH = 0.65\n"
                         + "TRANSLATION_MODEL = 'Helsinki-NLP/opus-mt-tr-en'\n"
-                        + "TRANSLATION_REVISION = '8f0734f08b3e19c8ef655c26625f725bc9b73d10'\n");
+                        + "TRANSLATION_REVISION = '19c65427cc2af5f191337d4899e0348c4af25902'\n");
 
         script = requireReplace(script,
                 "PROMPTS = build_scene_prompts(USER_IDEA)\n",
@@ -85,12 +85,35 @@ def prepare_story_for_ltx(story):
     if not looks_turkish(story):
         return story, {'mode':'not_needed', 'source_language':'non_turkish', 'target_language':'en'}
 
-    from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+    from huggingface_hub import hf_hub_download
+    from transformers import MarianTokenizer, MarianMTModel
     import torch
-    tokenizer = AutoTokenizer.from_pretrained(
-        TRANSLATION_MODEL, revision=TRANSLATION_REVISION
+
+    tokenizer_dir = TEMP/'translation_tokenizer'
+    tokenizer_dir.mkdir(parents=True, exist_ok=True)
+    source_spm = hf_hub_download(
+        repo_id=TRANSLATION_MODEL, filename='source.spm',
+        revision=TRANSLATION_REVISION, local_dir=str(tokenizer_dir)
     )
-    model = AutoModelForSeq2SeqLM.from_pretrained(
+    target_spm = hf_hub_download(
+        repo_id=TRANSLATION_MODEL, filename='target.spm',
+        revision=TRANSLATION_REVISION, local_dir=str(tokenizer_dir)
+    )
+    vocab_json = hf_hub_download(
+        repo_id=TRANSLATION_MODEL, filename='vocab.json',
+        revision=TRANSLATION_REVISION, local_dir=str(tokenizer_dir)
+    )
+    for required in (source_spm, target_spm, vocab_json):
+        if not required or not Path(required).is_file():
+            raise RuntimeError('Pinned Marian tokenizer asset is missing: ' + str(required))
+
+    tokenizer = MarianTokenizer(
+        source_spm=source_spm,
+        target_spm=target_spm,
+        vocab=vocab_json,
+        model_max_length=512
+    )
+    model = MarianMTModel.from_pretrained(
         TRANSLATION_MODEL, revision=TRANSLATION_REVISION
     ).to('cpu')
     model.eval()
@@ -128,7 +151,7 @@ def prepare_story_for_ltx(story):
 
         script = requireReplace(script,
                 "subprocess.check_call([sys.executable,'-m','pip','install','-q','transformers==4.49.0','diffusers==0.33.1','accelerate==1.6.0'])",
-                "subprocess.check_call([sys.executable,'-m','pip','install','-q','transformers==4.49.0','diffusers==0.33.1','accelerate==1.6.0','sentencepiece==0.2.0'])");
+                "subprocess.check_call([sys.executable,'-m','pip','install','-q','transformers==4.49.0','diffusers==0.33.1','accelerate==1.6.0','sentencepiece==0.2.0','protobuf==5.29.5','sacremoses==0.1.1'])");
 
         String translationBootstrap =
                 "    subprocess.check_call([sys.executable,'-m','pip','install','-q','-e',str(repo)+'[inference]'])\n\n"
