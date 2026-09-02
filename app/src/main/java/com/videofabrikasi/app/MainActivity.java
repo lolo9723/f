@@ -9,6 +9,8 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.graphics.Color;
+import android.media.MediaExtractor;
+import android.media.MediaFormat;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Bundle;
@@ -561,11 +563,30 @@ public class MainActivity extends Activity {
                 if (width != 1080 || height != 1920) {
                     throw new IllegalStateException("İndirilen video 1080x1920 değil: " + width + "x" + height);
                 }
-                if (duration < 5000L) {
-                    throw new IllegalStateException("İndirilen videonun süresi şüpheli: " + duration + " ms");
+                if (duration < 8_000L) {
+                    throw new IllegalStateException(
+                            "İndirilen videonun süresi 8 saniyeden kısa: " + duration + " ms");
                 }
             } finally {
                 try { mmr.release(); } catch (Exception ignored) {}
+            }
+
+            MediaExtractor extractor = new MediaExtractor();
+            try {
+                extractor.setDataSource(this, Uri.parse(local), null);
+                String[] mimes = new String[extractor.getTrackCount()];
+                for (int i = 0; i < extractor.getTrackCount(); i++) {
+                    MediaFormat format = extractor.getTrackFormat(i);
+                    mimes[i] = format.containsKey(MediaFormat.KEY_MIME)
+                            ? format.getString(MediaFormat.KEY_MIME) : "";
+                }
+                if (!LiveE2EActivity.hasCanonicalH264AacTracks(mimes)) {
+                    throw new IllegalStateException(
+                            "İndirilen MP4 H.264/AAC değil: "
+                                    + java.util.Arrays.toString(mimes));
+                }
+            } finally {
+                try { extractor.release(); } catch (Exception ignored) {}
             }
 
             project.updateStatusForSlug(slug, "AI TAMAMLANDI — İNDİRİLDİ");
