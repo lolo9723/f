@@ -142,6 +142,21 @@ public class MainActivityTest {
         assertNotEquals("AI TAMAMLANDI", state);
     }
 
+    @Test public void mainDownloadMediaContractRequiresEightSecondsH264AndAac() {
+        assertTrue(MainActivity.hasCanonicalFinalDuration(8_000L));
+        assertTrue(MainActivity.hasCanonicalFinalDuration(12_000L));
+        assertFalse(MainActivity.hasCanonicalFinalDuration(7_999L));
+
+        assertTrue(MainActivity.hasCanonicalFinalTracks(
+                new String[]{"video/avc", "audio/mp4a-latm"}));
+        assertFalse(MainActivity.hasCanonicalFinalTracks(
+                new String[]{"video/hevc", "audio/mp4a-latm"}));
+        assertFalse(MainActivity.hasCanonicalFinalTracks(
+                new String[]{"video/avc", "audio/mpeg"}));
+        assertFalse(MainActivity.hasCanonicalFinalTracks(
+                new String[]{"video/avc"}));
+    }
+
     @Test public void unrelatedDownloadCompletionBroadcastDoesNotCrashActivity() {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         Intent intent = new Intent(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
