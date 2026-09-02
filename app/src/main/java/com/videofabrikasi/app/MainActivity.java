@@ -563,7 +563,7 @@ public class MainActivity extends Activity {
                 if (width != 1080 || height != 1920) {
                     throw new IllegalStateException("İndirilen video 1080x1920 değil: " + width + "x" + height);
                 }
-                if (duration < 8_000L) {
+                if (!hasCanonicalFinalDuration(duration)) {
                     throw new IllegalStateException(
                             "İndirilen videonun süresi 8 saniyeden kısa: " + duration + " ms");
                 }
@@ -580,7 +580,7 @@ public class MainActivity extends Activity {
                     mimes[i] = format.containsKey(MediaFormat.KEY_MIME)
                             ? format.getString(MediaFormat.KEY_MIME) : "";
                 }
-                if (!LiveE2EActivity.hasCanonicalH264AacTracks(mimes)) {
+                if (!hasCanonicalFinalTracks(mimes)) {
                     throw new IllegalStateException(
                             "İndirilen MP4 H.264/AAC değil: "
                                     + java.util.Arrays.toString(mimes));
@@ -710,6 +710,14 @@ public class MainActivity extends Activity {
             }
             throw refreshFailure;
         }
+    }
+
+    static boolean hasCanonicalFinalDuration(long durationMs) {
+        return durationMs >= 8_000L;
+    }
+
+    static boolean hasCanonicalFinalTracks(String[] mimes) {
+        return LiveE2EActivity.hasCanonicalH264AacTracks(mimes);
     }
 
     private boolean liveE2ePassed() {
