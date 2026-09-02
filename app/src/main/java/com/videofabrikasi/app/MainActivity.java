@@ -69,9 +69,11 @@ public class MainActivity extends Activity {
             String savedUser = prefs.getString("username", "").trim();
             if (!savedUser.isEmpty()) username.setText(savedUser);
         }
-        if (secure != null && token != null && !secure.get("kaggle_token").isEmpty()) {
+        if (secure != null && token != null
+                && KaggleSessionPolicy.hasCredential(
+                        secure.get("kaggle_token"), secure.get("kaggle_refresh_token"))) {
             token.setText("");
-            token.setHint("Kaggle bağlı — token Keystore’da güvenli");
+            token.setHint("Kaggle bağlı — OAuth/API kimliği Keystore’da güvenli");
         }
     }
 
@@ -229,8 +231,9 @@ public class MainActivity extends Activity {
     private void restore() {
         username.setText(prefs.getString("username", ""));
         token.setText("");
-        if (!secure.get("kaggle_token").isEmpty()) {
-            token.setHint("Kaggle bağlı — token Keystore’da güvenli");
+        if (KaggleSessionPolicy.hasCredential(
+                secure.get("kaggle_token"), secure.get("kaggle_refresh_token"))) {
+            token.setHint("Kaggle bağlı — OAuth/API kimliği Keystore’da güvenli");
         }
         String saved = project.idea();
         if (saved.isEmpty()) {
@@ -261,9 +264,13 @@ public class MainActivity extends Activity {
         }
         try {
             secure.put("kaggle_token", t);
-            prefs.edit().putString("username", u).apply();
+            secure.put("kaggle_refresh_token", "");
+            prefs.edit()
+                    .putString("username", u)
+                    .remove("oauth_access_expires_at")
+                    .apply();
             token.setText("");
-            token.setHint("Kaggle bağlı — token Keystore’da güvenli");
+            token.setHint("Kaggle bağlı — API token Keystore’da güvenli");
             toast("Bilgiler Android Keystore ile güvenli kaydedildi.");
         } catch (Exception e) {
             showError("Güvenli kayıt başarısız", e);
@@ -272,18 +279,20 @@ public class MainActivity extends Activity {
 
     private void testConnection() {
         if (busy) return;
-        String t = effectiveToken();
-        if (t.isEmpty()) {
+        final String manualToken = token.getText().toString().trim();
+        if (!hasKaggleCredential(manualToken)) {
             toast("Kaggle bağlantısı yok. KAGGLE’I KOLAY BAĞLA düğmesini kullan.");
             return;
         }
-        final String resolvedToken = t;
         setBusy(true, "BAĞLANTI TEST EDİLİYOR…");
         executor.execute(() -> {
             try {
+                String resolvedToken = usableKaggleToken(manualToken);
                 KaggleClient.Result r = kaggle.validateToken(resolvedToken);
                 if (!r.ok()) throw new IllegalStateException("HTTP " + r.code + " " + r.body);
                 ui(() -> {
+                    token.setText("");
+                    token.setHint("Kaggle bağlı — OAuth/API kimliği Keystore’da güvenli");
                     setBusy(false, "BAĞLANTI TAMAM");
                     toast("Kaggle bağlantısı başarılı.");
                 });
@@ -303,52 +312,65 @@ public class MainActivity extends Activity {
             startActivity(new Intent(this, LiveE2EActivity.class));
             return;
         }
-        String u = username.getText().toString().trim();
-        if (u.isEmpty()) u = prefs.getString("username", "").trim();
-        String t = effectiveToken();
-        String story = idea.getText().toString().trim();
-        if (u.isEmpty() || t.isEmpty()) {
+
+        String requestedUser = username.getText().toString().trim();
+        if (requestedUser.isEmpty()) requestedUser = prefs.getString("username", "").trim();
+        final String manualToken = token.getText().toString().trim();
+        final String story = idea.getText().toString().trim();
+
+        if (!hasKaggleCredential(manualToken)) {
             toast("Kaggle bağlantısı yok. KAGGLE’I KOLAY BAĞLA düğmesini kullan.");
             return;
         }
-        final String resolvedUser = u;
-        final String resolvedToken = t;
         if (story.length() < 20) {
             toast("Hikâye çok kısa.");
             return;
         }
-        try {
-            secure.put("kaggle_token", t);
-            prefs.edit().putString("username", u).apply();
-        } catch (Exception e) {
-            showError("Token güvenli kaydedilemedi", e);
-            return;
-        }
 
+        final String requestedUserFinal = requestedUser;
         String stamp = String.valueOf(System.currentTimeMillis());
         String base = KaggleClient.slugify(story);
-        String slug = "vf-" + base.substring(0, Math.min(base.length(), 20)) + "-" + stamp;
-        String title = slug;
-        String script = VideoFactoryScript.build(story, slug);
-        project.save(resolvedUser, slug, title, story, "GÖNDERİLİYOR", 0);
+        final String slug = "vf-" + base.substring(0, Math.min(base.length(), 20)) + "-" + stamp;
+        final String title = slug;
+        final String script = VideoFactoryScript.build(story, slug);
+
         resetPlayerForProject();
-        renderProject();
         setBusy(true, retrying ? "TÜM VİDEO YENİDEN GÖNDERİLİYOR…" : "GPU İŞİ GÖNDERİLİYOR…");
 
         executor.execute(() -> {
             try {
-                KaggleClient.PushResult r = kaggle.pushKernel(resolvedUser, slug, title, script, resolvedToken);
+                String resolvedToken = usableKaggleToken(manualToken);
+                KaggleClient.AccountIdentity identity = kaggle.introspectToken(resolvedToken);
+                if (!identity.active || identity.username.isEmpty()) {
+                    throw new IllegalStateException("Kaggle oturumu aktif değil.");
+                }
+                final String resolvedUser = requestedUserFinal.isEmpty()
+                        ? identity.username : requestedUserFinal;
+                if (!resolvedUser.equalsIgnoreCase(identity.username)) {
+                    throw new IllegalStateException(
+                            "Kaggle hesabı uyuşmuyor: bağlı hesap " + identity.username);
+                }
+
+                prefs.edit().putString("username", resolvedUser).apply();
+                project.save(resolvedUser, slug, title, story, "GÖNDERİLİYOR", 0);
+                KaggleClient.PushResult r =
+                        kaggle.pushKernel(resolvedUser, slug, title, script, resolvedToken);
                 project.save(resolvedUser, slug, title, story, "KUYRUKTA", r.version);
                 ui(() -> {
+                    username.setText(resolvedUser);
+                    token.setText("");
+                    token.setHint("Kaggle bağlı — OAuth/API kimliği Keystore’da güvenli");
                     setBusy(false, "KUYRUKTA");
                     renderProject();
                     toast("Kaggle GPU işi oluşturuldu. Yeni bir fikir girip ikinci videoyu da gönderebilirsin.");
                     handler.postDelayed(() -> refreshStatus(false), 5000);
                 });
             } catch (Exception e) {
-                project.updateStatus("HATALI");
+                if (project.hasActiveProject() && slug.equals(project.slug())) {
+                    project.updateStatus("HATALI");
+                }
                 ui(() -> {
-                    setBusy(false, "HATALI");
+                    setBusy(false, project.hasActiveProject() ? project.status() : "HATALI");
                     renderProject();
                     showError("Üretim başlatılamadı", e);
                 });
@@ -364,14 +386,14 @@ public class MainActivity extends Activity {
         String activeSlug = project.slug();
         String activeUser = project.username();
         int activeVersion = project.version();
-        String t = secure.get("kaggle_token");
-        if (t.isEmpty()) {
-            if (userAction) toast("Kaggle token bulunamadı.");
+        if (!hasKaggleCredential("")) {
+            if (userAction) toast("Kaggle bağlantısı bulunamadı.");
             return;
         }
         setBusy(true, "DURUM KONTROL EDİLİYOR…");
         executor.execute(() -> {
             try {
+                String t = usableKaggleToken("");
                 String remote = kaggle.getStatus(activeUser, activeSlug, t);
                 String verified = remote;
                 if ("TAMAMLANDI".equals(remote)) {
@@ -416,9 +438,8 @@ public class MainActivity extends Activity {
             toast("MP4 ancak gerçek AI üretimi doğrulandıktan sonra indirilebilir. Önce Yenile.");
             return;
         }
-        String t = secure.get("kaggle_token");
-        if (t.isEmpty()) {
-            toast("Kaggle token bulunamadı.");
+        if (!hasKaggleCredential("")) {
+            toast("Kaggle bağlantısı bulunamadı.");
             return;
         }
         if (busy) return;
@@ -428,6 +449,7 @@ public class MainActivity extends Activity {
         setBusy(true, "MP4 BAĞLANTISI HAZIRLANIYOR…");
         executor.execute(() -> {
             try {
+                String t = usableKaggleToken("");
                 KaggleClient.DownloadTarget target = kaggle.resolveOutputDownload(
                         activeUser, activeSlug, activeVersion, "FINAL.mp4", t);
                 ui(() -> {
@@ -608,6 +630,64 @@ public class MainActivity extends Activity {
         } else {
             player.setVisibility(View.VISIBLE);
             playPause.setText("▶ İNDİRİLENİ OYNAT");
+        }
+    }
+
+    private boolean hasKaggleCredential(String manualToken) {
+        if (manualToken != null && !manualToken.trim().isEmpty()) return true;
+        return KaggleSessionPolicy.hasCredential(
+                secure == null ? "" : secure.get("kaggle_token"),
+                secure == null ? "" : secure.get("kaggle_refresh_token"));
+    }
+
+    private String usableKaggleToken(String manualToken) throws Exception {
+        String manual = manualToken == null ? "" : manualToken.trim();
+        if (!manual.isEmpty()) {
+            secure.put("kaggle_token", manual);
+            secure.put("kaggle_refresh_token", "");
+            prefs.edit().remove("oauth_access_expires_at").apply();
+            return manual;
+        }
+
+        String access = secure.get("kaggle_token").trim();
+        String refresh = secure.get("kaggle_refresh_token").trim();
+        if (!KaggleSessionPolicy.hasCredential(access, refresh)) {
+            throw new IllegalStateException("Kaggle bağlantısı bulunamadı.");
+        }
+        if (refresh.isEmpty()) return access;
+
+        long now = System.currentTimeMillis();
+        long expiresAt = prefs.getLong("oauth_access_expires_at", 0L);
+        if (!KaggleSessionPolicy.shouldRefresh(access, refresh, expiresAt, now)) {
+            return access;
+        }
+
+        try {
+            KaggleClient.OAuthToken renewed = kaggle.refreshOAuthToken(refresh);
+            String renewedRefresh = renewed.refreshToken.isEmpty()
+                    ? refresh : renewed.refreshToken;
+            KaggleClient.AccountIdentity identity =
+                    kaggle.introspectToken(renewed.accessToken);
+            if (!identity.active || identity.username.isEmpty()) {
+                throw new IllegalStateException("Yenilenen Kaggle OAuth oturumu doğrulanamadı.");
+            }
+
+            secure.put("kaggle_token", renewed.accessToken);
+            secure.put("kaggle_refresh_token", renewedRefresh);
+            long newExpiresAt = renewed.expiresInSeconds > 0
+                    ? now + renewed.expiresInSeconds * 1000L
+                    : now + 60L * 60L * 1000L;
+            prefs.edit()
+                    .putLong("oauth_access_expires_at", newExpiresAt)
+                    .putString("username", identity.username)
+                    .apply();
+            return renewed.accessToken;
+        } catch (Exception refreshFailure) {
+            if (KaggleSessionPolicy.canUseAccessAfterRefreshFailure(
+                    access, expiresAt, now)) {
+                return access;
+            }
+            throw refreshFailure;
         }
     }
 
