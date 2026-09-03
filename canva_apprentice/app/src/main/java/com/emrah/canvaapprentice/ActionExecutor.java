@@ -27,10 +27,6 @@ public final class ActionExecutor {
         if (root == null || root.getPackageName() == null) return false;
         if (!AgentConstants.CANVA_PACKAGE.equals(root.getPackageName().toString())) return false;
 
-        // Runtime continuity gate: this is intentionally independent from the teacher prompt.
-        // Once a task is bound to an existing design, no mutating/navigation action may run on
-        // an unknown editor screen. The only exceptions are BACK recovery and opening the exact
-        // bound design from Canva home/projects.
         TaskState state = stateRepo.load();
         UiTreeSnapshot snap = UiTreeSnapshot.capture(root);
         boolean anchorVisible = !state.designAnchor.isEmpty() && snap.containsText(state.designAnchor);
@@ -84,9 +80,14 @@ public final class ActionExecutor {
         String expectedLabel = NodeTargetCodec.label(encodedTarget);
         if (wantedIndex < 0 || expectedLabel.trim().isEmpty()) return null;
 
+        // Fail closed on legacy/index+label-only targets. The compact index can shift when Canva
+        // inserts or removes a node; class+bounds+flags prove that this is still the same row the
+        // teacher saw, rather than another duplicate label that happened to inherit the index.
+        if (!NodeTargetCodec.hasStructuralEvidence(encodedTarget)) return null;
+
         int[] current = new int[]{0};
         AccessibilityNodeInfo found = findCompactNodeDepthFirst(root, wantedIndex, current, 0);
-        if (found == null) return null;
+        if (found == null || !matchesStructuralEvidence(found, encodedTarget)) return null;
 
         String expected = norm(expectedLabel);
         String text = norm(found.getText());
@@ -95,6 +96,39 @@ public final class ActionExecutor {
             return text.isEmpty() && desc.isEmpty() ? found : null;
         }
         return expected.equals(text) || expected.equals(desc) ? found : null;
+    }
+
+    private boolean matchesStructuralEvidence(AccessibilityNodeInfo node, String encodedTarget) {
+        if (!raw(node.getClassName()).trim().equals(NodeTargetCodec.className(encodedTarget))) return false;
+
+        String expectedFlags = NodeTargetCodec.flags(encodedTarget);
+        String actualFlags = (node.isClickable() ? "C" : "-") + (node.isEditable() ? "E" : "-");
+        if (!actualFlags.equals(expectedFlags)) return false;
+
+        Rect actual = new Rect();
+        node.getBoundsInScreen(actual);
+        Rect expected = parseBounds(NodeTargetCodec.bounds(encodedTarget));
+        return expected != null && boundsNear(expected, actual, 8);
+    }
+
+    static Rect parseBounds(String raw) {
+        if (raw == null) return null;
+        String[] p = raw.trim().split("\\s+");
+        if (p.length != 4) return null;
+        try {
+            return new Rect(Integer.parseInt(p[0]), Integer.parseInt(p[1]),
+                    Integer.parseInt(p[2]), Integer.parseInt(p[3]));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    static boolean boundsNear(Rect a, Rect b, int tolerancePx) {
+        return a != null && b != null
+                && Math.abs(a.left - b.left) <= tolerancePx
+                && Math.abs(a.top - b.top) <= tolerancePx
+                && Math.abs(a.right - b.right) <= tolerancePx
+                && Math.abs(a.bottom - b.bottom) <= tolerancePx;
     }
 
     private AccessibilityNodeInfo findCompactNodeDepthFirst(
@@ -206,8 +240,6 @@ public final class ActionExecutor {
                 if (text.equals(wanted) || desc.equals(wanted)) {
                     exact = n;
                     exactCount++;
-                    // A plain-text action cannot safely disambiguate duplicate Canva labels.
-                    // Require the teacher to use CLICK_NODE / SET_NODE_TEXT instead of guessing.
                     if (exactCount > 1) return null;
                 }
             }
@@ -216,8 +248,6 @@ public final class ActionExecutor {
                 if (c != null) q.add(c);
             }
         }
-        // Never fall back to substring/partial matching. Canva often shows repeated labels such as
-        // "Text", "Share", or template names; a partial hit could mutate the wrong element.
         return exactCount == 1 ? exact : null;
     }
 
