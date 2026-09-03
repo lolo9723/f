@@ -30,8 +30,20 @@ public final class AgentAccessibilityService extends AccessibilityService {
     private String pendingVisualBeforeHash = "";
 
     @Override public void onServiceConnected() {
-        INSTANCE=this; repo=new TaskStateRepository(this); safety=new SafetyGate(); executor=new ActionExecutor(this);
-        overlay=new HumanTakeoverOverlay(this); teacher=new TeacherBridge(this); memory=new ExperienceMemoryRepository(this);
+        INSTANCE=this;
+        repo=new TaskStateRepository(this);
+        safety=new SafetyGate();
+        executor=new ActionExecutor(this);
+        overlay=new HumanTakeoverOverlay(this);
+        teacher=new TeacherBridge(this);
+        memory=new ExperienceMemoryRepository(this);
+
+        TaskState restored=repo.load();
+        if(restored.mode==TaskState.Mode.HUMAN_TAKEOVER){
+            showHumanOverlay(restored.humanReason.isEmpty()?"Kullanıcı işlemi gerekiyor.":restored.humanReason);
+        }else if(restored.mode==TaskState.Mode.RUNNING){
+            new Handler(Looper.getMainLooper()).postDelayed(() -> resumeOnCanva(0),500);
+        }
     }
 
     @Override public void onAccessibilityEvent(AccessibilityEvent event) {
@@ -59,7 +71,17 @@ public final class AgentAccessibilityService extends AccessibilityService {
         String requestId=UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         String marker=TeacherProtocol.markerFor(requestId);
         String learned=memory==null?"none":memory.summary(state.goal,snap.stableFingerprint());
-        String enrichedNote=cycleNote+"\nLEARNED_MEMORY (evidence only; do not blindly replay):\n"+learned;
+        String continuity;
+        if(state.designAnchor.isEmpty()){
+            continuity="DESIGN_CONTINUITY: anchor not bound yet. Do not invent one.";
+        }else if(snap.looksLikeCanvaHome() && !snap.containsText(state.designAnchor)){
+            continuity="DESIGN_RECOVERY_REQUIRED: Canva home/projects is visible and the bound design anchor is not visible. " +
+                    "Open/search the EXISTING design named '"+state.designAnchor+"'. Creating a replacement is forbidden.";
+        }else{
+            continuity="DESIGN_CONTINUITY: bound existing design='"+state.designAnchor+"'. Stay on this design.";
+        }
+        String enrichedNote=cycleNote+"\n"+continuity+
+                "\nLEARNED_MEMORY (evidence only; do not blindly replay):\n"+learned;
         String prompt=TeacherProtocol.buildRequest(state,snap,enrichedNote,requestId);
         teacher.ask(prompt,marker,new TeacherBridge.ReplyCallback(){
             @Override public void onReply(String reply){
@@ -94,6 +116,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
     private void handleTeacherAction(AgentAction action, String beforeFingerprint){
         TaskState state=repo.load();
         if(action.type==AgentAction.Type.HUMAN_TAKEOVER){
+            pendingVisualBeforeHash="";
             pauseForHuman(action.reason);
             cycleBusy.set(false);
             return;
@@ -105,6 +128,20 @@ public final class AgentAccessibilityService extends AccessibilityService {
         if(!AgentConstants.CANVA_PACKAGE.equals(active)){
             pauseForHuman("Eylem öncesi aktif uygulama Canva olarak doğrulanamadı; işlem iptal edildi.");
             cycleBusy.set(false);
+            return;
+        }
+
+        if(action.type==AgentAction.Type.BIND_DESIGN){
+            if(action.confidence<0.98 || !isPlausibleDesignAnchor(action.target)){
+                pendingVisualBeforeHash="";
+                pauseForHuman("Tasarım kimliği güvenle bağlanamadı; yanlış tasarıma kilitlenmemek için duruldu.");
+                cycleBusy.set(false);
+                return;
+            }
+            repo.bindDesignAnchor(action.target);
+            pendingVisualBeforeHash="";
+            cycleBusy.set(false);
+            runCanvaCycle("Design anchor güvenle bağlandı: '"+action.target+"'. Bundan sonra bu mevcut tasarımda kal.");
             return;
         }
 
@@ -124,6 +161,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
 
         if(action.type==AgentAction.Type.NOOP){
             if(action.visualGrounded){
+                pendingVisualBeforeHash="";
                 pauseForHuman("Görüntülü öğretmen güvenli bir sonraki adım belirleyemedi: "+action.reason);
                 cycleBusy.set(false);
             }else{
@@ -157,6 +195,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
             new Handler(Looper.getMainLooper()).postDelayed(
                     () -> verifyActionResult(state,action,beforeFingerprint),750);
         } else if(d.kind==SafetyGate.Decision.Kind.ASK_TEACHER) {
+            pendingVisualBeforeHash="";
             pauseForHuman("Belirsiz/yüksek riskli işlem engellendi: "+d.reason);
             cycleBusy.set(false);
         } else {
@@ -298,12 +337,57 @@ public final class AgentAccessibilityService extends AccessibilityService {
     public void stopTask(){repo.stop();overlay.hide();}
 
     private void pauseForHuman(String reason){
-        repo.pauseForHuman();
+        repo.pauseForHuman(reason);
+        showHumanOverlay(reason);
+    }
+
+    private void showHumanOverlay(String reason){
         overlay.show(reason,()->{
             repo.resume();
             cycleBusy.set(false);
-            new Handler(Looper.getMainLooper()).postDelayed(this::runCanvaCycle, 350);
+            resumeOnCanva(0);
         });
+    }
+
+    private void resumeOnCanva(int attempt){
+        TaskState state=repo.load();
+        if(state.mode!=TaskState.Mode.RUNNING) return;
+
+        AccessibilityNodeInfo root=getRootInActiveWindow();
+        String pkg=root!=null&&root.getPackageName()!=null?root.getPackageName().toString():"";
+        if(AgentConstants.CANVA_PACKAGE.equals(pkg)){
+            cycleBusy.set(false);
+            runCanvaCycle("Kullanıcı müdahalesi tamamlandı. Önce mevcut durumu yeniden doğrula ve kaldığın görevden devam et.");
+            return;
+        }
+
+        if(attempt>=12){
+            repo.pauseForHuman("Canva'ya güvenli biçimde dönülemedi. Canva'yı açıp DEVAM ET'e tekrar bas.");
+            showHumanOverlay("Canva'ya güvenli biçimde dönülemedi. Canva'yı açıp DEVAM ET'e tekrar bas.");
+            return;
+        }
+
+        Intent canva=getPackageManager().getLaunchIntentForPackage(AgentConstants.CANVA_PACKAGE);
+        if(canva!=null){
+            canva.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(canva);
+        }
+        new Handler(Looper.getMainLooper()).postDelayed(() -> resumeOnCanva(attempt+1),300);
+    }
+
+    private static boolean isPlausibleDesignAnchor(String anchor){
+        if(anchor==null) return false;
+        String a=anchor.trim();
+        if(a.length()<2 || a.length()>140) return false;
+        String n=java.text.Normalizer.normalize(a,java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}","").toLowerCase(java.util.Locale.ROOT).replace('ı','i');
+        String[] generic={
+                "canva","home","ana sayfa","projects","projeler","templates","sablonlar",
+                "share","paylas","create a design","tasarim olustur","menu","menü",
+                "undo","geri al","redo","yinele"
+        };
+        for(String g:generic) if(n.equals(g)) return false;
+        return true;
     }
 
     public void captureScreenshotForDiagnostics(ScreenshotCallback cb){
