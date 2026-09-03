@@ -11,7 +11,8 @@ import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.util.concurrent.atomic.AtomicBoolean;\nimport java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.UUID;
 
 public final class AgentAccessibilityService extends AccessibilityService {
     public static volatile AgentAccessibilityService INSTANCE;
