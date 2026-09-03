@@ -58,16 +58,17 @@ public final class TeacherProtocol {
                 "A screenshot of the CURRENT Canva screen is attached. " +
                 "Use normalized coordinates from 0..1000 where (0,0)=top-left and (1000,1000)=bottom-right.\n" +
                 "UI_TREE:\n" + snapshot.compactForTeacher() + "\n" +
-                "Return ONLY one line beginning with CAA1_REPLY_" + requestId + "| . Allowed formats:\n" +
-                "CAA1_REPLY_" + requestId + "|BIND_DESIGN|<exact unique visible design title>|<0..1 confidence>|<reason>\n" +
-                "CAA1_REPLY_" + requestId + "|CLICK_TEXT|<visible text or content description>|<0..1 confidence>|<reason>\n" +
-                "CAA1_REPLY_" + requestId + "|SET_TEXT|<field label/current text>|<text>|<0..1 confidence>|<reason>\n" +
-                "CAA1_REPLY_" + requestId + "|TAP_NORM|<x>,<y>|<0..1 confidence>|<reason>\n" +
-                "CAA1_REPLY_" + requestId + "|DRAG_NORM|<x1>,<y1>,<x2>,<y2>,<durationMs>|<0..1 confidence>|<reason>\n" +
-                "CAA1_REPLY_" + requestId + "|BACK|||<0..1 confidence>|<reason>\n" +
-                "CAA1_REPLY_" + requestId + "|HUMAN|||1.0|<reason>\n" +
-                "CAA1_REPLY_" + requestId + "|DONE|||1.0|<why final visual quality is acceptable>\n" +
-                "CAA1_REPLY_" + requestId + "|NOOP|||1.0|<reason>\n" +
+                "Return ONLY one line, no markdown and no prose. Construct the prefix by concatenating CAA1_REPLY_ + RequestId + | .\n" +
+                "Formats below use the literal <REQUEST_ID> placeholder; replace it with RequestId only in your reply:\n" +
+                "CAA1_REPLY_<REQUEST_ID>|BIND_DESIGN|<exact unique visible design title>|<0..1 confidence>|<reason>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|CLICK_TEXT|<visible text or content description>|<0..1 confidence>|<reason>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|SET_TEXT|<field label/current text>|<text>|<0..1 confidence>|<reason>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|TAP_NORM|<x>,<y>|<0..1 confidence>|<reason>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|DRAG_NORM|<x1>,<y1>,<x2>,<y2>,<durationMs>|<0..1 confidence>|<reason>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|BACK|||<0..1 confidence>|<reason>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|HUMAN|||1.0|<reason>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|DONE|||1.0|<why final visual quality is acceptable>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|NOOP|||1.0|<reason>\n" +
                 "Use TAP_NORM/DRAG_NORM only for visually grounded canvas selection/movement/resizing when the screenshot makes the target unambiguous. " +
                 "For coordinate gestures confidence must be >=0.985. Never use coordinates for delete, payment, share, account, password, login, or destructive actions. " +
                 "BIND_DESIGN requires a clearly visible unique non-generic design title and confidence >=0.98. " +
