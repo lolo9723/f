@@ -192,24 +192,33 @@ public final class ActionExecutor {
 
     private AccessibilityNodeInfo bestMatch(AccessibilityNodeInfo root, String target, boolean editableOnly) {
         String wanted = norm(target);
+        if (wanted.isEmpty()) return null;
+
         Deque<AccessibilityNodeInfo> q = new ArrayDeque<>();
         q.add(root);
-        AccessibilityNodeInfo partial = null;
+        AccessibilityNodeInfo exact = null;
+        int exactCount = 0;
         while (!q.isEmpty()) {
             AccessibilityNodeInfo n = q.removeFirst();
             if ((!editableOnly || n.isEditable()) && n.isEnabled()) {
                 String text = norm(n.getText());
                 String desc = norm(n.getContentDescription());
-                if (text.equals(wanted) || desc.equals(wanted)) return n;
-                if (partial == null && !wanted.isEmpty() &&
-                        (text.contains(wanted) || desc.contains(wanted))) partial = n;
+                if (text.equals(wanted) || desc.equals(wanted)) {
+                    exact = n;
+                    exactCount++;
+                    // A plain-text action cannot safely disambiguate duplicate Canva labels.
+                    // Require the teacher to use CLICK_NODE / SET_NODE_TEXT instead of guessing.
+                    if (exactCount > 1) return null;
+                }
             }
             for (int i = 0; i < n.getChildCount(); i++) {
                 AccessibilityNodeInfo c = n.getChild(i);
                 if (c != null) q.add(c);
             }
         }
-        return partial;
+        // Never fall back to substring/partial matching. Canva often shows repeated labels such as
+        // "Text", "Share", or template names; a partial hit could mutate the wrong element.
+        return exactCount == 1 ? exact : null;
     }
 
     private static double[] parseCsv(String s, int n) {
