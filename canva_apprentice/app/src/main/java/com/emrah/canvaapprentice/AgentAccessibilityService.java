@@ -54,8 +54,10 @@ public final class AgentAccessibilityService extends AccessibilityService {
         }
         TaskState state=repo.load();
         repo.markSafe(snap.stableFingerprint());
-        String prompt=TeacherProtocol.buildRequest(state,snap,"Canva ekranını değerlendir ve yalnız bir güvenli sonraki adım ver.");
-        teacher.ask(prompt,new TeacherBridge.ReplyCallback(){
+        String requestId=UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        String marker=TeacherProtocol.markerFor(requestId);
+        String prompt=TeacherProtocol.buildRequest(state,snap,cycleNote,requestId);
+        teacher.ask(prompt,marker,new TeacherBridge.ReplyCallback(){
             @Override public void onReply(String reply){
                 AgentAction action=TeacherProtocol.parse(reply, marker);
                 Intent canva=getPackageManager().getLaunchIntentForPackage(AgentConstants.CANVA_PACKAGE);
