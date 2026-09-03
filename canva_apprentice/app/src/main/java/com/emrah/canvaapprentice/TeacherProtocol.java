@@ -35,6 +35,7 @@ public final class TeacherProtocol {
                 "CAA1_REPLY_<REQUEST_ID>|HUMAN|||1.0|<why human intervention is required>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|DONE|||1.0|<why goal appears complete>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|NOOP|||1.0|<why no action is safe>\n" +
+                "Reply on ONE physical line. Inside fields escape backslash as \\\\, pipe as \\|, newline as \\n, and tab as \\t. " +
                 "BIND_DESIGN is memory-only; use it only when a non-generic unique design title is clearly visible and confidence >=0.98. " +
                 "Coordinate gestures are FORBIDDEN in this structural turn. " +
                 "If the requested target is visual and the UI tree does not uniquely identify it, request SCREENSHOT instead of guessing. " +
@@ -69,6 +70,7 @@ public final class TeacherProtocol {
                 "CAA1_REPLY_<REQUEST_ID>|HUMAN|||1.0|<reason>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|DONE|||1.0|<why final visual quality is acceptable>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|NOOP|||1.0|<reason>\n" +
+                "Reply on ONE physical line. Inside fields escape backslash as \\\\, pipe as \\|, newline as \\n, and tab as \\t. " +
                 "Use TAP_NORM/DRAG_NORM only for visually grounded canvas selection/movement/resizing when the screenshot makes the target unambiguous. " +
                 "For coordinate gestures confidence must be >=0.985. Never use coordinates for delete, payment, share, account, password, login, or destructive actions. " +
                 "BIND_DESIGN requires a clearly visible unique non-generic design title and confidence >=0.98. " +
@@ -124,7 +126,7 @@ public final class TeacherProtocol {
         }
     }
 
-    private static String at(String[] p, int i) { return i < p.length ? p[i].trim() : ""; }
+    private static String at(java.util.List<String> p, int i) { return i < p.size() ? p.get(i).trim() : ""; }
     private static double dbl(String s) {
         try { return Double.parseDouble(s); }
         catch(Exception e) { return 0; }
