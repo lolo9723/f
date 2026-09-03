@@ -23,6 +23,28 @@ public class SafetyGateTest {
         );
     }
 
+    @Test public void blocksNewDesignThroughExactNodeWhenLocked() {
+        AgentAction a = new AgentAction(
+                AgentAction.Type.CLICK_NODE,
+                NodeTargetCodec.encode(12,"Create a design"),"",0.99,"open create"
+        );
+        assertEquals(
+                SafetyGate.Decision.Kind.BLOCK,
+                gate.evaluate(a,running(false),AgentConstants.CANVA_PACKAGE).kind
+        );
+    }
+
+    @Test public void exactNodeNewDesignIsAllowedOnlyWhenExplicitlyAllowed() {
+        AgentAction a = new AgentAction(
+                AgentAction.Type.CLICK_NODE,
+                NodeTargetCodec.encode(12,"Create a design"),"",0.99,"user explicitly asked"
+        );
+        assertEquals(
+                SafetyGate.Decision.Kind.ALLOW,
+                gate.evaluate(a,running(true),AgentConstants.CANVA_PACKAGE).kind
+        );
+    }
+
     @Test public void allowsNewDesignOnlyWhenExplicitlyAllowed() {
         AgentAction a = new AgentAction(
                 AgentAction.Type.CLICK_TEXT,"Create a design","",0.99,"user explicitly asked"
