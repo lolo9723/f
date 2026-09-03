@@ -29,11 +29,19 @@ public final class SafetyGate {
             return Decision.ask("Eylem güveni yetersiz: " + action.confidence);
         }
 
-        String t = normalize(action.target + " " + action.value + " " + action.reason);
-        if (!state.allowNewDesign && containsAny(t, NEW_DESIGN_PATTERNS)) {
-            return Decision.block("Yeni tasarım oluşturma bu görev için kilitli.");
+        String directTarget = normalize(action.target);
+        String contextual = normalize(action.target + " " + action.value + " " + action.reason);
+
+        if (!state.allowNewDesign) {
+            boolean attemptsCreate =
+                    (action.type == AgentAction.Type.CLICK_TEXT && containsAny(directTarget, NEW_DESIGN_PATTERNS)) ||
+                    (action.isCoordinateGesture() && containsAny(normalize(action.reason), NEW_DESIGN_PATTERNS));
+            if (attemptsCreate) {
+                return Decision.block("Yeni tasarım oluşturma bu görev için kilitli.");
+            }
         }
-        if (containsAny(t, DESTRUCTIVE_PATTERNS)) {
+
+        if (containsAny(contextual, DESTRUCTIVE_PATTERNS)) {
             return Decision.ask("Yıkıcı/hassas işlem öğretmen veya kullanıcı doğrulaması gerektiriyor.");
         }
 
