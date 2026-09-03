@@ -1,7 +1,10 @@
 package com.emrah.canvaapprentice;
 
 public final class AgentAction {
-    public enum Type { CLICK_TEXT, SET_TEXT, BACK, COORDINATE_TAP, ASK_TEACHER, HUMAN_TAKEOVER, DONE, NOOP }
+    public enum Type {
+        CLICK_TEXT, SET_TEXT, BACK, COORDINATE_TAP,
+        ASK_TEACHER, SCREENSHOT, HUMAN_TAKEOVER, DONE, NOOP
+    }
 
     public final Type type;
     public final String target;
