@@ -2,8 +2,9 @@ package com.emrah.canvaapprentice;
 
 public final class AgentAction {
     public enum Type {
-        CLICK_TEXT, SET_TEXT, BACK,
-        TAP_NORM, DRAG_NORM,
+        CLICK_TEXT, SET_TEXT,
+        CLICK_NODE, SET_NODE_TEXT,
+        BACK, TAP_NORM, DRAG_NORM,
         BIND_DESIGN,
         ASK_TEACHER, SCREENSHOT, HUMAN_TAKEOVER, DONE, NOOP
     }
@@ -31,5 +32,9 @@ public final class AgentAction {
 
     public boolean isCoordinateGesture() {
         return type == Type.TAP_NORM || type == Type.DRAG_NORM;
+    }
+
+    public boolean isNodeAction() {
+        return type == Type.CLICK_NODE || type == Type.SET_NODE_TEXT;
     }
 }
