@@ -27,6 +27,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
     private long lastCycleMs = 0;
     private int consecutiveNoVisualChange = 0;
     private int consecutiveExecutionFailures = 0;
+    private String pendingVisualBeforeHash = "";
 
     @Override public void onServiceConnected() {
         INSTANCE=this; repo=new TaskStateRepository(this); safety=new SafetyGate(); executor=new ActionExecutor(this);
@@ -73,10 +74,6 @@ public final class AgentAccessibilityService extends AccessibilityService {
     }
 
     private void waitForCanvaAndHandle(AgentAction action, String beforeFingerprint, int attempt){
-        if(action.type==AgentAction.Type.HUMAN_TAKEOVER || action.type==AgentAction.Type.DONE){
-            handleTeacherAction(action,beforeFingerprint);
-            return;
-        }
         AccessibilityNodeInfo root=getRootInActiveWindow();
         String pkg=root!=null&&root.getPackageName()!=null?root.getPackageName().toString():"";
         if(AgentConstants.CANVA_PACKAGE.equals(pkg)){
@@ -96,8 +93,11 @@ public final class AgentAccessibilityService extends AccessibilityService {
 
     private void handleTeacherAction(AgentAction action, String beforeFingerprint){
         TaskState state=repo.load();
-        if(action.type==AgentAction.Type.HUMAN_TAKEOVER){pauseForHuman(action.reason);cycleBusy.set(false);return;}
-        if(action.type==AgentAction.Type.DONE){repo.stop();overlay.hide();cycleBusy.set(false);return;}
+        if(action.type==AgentAction.Type.HUMAN_TAKEOVER){
+            pauseForHuman(action.reason);
+            cycleBusy.set(false);
+            return;
+        }
         String active=""; AccessibilityNodeInfo root=getRootInActiveWindow();
         if(root!=null&&root.getPackageName()!=null) active=root.getPackageName().toString();
 
@@ -105,6 +105,30 @@ public final class AgentAccessibilityService extends AccessibilityService {
         if(!AgentConstants.CANVA_PACKAGE.equals(active)){
             pauseForHuman("Eylem öncesi aktif uygulama Canva olarak doğrulanamadı; işlem iptal edildi.");
             cycleBusy.set(false);
+            return;
+        }
+
+        if(action.type==AgentAction.Type.DONE){
+            if(!action.visualGrounded){
+                requestVisualTeacher("FINAL QUALITY GATE: Yapısal öğretmen görevin bittiğini düşünüyor. " +
+                        "Mevcut Canva tasarımını görsel olarak değerlendir; kullanıcının hedefi gerçekten karşılandıysa DONE de, " +
+                        "değilse tek bir güvenli düzeltme ver.");
+                return;
+            }
+            pendingVisualBeforeHash="";
+            repo.stop();
+            overlay.hide();
+            cycleBusy.set(false);
+            return;
+        }
+
+        if(action.type==AgentAction.Type.NOOP){
+            if(action.visualGrounded){
+                pauseForHuman("Görüntülü öğretmen güvenli bir sonraki adım belirleyemedi: "+action.reason);
+                cycleBusy.set(false);
+            }else{
+                requestVisualTeacher("Yapısal öğretmen güvenli eylem bulamadı. Görüntüyü inceleyerek hedefi güvenle belirle: "+action.reason);
+            }
             return;
         }
 
@@ -130,35 +154,89 @@ public final class AgentAccessibilityService extends AccessibilityService {
                 return;
             }
             consecutiveExecutionFailures=0;
-            new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                AccessibilityNodeInfo afterRoot=getRootInActiveWindow();
-                String afterPkg=afterRoot!=null&&afterRoot.getPackageName()!=null?afterRoot.getPackageName().toString():"";
-                if(!AgentConstants.CANVA_PACKAGE.equals(afterPkg)){
-                    cycleBusy.set(false);
-                    runCanvaCycle("Önceki eylemden sonra Canva görünür durumda değil. Önce mevcut tasarıma güvenli biçimde dön; yeni tasarım oluşturma.");
-                    return;
-                }
-                UiTreeSnapshot after=UiTreeSnapshot.capture(afterRoot);
-                boolean changed=!beforeFingerprint.equals(after.stableFingerprint());
-                if(memory!=null) memory.record(changed,state.goal,beforeFingerprint,action,changed?after.stableFingerprint():"");
-                if(changed) consecutiveNoVisualChange=0; else consecutiveNoVisualChange++;
-
-                cycleBusy.set(false);
-                if(consecutiveNoVisualChange>=3){
-                    pauseForHuman("Üç güvenli denemede Canva ekranında doğrulanabilir değişiklik oluşmadı. Ajan işi bozmak yerine durdu.");
-                    return;
-                }
-                String note=changed
-                        ? "Önceki eylem uygulandı. Sonucu doğrula ve yalnız gerekliyse bir sonraki adıma geç."
-                        : "Önceki eylem sonrası UI ağacında değişiklik görünmedi ("+action.type+" / "+action.target+"). Aynı eylemi körlemesine tekrarlama; alternatif güvenli adım seç.";
-                runCanvaCycle(note);
-            },750);
+            new Handler(Looper.getMainLooper()).postDelayed(
+                    () -> verifyActionResult(state,action,beforeFingerprint),750);
         } else if(d.kind==SafetyGate.Decision.Kind.ASK_TEACHER) {
             pauseForHuman("Belirsiz/yüksek riskli işlem engellendi: "+d.reason);
             cycleBusy.set(false);
         } else {
             cycleBusy.set(false);
         }
+    }
+
+    private void verifyActionResult(TaskState state, AgentAction action, String beforeFingerprint){
+        AccessibilityNodeInfo afterRoot=getRootInActiveWindow();
+        String afterPkg=afterRoot!=null&&afterRoot.getPackageName()!=null
+                ?afterRoot.getPackageName().toString():"";
+        if(!AgentConstants.CANVA_PACKAGE.equals(afterPkg)){
+            recoverCanvaThenCycle(
+                    "Önceki eylemden sonra Canva görünür durumda değil. Mevcut tasarıma güvenli biçimde dön; yeni tasarım oluşturma.",
+                    0
+            );
+            return;
+        }
+
+        UiTreeSnapshot after=UiTreeSnapshot.capture(afterRoot);
+        boolean treeChanged=!beforeFingerprint.equals(after.stableFingerprint());
+
+        if(action.visualGrounded && !pendingVisualBeforeHash.isEmpty()){
+            final String beforeVisual=pendingVisualBeforeHash;
+            captureScreenshotForDiagnostics(file -> {
+                String afterVisual=VisualFingerprint.fromFile(file);
+                double visualDistance=VisualFingerprint.distance(beforeVisual,afterVisual);
+                pendingVisualBeforeHash="";
+                boolean changed=treeChanged || visualDistance>=0.0010;
+                finishActionVerification(
+                        state,action,beforeFingerprint,after,changed,
+                        "visualDistance="+String.format(java.util.Locale.US,"%.4f",visualDistance)
+                );
+            });
+        }else{
+            finishActionVerification(state,action,beforeFingerprint,after,treeChanged,"treeOnly");
+        }
+    }
+
+    private void finishActionVerification(TaskState state, AgentAction action, String beforeFingerprint,
+                                          UiTreeSnapshot after, boolean changed, String evidence){
+        if(memory!=null){
+            memory.record(changed,state.goal,beforeFingerprint,action,changed?after.stableFingerprint():"");
+        }
+        if(changed) consecutiveNoVisualChange=0;
+        else consecutiveNoVisualChange++;
+
+        cycleBusy.set(false);
+        if(consecutiveNoVisualChange>=3){
+            pauseForHuman("Üç güvenli denemede Canva ekranında doğrulanabilir değişiklik oluşmadı. Ajan işi bozmak yerine durdu.");
+            return;
+        }
+
+        String note=changed
+                ? "Önceki eylem uygulandı ve değişiklik doğrulandı ("+evidence+"). Sonucu değerlendir; gerekiyorsa sonraki tek adımı ver."
+                : "Önceki eylem sonrası doğrulanabilir değişiklik görünmedi ("+action.type+" / "+action.target+"; "+evidence+"). " +
+                  "Aynı eylemi körlemesine tekrarlama; başka güvenli yol seç veya SCREENSHOT iste.";
+        runCanvaCycle(note);
+    }
+
+    private void recoverCanvaThenCycle(String note, int attempt){
+        AccessibilityNodeInfo root=getRootInActiveWindow();
+        String pkg=root!=null&&root.getPackageName()!=null?root.getPackageName().toString():"";
+        if(AgentConstants.CANVA_PACKAGE.equals(pkg)){
+            cycleBusy.set(false);
+            runCanvaCycle(note);
+            return;
+        }
+        if(attempt>=10){
+            cycleBusy.set(false);
+            pauseForHuman("Canva eylem sonrası yeniden açılamadı. Ajan başka uygulamada işlem yapmadı.");
+            return;
+        }
+        Intent canva=getPackageManager().getLaunchIntentForPackage(AgentConstants.CANVA_PACKAGE);
+        if(canva!=null){
+            canva.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(canva);
+        }
+        new Handler(Looper.getMainLooper()).postDelayed(
+                () -> recoverCanvaThenCycle(note,attempt+1),250);
     }
 
     private void requestVisualTeacher(String screenshotReason){
@@ -179,12 +257,13 @@ public final class AgentAccessibilityService extends AccessibilityService {
                 return;
             }
 
+            pendingVisualBeforeHash=VisualFingerprint.fromFile(file);
             String requestId=UUID.randomUUID().toString().replace("-", "").substring(0, 12);
             String marker=TeacherProtocol.markerFor(requestId);
             String prompt=TeacherProtocol.buildVisualRequest(state,snap,requestId,screenshotReason);
             teacher.askWithScreenshot(prompt,ScreenshotProvider.uri(),marker,new TeacherBridge.ReplyCallback(){
                 @Override public void onReply(String reply){
-                    AgentAction visualAction=TeacherProtocol.parse(reply,marker);
+                    AgentAction visualAction=TeacherProtocol.parse(reply,marker,true);
                     if(visualAction.type==AgentAction.Type.SCREENSHOT){
                         pauseForHuman("Görüntülü öğretmen turu da hedefi güvenle ayıramadı.");
                         cycleBusy.set(false);
@@ -200,6 +279,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
                 }
 
                 @Override public void onFailure(String reason){
+                    pendingVisualBeforeHash="";
                     pauseForHuman("Ekran görüntüsü öğretmene aktarılamadı: "+reason);
                     cycleBusy.set(false);
                 }
