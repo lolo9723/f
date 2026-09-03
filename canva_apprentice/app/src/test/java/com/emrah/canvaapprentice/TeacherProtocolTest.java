@@ -25,6 +25,74 @@ public class TeacherProtocolTest {
         assertEquals("Elements",a.target);
     }
 
+    @Test public void parsesExactNodeClick() {
+        String marker = TeacherProtocol.markerFor("abc123");
+        AgentAction a = TeacherProtocol.parse(
+                marker+"CLICK_NODE|17|Elements|0.997|unique current UI row",
+                marker
+        );
+        assertEquals(AgentAction.Type.CLICK_NODE,a.type);
+        assertEquals(17,NodeTargetCodec.index(a.target));
+        assertEquals("Elements",NodeTargetCodec.label(a.target));
+        assertEquals(0.997,a.confidence,0.0001);
+    }
+
+    @Test public void parsesExactNodeSetText() {
+        String marker = TeacherProtocol.markerFor("abc123");
+        AgentAction a = TeacherProtocol.parse(
+                marker+"SET_NODE_TEXT|31|Title|New heading|0.998|exact editable row",
+                marker
+        );
+        assertEquals(AgentAction.Type.SET_NODE_TEXT,a.type);
+        assertEquals(31,NodeTargetCodec.index(a.target));
+        assertEquals("Title",NodeTargetCodec.label(a.target));
+        assertEquals("New heading",a.value);
+        assertEquals(0.998,a.confidence,0.0001);
+    }
+
+    @Test public void exactNodeSetTextCanTargetUnlabelledEditableRow() {
+        String marker = TeacherProtocol.markerFor("abc123");
+        AgentAction a = TeacherProtocol.parse(
+                marker+"SET_NODE_TEXT|4||Body text|0.999|unlabelled editable current row",
+                marker
+        );
+        assertEquals(AgentAction.Type.SET_NODE_TEXT,a.type);
+        assertEquals(4,NodeTargetCodec.index(a.target));
+        assertEquals("empty",NodeTargetCodec.label(a.target));
+        assertEquals("Body text",a.value);
+    }
+
+    @Test public void rejectsOutOfRangeExactNodeIndex() {
+        String marker = TeacherProtocol.markerFor("abc123");
+        AgentAction a = TeacherProtocol.parse(
+                marker+"CLICK_NODE|999|Share|0.999|invented index",
+                marker
+        );
+        assertEquals(AgentAction.Type.NOOP,a.type);
+        assertEquals(0.0,a.confidence,0.0001);
+        assertEquals("teacher protocol parse error",a.reason);
+    }
+
+    @Test public void promptsPreferExactNodeActions() {
+        TaskState state = new TaskState(
+                "goal","","","", "",
+                TaskState.Mode.RUNNING,false,0
+        );
+        UiTreeSnapshot snap = new UiTreeSnapshot(
+                AgentConstants.CANVA_PACKAGE,
+                java.util.Collections.emptyList(),
+                0L
+        );
+        String structural = TeacherProtocol.buildRequest(state,snap,"note","abc123");
+        String visual = TeacherProtocol.buildVisualRequest(state,snap,"abc123","need visual");
+
+        assertTrue(structural.contains("|CLICK_NODE|<compact node index>"));
+        assertTrue(structural.contains("|SET_NODE_TEXT|<compact node index>"));
+        assertTrue(structural.contains("Prefer CLICK_NODE/SET_NODE_TEXT"));
+        assertTrue(visual.contains("|CLICK_NODE|<compact node index>"));
+        assertTrue(visual.contains("Prefer CLICK_NODE/SET_NODE_TEXT"));
+    }
+
     @Test public void parsesVisualTapAsVisualGrounded() {
         String marker = TeacherProtocol.markerFor("abc123");
         AgentAction a = TeacherProtocol.parse(
