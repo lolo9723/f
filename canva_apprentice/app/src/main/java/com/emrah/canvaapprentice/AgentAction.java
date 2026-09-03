@@ -4,6 +4,7 @@ public final class AgentAction {
     public enum Type {
         CLICK_TEXT, SET_TEXT, BACK,
         TAP_NORM, DRAG_NORM,
+        BIND_DESIGN,
         ASK_TEACHER, SCREENSHOT, HUMAN_TAKEOVER, DONE, NOOP
     }
 
