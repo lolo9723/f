@@ -6,6 +6,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -83,27 +84,40 @@ public class LiveE2EActivityTest {
         assertEquals("quality_total_scenes=6", cert.failureReason());
     }
 
-    @Test public void androidLocalhostCanReachOAuthLoopbackListener() throws Exception {
+    @Test public void androidIpv4AndIpv6LocalhostReachOAuthListener() throws Exception {
         ServerSocket server = OAuthLoopbackServer.open();
-        AtomicBoolean acceptedLoopback = new AtomicBoolean(false);
+        AtomicBoolean allAcceptedAsLoopback = new AtomicBoolean(true);
         Thread accept = new Thread(() -> {
-            try (Socket socket = OAuthLoopbackServer.acceptLoopback(server)) {
-                acceptedLoopback.set(socket.getInetAddress() != null
-                        && socket.getInetAddress().isLoopbackAddress());
-            } catch (Exception ignored) {
+            for (int i = 0; i < 2; i++) {
+                try (Socket socket = OAuthLoopbackServer.acceptLoopback(server)) {
+                    if (socket.getInetAddress() == null
+                            || !socket.getInetAddress().isLoopbackAddress()) {
+                        allAcceptedAsLoopback.set(false);
+                    }
+                } catch (Exception e) {
+                    allAcceptedAsLoopback.set(false);
+                    return;
+                }
             }
         }, "oauth-loopback-test");
         accept.start();
 
-        try (Socket client = new Socket("localhost", server.getLocalPort())) {
-            assertTrue(client.isConnected());
+        try {
+            try (Socket ipv4 = new Socket(
+                    InetAddress.getByName("127.0.0.1"), server.getLocalPort())) {
+                assertTrue("IPv4 localhost callback unavailable", ipv4.isConnected());
+            }
+            try (Socket ipv6 = new Socket(
+                    InetAddress.getByName("::1"), server.getLocalPort())) {
+                assertTrue("IPv6 localhost callback unavailable", ipv6.isConnected());
+            }
         } finally {
             accept.join(5_000L);
             try { server.close(); } catch (Exception ignored) {}
         }
 
         assertFalse("OAuth localhost accept thread hung", accept.isAlive());
-        assertTrue("Android localhost did not arrive as loopback", acceptedLoopback.get());
+        assertTrue("A non-loopback peer was accepted", allAcceptedAsLoopback.get());
         assertTrue("OAuth timeout must allow slow human sign-in",
                 OAuthLoopbackServer.ACCEPT_TIMEOUT_MS >= 30 * 60 * 1000);
     }
