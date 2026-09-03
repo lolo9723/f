@@ -12,14 +12,20 @@ public final class DesignContinuityPolicy {
 
     public static boolean allows(AgentAction action, String boundAnchor,
                                  boolean anchorVisible, boolean canvaHomeVisible) {
+        return allows(action, boundAnchor, anchorVisible, canvaHomeVisible, false);
+    }
+
+    public static boolean allows(AgentAction action, String boundAnchor,
+                                 boolean anchorVisible, boolean canvaHomeVisible,
+                                 boolean matchesLastSafeEditorSnapshot) {
         String anchor = norm(boundAnchor);
         if (anchor.isEmpty()) return true;
         if (action == null) return false;
 
         // Canva home/projects is never editor identity evidence. The bound design name is often
-        // visible there as a project card, so treating anchorVisible as proof before this branch
-        // would accidentally authorize unrelated clicks/edits while still on home. Fail closed:
-        // from home, permit only BACK recovery or opening the exact already-bound design.
+        // visible there as a project card, so neither anchor visibility nor a stale snapshot match
+        // may authorize editing from home. Fail closed: permit only BACK recovery or opening the
+        // exact already-bound design.
         if (canvaHomeVisible) {
             if (action.type == AgentAction.Type.BACK) return true;
             if (action.type == AgentAction.Type.CLICK_TEXT) {
@@ -31,9 +37,14 @@ public final class DesignContinuityPolicy {
             return false;
         }
 
-        // Strong editor evidence: outside home/projects, the bound design identity is visible in
-        // the current UI tree. Only then may normal task execution continue.
+        // Primary editor evidence: the bound design identity is visible in the current UI tree.
         if (anchorVisible) return true;
+
+        // Secondary independent evidence: the current non-home UI tree exactly matches the last
+        // snapshot that was learned only while this bound design had been positively verified.
+        // This covers transient Canva states where the title/anchor temporarily disappears without
+        // weakening the fail-closed rule for an unknown or changed editor.
+        if (matchesLastSafeEditorSnapshot) return true;
 
         // BACK is the only generic recovery action allowed without design identity evidence.
         // It can leave a wrong/transient screen but cannot edit the unknown design.
