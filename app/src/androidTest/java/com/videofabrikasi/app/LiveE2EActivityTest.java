@@ -6,6 +6,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import static org.junit.Assert.*;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
@@ -77,6 +81,31 @@ public class LiveE2EActivityTest {
         assertEquals(5, cert.qualityPassedScenes);
         assertFalse(cert.passesCanonicalV4());
         assertEquals("quality_total_scenes=6", cert.failureReason());
+    }
+
+    @Test public void androidLocalhostCanReachOAuthLoopbackListener() throws Exception {
+        ServerSocket server = OAuthLoopbackServer.open();
+        AtomicBoolean acceptedLoopback = new AtomicBoolean(false);
+        Thread accept = new Thread(() -> {
+            try (Socket socket = OAuthLoopbackServer.acceptLoopback(server)) {
+                acceptedLoopback.set(socket.getInetAddress() != null
+                        && socket.getInetAddress().isLoopbackAddress());
+            } catch (Exception ignored) {
+            }
+        }, "oauth-loopback-test");
+        accept.start();
+
+        try (Socket client = new Socket("localhost", server.getLocalPort())) {
+            assertTrue(client.isConnected());
+        } finally {
+            accept.join(5_000L);
+            try { server.close(); } catch (Exception ignored) {}
+        }
+
+        assertFalse("OAuth localhost accept thread hung", accept.isAlive());
+        assertTrue("Android localhost did not arrive as loopback", acceptedLoopback.get());
+        assertTrue("OAuth timeout must allow slow human sign-in",
+                OAuthLoopbackServer.ACCEPT_TIMEOUT_MS >= 30 * 60 * 1000);
     }
 
     @Test public void oauthTokenJsonParsesOnRealAndroidJson() throws Exception {
