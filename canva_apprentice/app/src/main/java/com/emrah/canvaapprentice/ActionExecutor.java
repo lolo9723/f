@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.view.WindowManager;
 import android.view.WindowMetrics;
 import android.view.accessibility.AccessibilityNodeInfo;
+import java.text.Normalizer;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Locale;
@@ -29,13 +30,83 @@ public final class ActionExecutor {
                 return service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
             case CLICK_TEXT:
             case SET_TEXT:
+            case CLICK_NODE:
+            case SET_NODE_TEXT:
                 AccessibilityNodeInfo root = service.getRootInActiveWindow();
                 if (root == null) return false;
-                if (action.type == AgentAction.Type.CLICK_TEXT) return clickByTextOrDescription(root, action.target);
-                return setText(root, action.target, action.value);
+                switch (action.type) {
+                    case CLICK_TEXT:
+                        return clickByTextOrDescription(root, action.target);
+                    case SET_TEXT:
+                        return setText(root, action.target, action.value);
+                    case CLICK_NODE:
+                        return clickExactNode(root, action.target);
+                    case SET_NODE_TEXT:
+                        return setExactNodeText(root, action.target, action.value);
+                    default:
+                        return false;
+                }
             default:
                 return false;
         }
+    }
+
+    private boolean clickExactNode(AccessibilityNodeInfo root, String encodedTarget) {
+        AccessibilityNodeInfo node = verifiedCompactNode(root, encodedTarget);
+        if (node == null || !node.isEnabled()) return false;
+        AccessibilityNodeInfo clickable = node;
+        while (clickable != null && !clickable.isClickable()) clickable = clickable.getParent();
+        return clickable != null && clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+    }
+
+    private boolean setExactNodeText(AccessibilityNodeInfo root, String encodedTarget, String value) {
+        AccessibilityNodeInfo node = verifiedCompactNode(root, encodedTarget);
+        if (node == null || !node.isEditable() || !node.isEnabled()) return false;
+        Bundle args = new Bundle();
+        args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value);
+        return node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args);
+    }
+
+    private AccessibilityNodeInfo verifiedCompactNode(AccessibilityNodeInfo root, String encodedTarget) {
+        int wantedIndex = NodeTargetCodec.index(encodedTarget);
+        String expectedLabel = NodeTargetCodec.label(encodedTarget);
+        if (wantedIndex < 0 || expectedLabel.trim().isEmpty()) return null;
+
+        int[] current = new int[]{0};
+        AccessibilityNodeInfo found = findCompactNodeDepthFirst(root, wantedIndex, current, 0);
+        if (found == null) return null;
+
+        String expected = norm(expectedLabel);
+        String text = norm(found.getText());
+        String desc = norm(found.getContentDescription());
+        if ("empty".equals(expected)) {
+            return text.isEmpty() && desc.isEmpty() ? found : null;
+        }
+        return expected.equals(text) || expected.equals(desc) ? found : null;
+    }
+
+    private AccessibilityNodeInfo findCompactNodeDepthFirst(
+            AccessibilityNodeInfo node, int wantedIndex, int[] current, int depth) {
+        if (node == null || depth > 60 || current[0] > 220) return null;
+
+        if (isMeaningful(node)) {
+            if (current[0] == wantedIndex) return node;
+            current[0]++;
+        }
+
+        for (int i = 0; i < node.getChildCount(); i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+            AccessibilityNodeInfo found = findCompactNodeDepthFirst(child, wantedIndex, current, depth + 1);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private static boolean isMeaningful(AccessibilityNodeInfo node) {
+        return !raw(node.getText()).trim().isEmpty()
+                || !raw(node.getContentDescription()).trim().isEmpty()
+                || node.isClickable()
+                || node.isEditable();
     }
 
     private boolean clickByTextOrDescription(AccessibilityNodeInfo root, String target) {
@@ -142,6 +213,14 @@ public final class ActionExecutor {
     }
 
     private static String norm(CharSequence s) {
-        return s == null ? "" : s.toString().trim().toLowerCase(Locale.ROOT);
+        String x = Normalizer.normalize(raw(s), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toLowerCase(Locale.ROOT)
+                .replace('ı','i');
+        return x.replaceAll("\\s+"," ").trim();
+    }
+
+    private static String raw(CharSequence s) {
+        return s == null ? "" : s.toString();
     }
 }
