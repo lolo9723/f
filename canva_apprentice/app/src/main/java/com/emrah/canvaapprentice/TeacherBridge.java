@@ -148,8 +148,12 @@ public final class TeacherBridge {
         q.add(root);
         while (!q.isEmpty()) {
             AccessibilityNodeInfo n = q.removeFirst();
-            String s = (text(n.getText()) + " " + text(n.getContentDescription())).toLowerCase();
-            if ((s.contains("send") || s.contains("gönder")) && n.isEnabled()) return n;
+            String label = text(n.getText());
+            String description = text(n.getContentDescription());
+            if (n.isEnabled() &&
+                    (TeacherUiPolicy.isExactSendLabel(label) || TeacherUiPolicy.isExactSendLabel(description))) {
+                return n;
+            }
             for (int i = 0; i < n.getChildCount(); i++) {
                 AccessibilityNodeInfo c = n.getChild(i);
                 if (c != null) q.add(c);
