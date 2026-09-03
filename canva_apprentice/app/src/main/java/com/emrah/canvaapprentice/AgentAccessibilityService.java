@@ -67,7 +67,10 @@ public final class AgentAccessibilityService extends AccessibilityService {
             cycleBusy.set(false); return;
         }
         TaskState state=repo.load();
-        repo.markSafe(snap.stableFingerprint());
+        boolean anchorVisible=!state.designAnchor.isEmpty() && snap.containsText(state.designAnchor);
+        if(SafeSnapshotPolicy.shouldMarkSafe(state.designAnchor,anchorVisible,snap.looksLikeCanvaHome())){
+            repo.markSafe(snap.stableFingerprint());
+        }
         String requestId=UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         String marker=TeacherProtocol.markerFor(requestId);
         String learned=memory==null?"none":memory.summary(state.goal,snap.stableFingerprint());
@@ -148,7 +151,6 @@ public final class AgentAccessibilityService extends AccessibilityService {
         String active=""; AccessibilityNodeInfo root=getRootInActiveWindow();
         if(root!=null&&root.getPackageName()!=null) active=root.getPackageName().toString();
 
-        // Teacher decisions for Canva may never execute on ChatGPT or any other package.
         if(!AgentConstants.CANVA_PACKAGE.equals(active)){
             pauseForHuman("Eylem öncesi aktif uygulama Canva olarak doğrulanamadı; işlem iptal edildi.");
             cycleBusy.set(false);
@@ -334,9 +336,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
                     }
                     Intent canva=getPackageManager().getLaunchIntentForPackage(AgentConstants.CANVA_PACKAGE);
                     if(canva!=null){
-                        canva.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-                        startActivity(canva);
-                    }
+                        canva.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);startActivity(canva);}
                     new Handler(Looper.getMainLooper()).postDelayed(
                             () -> waitForCanvaAndHandle(visualAction,snap.stableFingerprint(),0),450);
                 }
