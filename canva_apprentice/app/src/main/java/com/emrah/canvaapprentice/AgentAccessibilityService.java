@@ -9,7 +9,7 @@ import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicBoolean;\nimport java.util.UUID;
 
 public final class AgentAccessibilityService extends AccessibilityService {
     public static volatile AgentAccessibilityService INSTANCE;
@@ -50,7 +50,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
         String prompt=TeacherProtocol.buildRequest(state,snap,"Canva ekranını değerlendir ve yalnız bir güvenli sonraki adım ver.");
         teacher.ask(prompt,new TeacherBridge.ReplyCallback(){
             @Override public void onReply(String reply){
-                AgentAction action=TeacherProtocol.parse(reply);
+                AgentAction action=TeacherProtocol.parse(reply, marker);
                 Intent canva=getPackageManager().getLaunchIntentForPackage(AgentConstants.CANVA_PACKAGE);
                 if(canva!=null){canva.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);startActivity(canva);}
                 getMainExecutor().execute(() -> handleTeacherAction(action));
