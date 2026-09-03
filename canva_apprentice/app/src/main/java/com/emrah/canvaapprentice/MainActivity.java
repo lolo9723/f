@@ -47,9 +47,12 @@ public final class MainActivity extends Activity {
         boolean service=AgentAccessibilityService.INSTANCE!=null;
         int learned=0;
         try { learned=new ExperienceMemoryRepository(this).learnedTransitionCount(); } catch(Exception ignored) {}
+        String anchor=s.designAnchor.isEmpty()?"Henüz bağlanmadı":s.designAnchor;
         status.setText("Servis: "+(service?"AÇIK":"KAPALI")+"\nAjan: "+s.mode+"\nAdım: "+s.step+
                 "\nYeni tasarım izni: "+(s.allowNewDesign?"AÇIK":"KİLİTLİ")+
-                "\nÖğrenilmiş güvenli geçiş: "+learned);
+                "\nAktif tasarım: "+anchor+
+                "\nÖğrenilmiş güvenli geçiş: "+learned+
+                (s.humanReason.isEmpty()?"":"\nBekleyen kullanıcı işlemi: "+s.humanReason));
     }
     private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_LONG).show();}
 }
