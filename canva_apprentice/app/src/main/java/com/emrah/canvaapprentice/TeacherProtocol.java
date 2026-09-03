@@ -76,7 +76,7 @@ public final class TeacherProtocol {
                 "CAA1_REPLY_<REQUEST_ID>|DONE|||1.0|<why final visual quality is acceptable>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|NOOP|||1.0|<reason>\n" +
                 "Reply on ONE physical line. Inside fields escape backslash as \\\\, pipe as \\|, newline as \\n, and tab as \\t. " +
-                "Prefer exact-node actions whenever UI_TREE uniquely identifies the target; copy all structural fields exactly and never invent them. " +
+                "Prefer CLICK_NODE/SET_NODE_TEXT whenever a suitable UI_TREE row exists; copy all structural fields exactly and never invent them. " +
                 "Use TAP_NORM/DRAG_NORM only for visually grounded canvas operations with confidence >=0.985. Never use coordinates for destructive/account/payment/login actions. " +
                 "When a DesignAnchor is bound, visually verify that the screenshot belongs to that same existing design before any edit. If unclear, return HUMAN or NOOP. " +
                 "Never create a new design unless NewDesignAllowed=true.";
