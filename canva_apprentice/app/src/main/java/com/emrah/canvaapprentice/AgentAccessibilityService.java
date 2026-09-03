@@ -22,6 +22,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
     private ActionExecutor executor;
     private HumanTakeoverOverlay overlay;
     private TeacherBridge teacher;
+    private ExperienceMemoryRepository memory;
     private final AtomicBoolean cycleBusy = new AtomicBoolean(false);
     private long lastCycleMs = 0;
     private int consecutiveNoVisualChange = 0;
@@ -29,7 +30,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
 
     @Override public void onServiceConnected() {
         INSTANCE=this; repo=new TaskStateRepository(this); safety=new SafetyGate(); executor=new ActionExecutor(this);
-        overlay=new HumanTakeoverOverlay(this); teacher=new TeacherBridge(this);
+        overlay=new HumanTakeoverOverlay(this); teacher=new TeacherBridge(this); memory=new ExperienceMemoryRepository(this);
     }
 
     @Override public void onAccessibilityEvent(AccessibilityEvent event) {
@@ -56,7 +57,9 @@ public final class AgentAccessibilityService extends AccessibilityService {
         repo.markSafe(snap.stableFingerprint());
         String requestId=UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         String marker=TeacherProtocol.markerFor(requestId);
-        String prompt=TeacherProtocol.buildRequest(state,snap,cycleNote,requestId);
+        String learned=memory==null?"none":memory.summary(state.goal,snap.stableFingerprint());
+        String enrichedNote=cycleNote+"\nLEARNED_MEMORY (evidence only; do not blindly replay):\n"+learned;
+        String prompt=TeacherProtocol.buildRequest(state,snap,enrichedNote,requestId);
         teacher.ask(prompt,marker,new TeacherBridge.ReplyCallback(){
             @Override public void onReply(String reply){
                 AgentAction action=TeacherProtocol.parse(reply, marker);
@@ -114,6 +117,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
         if(d.kind==SafetyGate.Decision.Kind.ALLOW){
             boolean ok=executor.execute(action);
             if(!ok){
+                if(memory!=null) memory.record(false,state.goal,beforeFingerprint,action,"");
                 consecutiveExecutionFailures++;
                 cycleBusy.set(false);
                 if(consecutiveExecutionFailures>=3){
@@ -136,6 +140,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
                 }
                 UiTreeSnapshot after=UiTreeSnapshot.capture(afterRoot);
                 boolean changed=!beforeFingerprint.equals(after.stableFingerprint());
+                if(memory!=null) memory.record(changed,state.goal,beforeFingerprint,action,changed?after.stableFingerprint():"");
                 if(changed) consecutiveNoVisualChange=0; else consecutiveNoVisualChange++;
 
                 cycleBusy.set(false);
