@@ -86,4 +86,15 @@ public class TeacherProtocolTest {
         assertFalse(structural.contains(marker));
         assertFalse(visual.contains(marker));
     }
+
+    @Test public void parsesEscapedMultilineSetText() {
+        String marker = TeacherProtocol.markerFor("abc123");
+        AgentAction a = TeacherProtocol.parse(
+                marker+"SET_TEXT|Title|Hello\\\\|World\\\\nLine 2|0.99|write requested text",
+                marker
+        );
+        assertEquals(AgentAction.Type.SET_TEXT,a.type);
+        assertEquals("Hello|World\nLine 2",a.value);
+        assertEquals(0.99,a.confidence,0.0001);
+    }
 }
