@@ -8,44 +8,58 @@ public final class TeacherProtocol {
     }
 
     public static String buildRequest(TaskState state, UiTreeSnapshot snapshot, String note, String requestId) {
+        String continuity = state.designAnchor.isEmpty()
+                ? "DesignAnchor: UNBOUND. If a unique existing design title/name is clearly visible, you MAY bind it with BIND_DESIGN before risky navigation.\n"
+                : "DesignAnchor: " + state.designAnchor + "\n" +
+                  "DESIGN CONTINUITY RULE: stay in this existing design. If Canva home/projects is shown, recover/open this design; never create a replacement.\n";
+
         return "CANVA_APPRENTICE_TEACHER_REQUEST\n" +
                 "You are the teacher for a safety-first Canva Android apprentice agent.\n" +
                 "RequestId: " + requestId + "\n" +
                 "Goal: " + state.goal + "\n" +
                 "Step: " + state.step + "\n" +
                 "NewDesignAllowed: " + state.allowNewDesign + "\n" +
+                continuity +
                 "ActivePackage: " + snapshot.packageName + "\n" +
-                "DesignFingerprint: " + state.designFingerprint + "\n" +
+                "InitialDesignFingerprint: " + state.designFingerprint + "\n" +
                 "Note: " + (note == null ? "" : note) + "\n" +
                 "UI_TREE:\n" + snapshot.compactForTeacher() + "\n" +
                 "Return ONLY one line, no markdown and no prose. " +
                 "Construct the prefix by concatenating CAA1_REPLY_ + RequestId + | .\n" +
                 "Formats (the literal <REQUEST_ID> below is only a placeholder):\n" +
-                "CAA1_REPLY_<REQUEST_ID>|CLICK_TEXT|<visible text or content description>|<0..1 confidence>|<short reason>\n" +
-                "CAA1_REPLY_<REQUEST_ID>|SET_TEXT|<field label/current text>|<text to enter>|<0..1 confidence>|<short reason>\n" +
-                "CAA1_REPLY_<REQUEST_ID>|BACK|||<0..1 confidence>|<short reason>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|BIND_DESIGN|<exact unique visible design title>|<0..1 confidence>|<reason>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|CLICK_TEXT|<visible text or content description>|<0..1 confidence>|<reason>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|SET_TEXT|<field label/current text>|<text to enter>|<0..1 confidence>|<reason>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|BACK|||<0..1 confidence>|<reason>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|SCREENSHOT|||1.0|<why the UI tree is insufficient>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|HUMAN|||1.0|<why human intervention is required>\n" +
-                "CAA1_REPLY_<REQUEST_ID>|DONE|||1.0|<why goal is complete>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|DONE|||1.0|<why goal appears complete>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|NOOP|||1.0|<why no action is safe>\n" +
+                "BIND_DESIGN is memory-only; use it only when a non-generic unique design title is clearly visible and confidence >=0.98. " +
                 "Coordinate gestures are FORBIDDEN in this structural turn. " +
                 "If the requested target is visual and the UI tree does not uniquely identify it, request SCREENSHOT instead of guessing. " +
                 "Never create a new design unless NewDesignAllowed=true. Never guess on password/CAPTCHA/payment/destructive actions. " +
-                "Never navigate away from the current Canva design merely to try something.";
+                "Never navigate away from the current design merely to try something.";
     }
 
     public static String buildVisualRequest(TaskState state, UiTreeSnapshot snapshot,
                                             String requestId, String screenshotReason) {
+        String continuity = state.designAnchor.isEmpty()
+                ? "DesignAnchor: UNBOUND\n"
+                : "DesignAnchor: " + state.designAnchor + "\nDESIGN CONTINUITY RULE: preserve this exact existing design.\n";
+
         return "CANVA_APPRENTICE_VISUAL_TEACHER_REQUEST\n" +
                 "RequestId: " + requestId + "\n" +
                 "Goal: " + state.goal + "\n" +
                 "Step: " + state.step + "\n" +
                 "NewDesignAllowed: " + state.allowNewDesign + "\n" +
+                continuity +
                 "ReasonScreenshotWasRequested: " + screenshotReason + "\n" +
                 "A screenshot of the CURRENT Canva screen is attached. " +
                 "Use normalized coordinates from 0..1000 where (0,0)=top-left and (1000,1000)=bottom-right.\n" +
                 "UI_TREE:\n" + snapshot.compactForTeacher() + "\n" +
                 "Return ONLY one line beginning with CAA1_REPLY_" + requestId + "| . Allowed formats:\n" +
+                "CAA1_REPLY_" + requestId + "|BIND_DESIGN|<exact unique visible design title>|<0..1 confidence>|<reason>\n" +
                 "CAA1_REPLY_" + requestId + "|CLICK_TEXT|<visible text or content description>|<0..1 confidence>|<reason>\n" +
                 "CAA1_REPLY_" + requestId + "|SET_TEXT|<field label/current text>|<text>|<0..1 confidence>|<reason>\n" +
                 "CAA1_REPLY_" + requestId + "|TAP_NORM|<x>,<y>|<0..1 confidence>|<reason>\n" +
@@ -56,16 +70,20 @@ public final class TeacherProtocol {
                 "CAA1_REPLY_" + requestId + "|NOOP|||1.0|<reason>\n" +
                 "Use TAP_NORM/DRAG_NORM only for visually grounded canvas selection/movement/resizing when the screenshot makes the target unambiguous. " +
                 "For coordinate gestures confidence must be >=0.985. Never use coordinates for delete, payment, share, account, password, login, or destructive actions. " +
+                "BIND_DESIGN requires a clearly visible unique non-generic design title and confidence >=0.98. " +
                 "Do not request another screenshot in this same visual turn. Do not guess. " +
                 "Never create a new design unless NewDesignAllowed=true.";
     }
 
     public static AgentAction parse(String raw, String marker) {
-        return parse(raw,marker,false);
+        return parse(raw, marker, false);
     }
 
     public static AgentAction parse(String raw, String marker, boolean visualGrounded) {
-        if (raw == null) return new AgentAction(AgentAction.Type.NOOP,"","",0,"empty teacher reply",visualGrounded);
+        if (raw == null) {
+            return new AgentAction(AgentAction.Type.NOOP,"","",0,"empty teacher reply",visualGrounded);
+        }
+
         String line = null;
         for (String s : raw.split("\\R")) {
             String t = s.trim();
@@ -74,10 +92,13 @@ public final class TeacherProtocol {
         if (line == null) {
             return new AgentAction(AgentAction.Type.NOOP,"","",0,"unique protocol marker missing",visualGrounded);
         }
+
         String[] p = line.split("\\|", 5);
         try {
             String cmd = at(p,0);
             switch (cmd) {
+                case "BIND_DESIGN":
+                    return new AgentAction(AgentAction.Type.BIND_DESIGN,at(p,1),"",dbl(at(p,2)),at(p,3),visualGrounded);
                 case "CLICK_TEXT":
                     return new AgentAction(AgentAction.Type.CLICK_TEXT,at(p,1),"",dbl(at(p,2)),at(p,3),visualGrounded);
                 case "SET_TEXT":
@@ -103,5 +124,8 @@ public final class TeacherProtocol {
     }
 
     private static String at(String[] p, int i) { return i < p.length ? p[i].trim() : ""; }
-    private static double dbl(String s) { try { return Double.parseDouble(s); } catch(Exception e) { return 0; } }
+    private static double dbl(String s) {
+        try { return Double.parseDouble(s); }
+        catch(Exception e) { return 0; }
+    }
 }
