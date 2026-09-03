@@ -28,8 +28,8 @@ public final class TeacherProtocol {
                 "Each UI_TREE row is index|class|text|description|bounds|flags. For exact-node commands copy index, label, class, bounds, and flags from the SAME row.\n" +
                 "Return ONLY one line, no markdown and no prose. Construct the prefix by concatenating CAA1_REPLY_ + RequestId + | .\n" +
                 "CAA1_REPLY_<REQUEST_ID>|BIND_DESIGN|<exact unique visible design title>|<0..1 confidence>|<reason>\n" +
-                "CAA1_REPLY_<REQUEST_ID>|CLICK_NODE|<index>|<exact row text or description>|<class>|<bounds>|<flags>|<0..1 confidence>|<reason>\n" +
-                "CAA1_REPLY_<REQUEST_ID>|SET_NODE_TEXT|<index>|<exact row text or description; empty only if unlabeled>|<class>|<bounds>|<flags>|<text>|<0..1 confidence>|<reason>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|CLICK_NODE|<compact node index>|<exact row text or description>|<class>|<bounds>|<flags>|<0..1 confidence>|<reason>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|SET_NODE_TEXT|<compact node index>|<exact row text or description; empty only if unlabeled>|<class>|<bounds>|<flags>|<text>|<0..1 confidence>|<reason>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|CLICK_TEXT|<visible text or content description>|<0..1 confidence>|<reason>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|SET_TEXT|<field label/current text>|<text to enter>|<0..1 confidence>|<reason>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|BACK|||<0..1 confidence>|<reason>\n" +
@@ -65,8 +65,8 @@ public final class TeacherProtocol {
                 "Each UI_TREE row is index|class|text|description|bounds|flags. Exact-node commands must copy index, label, class, bounds and flags from the same row.\n" +
                 "Return ONLY one line, no markdown and no prose. Construct the prefix by concatenating CAA1_REPLY_ + RequestId + | .\n" +
                 "CAA1_REPLY_<REQUEST_ID>|BIND_DESIGN|<exact unique visible design title>|<0..1 confidence>|<reason>\n" +
-                "CAA1_REPLY_<REQUEST_ID>|CLICK_NODE|<index>|<exact row text or description>|<class>|<bounds>|<flags>|<0..1 confidence>|<reason>\n" +
-                "CAA1_REPLY_<REQUEST_ID>|SET_NODE_TEXT|<index>|<exact row text or description; empty only if unlabeled>|<class>|<bounds>|<flags>|<text>|<0..1 confidence>|<reason>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|CLICK_NODE|<compact node index>|<exact row text or description>|<class>|<bounds>|<flags>|<0..1 confidence>|<reason>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|SET_NODE_TEXT|<compact node index>|<exact row text or description; empty only if unlabeled>|<class>|<bounds>|<flags>|<text>|<0..1 confidence>|<reason>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|CLICK_TEXT|<visible text or content description>|<0..1 confidence>|<reason>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|SET_TEXT|<field label/current text>|<text>|<0..1 confidence>|<reason>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|TAP_NORM|<x>,<y>|<0..1 confidence>|<reason>\n" +
@@ -78,7 +78,7 @@ public final class TeacherProtocol {
                 "Reply on ONE physical line. Inside fields escape backslash as \\\\, pipe as \\|, newline as \\n, and tab as \\t. " +
                 "Prefer exact-node actions whenever UI_TREE uniquely identifies the target; copy all structural fields exactly and never invent them. " +
                 "Use TAP_NORM/DRAG_NORM only for visually grounded canvas operations with confidence >=0.985. Never use coordinates for destructive/account/payment/login actions. " +
-                "When a DesignAnchor is bound, visually verify the screenshot belongs to that same existing design before any edit. If unclear, return HUMAN or NOOP. " +
+                "When a DesignAnchor is bound, visually verify that the screenshot belongs to that same existing design before any edit. If unclear, return HUMAN or NOOP. " +
                 "Never create a new design unless NewDesignAllowed=true.";
     }
 
