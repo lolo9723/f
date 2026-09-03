@@ -22,6 +22,7 @@ public final class TeacherProtocol {
                 continuity +
                 "ActivePackage: " + snapshot.packageName + "\n" +
                 "InitialDesignFingerprint: " + state.designFingerprint + "\n" +
+                "LastSafeSnapshotFingerprint: " + state.lastSafeSnapshotHash + "\n" +
                 "Note: " + (note == null ? "" : note) + "\n" +
                 "UI_TREE:\n" + snapshot.compactForTeacher() + "\n" +
                 "Return ONLY one line, no markdown and no prose. " +
@@ -39,6 +40,9 @@ public final class TeacherProtocol {
                 "BIND_DESIGN is memory-only; use it only when a non-generic unique design title is clearly visible and confidence >=0.98. " +
                 "Coordinate gestures are FORBIDDEN in this structural turn. " +
                 "If the requested target is visual and the UI tree does not uniquely identify it, request SCREENSHOT instead of guessing. " +
+                "If the note says the user has just completed a human intervention, treat the current screen as untrusted until continuity is re-established. " +
+                "When a DesignAnchor is bound, do not issue an editing/navigation action after human intervention unless the UI tree clearly proves the same existing design; otherwise request SCREENSHOT. " +
+                "If Canva home/projects is visible and the bound DesignAnchor is not uniquely visible, do not open any other project and do not create a replacement; request SCREENSHOT or HUMAN. " +
                 "Never create a new design unless NewDesignAllowed=true. Never guess on password/CAPTCHA/payment/destructive actions. " +
                 "Never navigate away from the current design merely to try something.";
     }
@@ -55,6 +59,7 @@ public final class TeacherProtocol {
                 "Step: " + state.step + "\n" +
                 "NewDesignAllowed: " + state.allowNewDesign + "\n" +
                 continuity +
+                "LastSafeSnapshotFingerprint: " + state.lastSafeSnapshotHash + "\n" +
                 "ReasonScreenshotWasRequested: " + screenshotReason + "\n" +
                 "A screenshot of the CURRENT Canva screen is attached. " +
                 "Use normalized coordinates from 0..1000 where (0,0)=top-left and (1000,1000)=bottom-right.\n" +
@@ -74,6 +79,7 @@ public final class TeacherProtocol {
                 "Use TAP_NORM/DRAG_NORM only for visually grounded canvas selection/movement/resizing when the screenshot makes the target unambiguous. " +
                 "For coordinate gestures confidence must be >=0.985. Never use coordinates for delete, payment, share, account, password, login, or destructive actions. " +
                 "BIND_DESIGN requires a clearly visible unique non-generic design title and confidence >=0.98. " +
+                "When a DesignAnchor is bound, visually verify that the screenshot belongs to that same existing design before any editing gesture. If continuity is not clear, return HUMAN or NOOP rather than guessing. " +
                 "Do not request another screenshot in this same visual turn. Do not guess. " +
                 "Never create a new design unless NewDesignAllowed=true.";
     }
