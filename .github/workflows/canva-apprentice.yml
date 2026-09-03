@@ -6,6 +6,10 @@ on:
       - 'canva_apprentice/build_artifacts/**'
   workflow_dispatch:
 
+concurrency:
+  group: canva-apprentice-agent
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
