@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Canva Çırak Ajan</string>
+    <string name="accessibility_description">Canva ve ChatGPT üzerinde yalnız kullanıcı tarafından başlatılan tasarım görevlerini yürütür.</string>
+</resources>
