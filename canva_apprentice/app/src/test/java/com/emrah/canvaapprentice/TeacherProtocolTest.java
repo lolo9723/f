@@ -66,4 +66,24 @@ public class TeacherProtocolTest {
         );
         assertEquals(AgentAction.Type.SCREENSHOT,a.type);
     }
+
+    @Test public void promptsNeverContainTheLiveReplyMarker() {
+        String requestId = "abc123";
+        String marker = TeacherProtocol.markerFor(requestId);
+        TaskState state = new TaskState(
+                "goal","","","", "",
+                TaskState.Mode.RUNNING,false,0
+        );
+        UiTreeSnapshot snap = new UiTreeSnapshot(
+                AgentConstants.CANVA_PACKAGE,
+                java.util.Collections.emptyList(),
+                0L
+        );
+
+        String structural = TeacherProtocol.buildRequest(state,snap,"note",requestId);
+        String visual = TeacherProtocol.buildVisualRequest(state,snap,requestId,"need visual");
+
+        assertFalse(structural.contains(marker));
+        assertFalse(visual.contains(marker));
+    }
 }
