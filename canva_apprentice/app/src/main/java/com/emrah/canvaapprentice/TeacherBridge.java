@@ -19,7 +19,7 @@ public final class TeacherBridge {
         this.service = service;
     }
 
-    public void ask(String prompt, ReplyCallback callback) {
+    public void ask(String prompt, String awaitingMarker, ReplyCallback callback) {
         Intent launch = service.getPackageManager().getLaunchIntentForPackage(AgentConstants.CHATGPT_PACKAGE);
         if (launch == null) { callback.onFailure("ChatGPT uygulaması bulunamadı."); return; }
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
@@ -35,16 +35,16 @@ public final class TeacherBridge {
             }
             AccessibilityNodeInfo send = findSend(service.getRootInActiveWindow());
             if (send == null || !clickNodeOrParent(send)) { callback.onFailure("ChatGPT gönder düğmesi bulunamadı."); return; }
-            pollReply(callback, 0);
+            pollReply(awaitingMarker, callback, 0);
         }, 1000);
     }
 
-    private void pollReply(ReplyCallback callback, int attempt) {
+    private void pollReply(String awaitingMarker, ReplyCallback callback, int attempt) {
         if (attempt > 45) { callback.onFailure("Öğretmen yanıtı zaman aşımına uğradı."); return; }
         handler.postDelayed(() -> {
             AccessibilityNodeInfo root = service.getRootInActiveWindow();
             String found = latestTextContaining(root, awaitingMarker);
-            if (found != null) callback.onReply(found); else pollReply(callback, attempt + 1);
+            if (found != null) callback.onReply(found); else pollReply(awaitingMarker, callback, attempt + 1);
         }, 1000);
     }
 
