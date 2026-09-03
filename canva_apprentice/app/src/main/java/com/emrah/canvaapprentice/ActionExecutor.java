@@ -34,8 +34,12 @@ public final class ActionExecutor {
         TaskState state = stateRepo.load();
         UiTreeSnapshot snap = UiTreeSnapshot.capture(root);
         boolean anchorVisible = !state.designAnchor.isEmpty() && snap.containsText(state.designAnchor);
+        String currentSnapshotHash = snap.stableFingerprint();
+        boolean matchesLastSafeEditorSnapshot = !state.lastSafeSnapshotHash.isEmpty()
+                && state.lastSafeSnapshotHash.equals(currentSnapshotHash);
         if (!DesignContinuityPolicy.allows(
-                action, state.designAnchor, anchorVisible, snap.looksLikeCanvaHome())) {
+                action, state.designAnchor, anchorVisible, snap.looksLikeCanvaHome(),
+                matchesLastSafeEditorSnapshot)) {
             return false;
         }
 
