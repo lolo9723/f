@@ -96,7 +96,7 @@ public final class TeacherProtocol {
             return new AgentAction(AgentAction.Type.NOOP,"","",0,"unique protocol marker missing",visualGrounded);
         }
 
-        String[] p = line.split("\\|", 5);
+        java.util.List<String> p = ProtocolCodec.splitEscaped(line);
         try {
             String cmd = at(p,0);
             switch (cmd) {
