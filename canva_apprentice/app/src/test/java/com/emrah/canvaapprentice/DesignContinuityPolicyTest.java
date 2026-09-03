@@ -41,6 +41,21 @@ public final class DesignContinuityPolicyTest {
         assertFalse(DesignContinuityPolicy.allows(create, "Campaign A", false, true));
     }
 
+    @Test public void homeAnchorVisibilityDoesNotAuthorizeUnrelatedActions() {
+        AgentAction edit = action(AgentAction.Type.SET_TEXT, "Title", "Wrong");
+        AgentAction share = action(AgentAction.Type.CLICK_TEXT, "Share", "");
+        AgentAction coordinateTap = new AgentAction(
+                AgentAction.Type.TAP_NORM, "500,500", "", 0.99, "test", true);
+        AgentAction exact = action(AgentAction.Type.CLICK_TEXT, "Campaign A", "");
+
+        // A project card exposes the bound design name on home; that must not be confused with
+        // proof that the editor for that design is open.
+        assertFalse(DesignContinuityPolicy.allows(edit, "Campaign A", true, true));
+        assertFalse(DesignContinuityPolicy.allows(share, "Campaign A", true, true));
+        assertFalse(DesignContinuityPolicy.allows(coordinateTap, "Campaign A", true, true));
+        assertTrue(DesignContinuityPolicy.allows(exact, "Campaign A", true, true));
+    }
+
     @Test public void matchingIsCaseAccentAndWhitespaceStable() {
         AgentAction exact = action(AgentAction.Type.CLICK_TEXT, "  Çalışma   Planı  ", "");
         assertTrue(DesignContinuityPolicy.allows(exact, "calisma plani", false, true));
