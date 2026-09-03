@@ -2,7 +2,12 @@ name: Canva Apprentice Android
 on:
   push:
     branches: [canva-apprentice-agent]
+    paths-ignore:
+      - 'canva_apprentice/build_artifacts/**'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -29,3 +34,14 @@ jobs:
         with:
           name: canva-apprentice-debug-apk
           path: canva_apprentice/app/build/outputs/apk/debug/app-debug.apk
+      - name: Persist APK for chat handoff
+        shell: bash
+        run: |
+          mkdir -p build_artifacts
+          base64 -w0 app/build/outputs/apk/debug/app-debug.apk > build_artifacts/app-debug.apk.b64
+          sha256sum app/build/outputs/apk/debug/app-debug.apk > build_artifacts/app-debug.apk.sha256
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add build_artifacts/app-debug.apk.b64 build_artifacts/app-debug.apk.sha256
+          git commit -m "CI: persist Canva apprentice APK [skip ci]" || exit 0
+          git push
