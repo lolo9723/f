@@ -29,12 +29,17 @@ public final class SafetyGate {
             return Decision.ask("Eylem güveni yetersiz: " + action.confidence);
         }
 
-        String directTarget = normalize(action.target);
-        String contextual = normalize(action.target + " " + action.value + " " + action.reason);
+        String effectiveTarget = action.isNodeAction()
+                ? NodeTargetCodec.label(action.target)
+                : action.target;
+        String directTarget = normalize(effectiveTarget);
+        String contextual = normalize(effectiveTarget + " " + action.value + " " + action.reason);
 
         if (!state.allowNewDesign) {
+            boolean clickNavigation = action.type == AgentAction.Type.CLICK_TEXT ||
+                    action.type == AgentAction.Type.CLICK_NODE;
             boolean attemptsCreate =
-                    (action.type == AgentAction.Type.CLICK_TEXT && containsAny(directTarget, NEW_DESIGN_PATTERNS)) ||
+                    (clickNavigation && containsAny(directTarget, NEW_DESIGN_PATTERNS)) ||
                     (action.isCoordinateGesture() && containsAny(normalize(action.reason), NEW_DESIGN_PATTERNS));
             if (attemptsCreate) {
                 return Decision.block("Yeni tasarım oluşturma bu görev için kilitli.");
