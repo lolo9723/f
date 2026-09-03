@@ -90,12 +90,36 @@ public final class UiTreeSnapshot {
         StringBuilder b = new StringBuilder(packageName);
         int kept = 0;
         for (Node n : nodes) {
-            if (!n.text.trim().isEmpty() || !n.description.trim().isEmpty()) {
-                b.append('|').append(n.text).append('|').append(n.description).append('|').append(n.className);
-                if (++kept >= 80) break;
-            }
+            if (n.text.trim().isEmpty() && n.description.trim().isEmpty() &&
+                    !n.clickable && !n.editable) continue;
+
+            // The fingerprint is also a stale-command guard. Text/class alone is not enough:
+            // Canva may keep the same labels while moving controls or changing which node is
+            // actually clickable/editable. Include structural/actionability evidence so an
+            // instruction produced for the old layout is discarded instead of being replayed.
+            b.append('|').append(n.viewId)
+                    .append('|').append(n.text)
+                    .append('|').append(n.description)
+                    .append('|').append(n.className)
+                    .append('|').append(n.clickable ? 'C' : '-')
+                    .append(n.editable ? 'E' : '-')
+                    .append(n.enabled ? 'N' : 'D')
+                    .append('|').append(quantizedBounds(n.bounds));
+            if (++kept >= 120) break;
         }
         return sha256(b.toString());
+    }
+
+    private static String quantizedBounds(Rect r) {
+        if (r == null) return "0,0,0,0";
+        // Ignore tiny rendering jitter while still detecting meaningful control movement.
+        final int q = 8;
+        return quantize(r.left, q) + "," + quantize(r.top, q) + "," +
+                quantize(r.right, q) + "," + quantize(r.bottom, q);
+    }
+
+    private static int quantize(int value, int quantum) {
+        return Math.round(value / (float) quantum) * quantum;
     }
 
     private static String sha256(String s) {
