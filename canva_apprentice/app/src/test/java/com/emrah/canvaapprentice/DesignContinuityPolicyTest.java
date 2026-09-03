@@ -26,6 +26,18 @@ public final class DesignContinuityPolicyTest {
         assertFalse(DesignContinuityPolicy.allows(a, "Campaign A", false, false));
     }
 
+    @Test public void exactLastSafeEditorSnapshotAllowsTransientMissingAnchor() {
+        AgentAction edit = action(AgentAction.Type.SET_TEXT, "Title", "Hello");
+        assertTrue(DesignContinuityPolicy.allows(
+                edit, "Campaign A", false, false, true));
+    }
+
+    @Test public void changedUnknownEditorStillBlocksWhenAnchorMissing() {
+        AgentAction edit = action(AgentAction.Type.SET_TEXT, "Title", "Wrong");
+        assertFalse(DesignContinuityPolicy.allows(
+                edit, "Campaign A", false, false, false));
+    }
+
     @Test public void backIsAllowedAsNonMutatingRecovery() {
         AgentAction a = action(AgentAction.Type.BACK, "", "");
         assertTrue(DesignContinuityPolicy.allows(a, "Campaign A", false, false));
@@ -54,6 +66,16 @@ public final class DesignContinuityPolicyTest {
         assertFalse(DesignContinuityPolicy.allows(share, "Campaign A", true, true));
         assertFalse(DesignContinuityPolicy.allows(coordinateTap, "Campaign A", true, true));
         assertTrue(DesignContinuityPolicy.allows(exact, "Campaign A", true, true));
+    }
+
+    @Test public void homeNeverTrustsLastSafeEditorSnapshotFallback() {
+        AgentAction edit = action(AgentAction.Type.SET_TEXT, "Title", "Wrong");
+        AgentAction exact = action(AgentAction.Type.CLICK_TEXT, "Campaign A", "");
+
+        assertFalse(DesignContinuityPolicy.allows(
+                edit, "Campaign A", false, true, true));
+        assertTrue(DesignContinuityPolicy.allows(
+                exact, "Campaign A", false, true, true));
     }
 
     @Test public void matchingIsCaseAccentAndWhitespaceStable() {
