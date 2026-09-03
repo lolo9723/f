@@ -132,7 +132,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
         }
 
         if(action.type==AgentAction.Type.BIND_DESIGN){
-            if(action.confidence<0.98 || !isPlausibleDesignAnchor(action.target)){
+            if(action.confidence<0.98 || !DesignAnchorPolicy.isPlausible(action.target)){
                 pendingVisualBeforeHash="";
                 pauseForHuman("Tasarım kimliği güvenle bağlanamadı; yanlış tasarıma kilitlenmemek için duruldu.");
                 cycleBusy.set(false);
@@ -373,21 +373,6 @@ public final class AgentAccessibilityService extends AccessibilityService {
             startActivity(canva);
         }
         new Handler(Looper.getMainLooper()).postDelayed(() -> resumeOnCanva(attempt+1),300);
-    }
-
-    private static boolean isPlausibleDesignAnchor(String anchor){
-        if(anchor==null) return false;
-        String a=anchor.trim();
-        if(a.length()<2 || a.length()>140) return false;
-        String n=java.text.Normalizer.normalize(a,java.text.Normalizer.Form.NFD)
-                .replaceAll("\\p{M}","").toLowerCase(java.util.Locale.ROOT).replace('ı','i');
-        String[] generic={
-                "canva","home","ana sayfa","projects","projeler","templates","sablonlar",
-                "share","paylas","create a design","tasarim olustur","menu","menü",
-                "undo","geri al","redo","yinele"
-        };
-        for(String g:generic) if(n.equals(g)) return false;
-        return true;
     }
 
     public void captureScreenshotForDiagnostics(ScreenshotCallback cb){
