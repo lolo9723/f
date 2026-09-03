@@ -82,4 +82,26 @@ public class SafetyGateTest {
                 gate.evaluate(a,running(false),AgentConstants.CANVA_PACKAGE).kind
         );
     }
+
+    @Test public void doesNotBlockRecoveryBecauseReasonMentionsNoNewDesign() {
+        AgentAction a = new AgentAction(
+                AgentAction.Type.CLICK_TEXT,"Projects","",0.99,
+                "open existing project; do not create a new design"
+        );
+        assertEquals(
+                SafetyGate.Decision.Kind.ALLOW,
+                gate.evaluate(a,running(false),AgentConstants.CANVA_PACKAGE).kind
+        );
+    }
+
+    @Test public void doesNotTreatUserTextAsNewDesignNavigation() {
+        AgentAction a = new AgentAction(
+                AgentAction.Type.SET_TEXT,"Title","New Design Trends 2026",0.99,
+                "enter requested title"
+        );
+        assertEquals(
+                SafetyGate.Decision.Kind.ALLOW,
+                gate.evaluate(a,running(false),AgentConstants.CANVA_PACKAGE).kind
+        );
+    }
 }
