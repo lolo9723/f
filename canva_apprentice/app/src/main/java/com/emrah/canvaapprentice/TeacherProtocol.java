@@ -25,10 +25,13 @@ public final class TeacherProtocol {
                 "LastSafeSnapshotFingerprint: " + state.lastSafeSnapshotHash + "\n" +
                 "Note: " + (note == null ? "" : note) + "\n" +
                 "UI_TREE:\n" + snapshot.compactForTeacher() + "\n" +
+                "Each UI_TREE row begins with a compact node index. For exact-node commands, copy that index and the exact visible text/content-description from the SAME row.\n" +
                 "Return ONLY one line, no markdown and no prose. " +
                 "Construct the prefix by concatenating CAA1_REPLY_ + RequestId + | .\n" +
                 "Formats (the literal <REQUEST_ID> below is only a placeholder):\n" +
                 "CAA1_REPLY_<REQUEST_ID>|BIND_DESIGN|<exact unique visible design title>|<0..1 confidence>|<reason>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|CLICK_NODE|<compact node index>|<exact row text or content-description>|<0..1 confidence>|<reason>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|SET_NODE_TEXT|<compact node index>|<exact row text or content-description; use empty only when row has no label>|<text to enter>|<0..1 confidence>|<reason>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|CLICK_TEXT|<visible text or content description>|<0..1 confidence>|<reason>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|SET_TEXT|<field label/current text>|<text to enter>|<0..1 confidence>|<reason>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|BACK|||<0..1 confidence>|<reason>\n" +
@@ -37,6 +40,8 @@ public final class TeacherProtocol {
                 "CAA1_REPLY_<REQUEST_ID>|DONE|||1.0|<why goal appears complete>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|NOOP|||1.0|<why no action is safe>\n" +
                 "Reply on ONE physical line. Inside fields escape backslash as \\\\, pipe as \\|, newline as \\n, and tab as \\t. " +
+                "Prefer CLICK_NODE/SET_NODE_TEXT whenever a suitable UI_TREE row exists. Plain CLICK_TEXT/SET_TEXT are fallback-only and must be used only when the visible label is unique on the current screen. " +
+                "For CLICK_NODE/SET_NODE_TEXT, never invent an index or label: both must come from one current UI_TREE row; if the row has visible text use it, otherwise use its content-description. " +
                 "BIND_DESIGN is memory-only; use it only when a non-generic unique design title is clearly visible and confidence >=0.98. " +
                 "Coordinate gestures are FORBIDDEN in this structural turn. " +
                 "If the requested target is visual and the UI tree does not uniquely identify it, request SCREENSHOT instead of guessing. " +
@@ -64,9 +69,12 @@ public final class TeacherProtocol {
                 "A screenshot of the CURRENT Canva screen is attached. " +
                 "Use normalized coordinates from 0..1000 where (0,0)=top-left and (1000,1000)=bottom-right.\n" +
                 "UI_TREE:\n" + snapshot.compactForTeacher() + "\n" +
+                "Each UI_TREE row begins with a compact node index. Exact-node commands must copy the index and exact text/content-description from the same row.\n" +
                 "Return ONLY one line, no markdown and no prose. Construct the prefix by concatenating CAA1_REPLY_ + RequestId + | .\n" +
                 "Formats below use the literal <REQUEST_ID> placeholder; replace it with RequestId only in your reply:\n" +
                 "CAA1_REPLY_<REQUEST_ID>|BIND_DESIGN|<exact unique visible design title>|<0..1 confidence>|<reason>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|CLICK_NODE|<compact node index>|<exact row text or content-description>|<0..1 confidence>|<reason>\n" +
+                "CAA1_REPLY_<REQUEST_ID>|SET_NODE_TEXT|<compact node index>|<exact row text or content-description; use empty only when row has no label>|<text>|<0..1 confidence>|<reason>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|CLICK_TEXT|<visible text or content description>|<0..1 confidence>|<reason>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|SET_TEXT|<field label/current text>|<text>|<0..1 confidence>|<reason>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|TAP_NORM|<x>,<y>|<0..1 confidence>|<reason>\n" +
@@ -76,6 +84,7 @@ public final class TeacherProtocol {
                 "CAA1_REPLY_<REQUEST_ID>|DONE|||1.0|<why final visual quality is acceptable>\n" +
                 "CAA1_REPLY_<REQUEST_ID>|NOOP|||1.0|<reason>\n" +
                 "Reply on ONE physical line. Inside fields escape backslash as \\\\, pipe as \\|, newline as \\n, and tab as \\t. " +
+                "Prefer CLICK_NODE/SET_NODE_TEXT over plain-text or coordinate actions whenever the UI_TREE uniquely identifies the target. Never invent node indexes or labels. " +
                 "Use TAP_NORM/DRAG_NORM only for visually grounded canvas selection/movement/resizing when the screenshot makes the target unambiguous. " +
                 "For coordinate gestures confidence must be >=0.985. Never use coordinates for delete, payment, share, account, password, login, or destructive actions. " +
                 "BIND_DESIGN requires a clearly visible unique non-generic design title and confidence >=0.98. " +
@@ -108,6 +117,12 @@ public final class TeacherProtocol {
             switch (cmd) {
                 case "BIND_DESIGN":
                     return new AgentAction(AgentAction.Type.BIND_DESIGN,at(p,1),"",dbl(at(p,2)),at(p,3),visualGrounded);
+                case "CLICK_NODE":
+                    return new AgentAction(AgentAction.Type.CLICK_NODE,
+                            NodeTargetCodec.encode(integer(at(p,1)),at(p,2)),"",dbl(at(p,3)),at(p,4),visualGrounded);
+                case "SET_NODE_TEXT":
+                    return new AgentAction(AgentAction.Type.SET_NODE_TEXT,
+                            NodeTargetCodec.encode(integer(at(p,1)), nodeLabel(at(p,2))),at(p,3),dbl(at(p,4)),at(p,5),visualGrounded);
                 case "CLICK_TEXT":
                     return new AgentAction(AgentAction.Type.CLICK_TEXT,at(p,1),"",dbl(at(p,2)),at(p,3),visualGrounded);
                 case "SET_TEXT":
@@ -136,5 +151,13 @@ public final class TeacherProtocol {
     private static double dbl(String s) {
         try { return Double.parseDouble(s); }
         catch(Exception e) { return 0; }
+    }
+    private static int integer(String s) {
+        int v = Integer.parseInt(s.trim());
+        if (v < 0 || v >= 220) throw new IllegalArgumentException("node index out of range");
+        return v;
+    }
+    private static String nodeLabel(String s) {
+        return s == null || s.trim().isEmpty() ? "empty" : s.trim();
     }
 }
