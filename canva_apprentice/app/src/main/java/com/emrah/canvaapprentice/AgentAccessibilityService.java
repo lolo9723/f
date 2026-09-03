@@ -99,7 +99,31 @@ public final class AgentAccessibilityService extends AccessibilityService {
         AccessibilityNodeInfo root=getRootInActiveWindow();
         String pkg=root!=null&&root.getPackageName()!=null?root.getPackageName().toString():"";
         if(AgentConstants.CANVA_PACKAGE.equals(pkg)){
-            handleTeacherAction(action,beforeFingerprint);
+            UiTreeSnapshot current=UiTreeSnapshot.capture(root);
+            if(!beforeFingerprint.equals(current.stableFingerprint())){
+                pendingVisualBeforeHash="";
+                cycleBusy.set(false);
+                runCanvaCycle("Öğretmene danışılırken Canva ekranı değişti. Eski komut güvenlik nedeniyle atıldı; mevcut ekranı baştan değerlendir.");
+                return;
+            }
+
+            if(action.visualGrounded && !pendingVisualBeforeHash.isEmpty()){
+                final String expectedVisual=pendingVisualBeforeHash;
+                captureScreenshotForDiagnostics(file -> {
+                    String nowVisual=VisualFingerprint.fromFile(file);
+                    double drift=VisualFingerprint.distance(expectedVisual,nowVisual);
+                    if(drift>=0.0100){
+                        pendingVisualBeforeHash="";
+                        cycleBusy.set(false);
+                        runCanvaCycle("Görüntülü komut beklerken Canva ekranı görsel olarak değişti (drift="+
+                                String.format(java.util.Locale.US,"%.4f",drift)+"). Eski koordinat komutu uygulanmadı.");
+                    }else{
+                        handleTeacherAction(action,beforeFingerprint);
+                    }
+                });
+            }else{
+                handleTeacherAction(action,beforeFingerprint);
+            }
             return;
         }
         if(attempt>=10){
