@@ -15,12 +15,30 @@ import java.util.Locale;
 
 public final class ActionExecutor {
     private final AccessibilityService service;
+    private final TaskStateRepository stateRepo;
 
     public ActionExecutor(AccessibilityService service) {
         this.service = service;
+        this.stateRepo = new TaskStateRepository(service);
     }
 
     public boolean execute(AgentAction action) {
+        AccessibilityNodeInfo root = service.getRootInActiveWindow();
+        if (root == null || root.getPackageName() == null) return false;
+        if (!AgentConstants.CANVA_PACKAGE.equals(root.getPackageName().toString())) return false;
+
+        // Runtime continuity gate: this is intentionally independent from the teacher prompt.
+        // Once a task is bound to an existing design, no mutating/navigation action may run on
+        // an unknown editor screen. The only exceptions are BACK recovery and opening the exact
+        // bound design from Canva home/projects.
+        TaskState state = stateRepo.load();
+        UiTreeSnapshot snap = UiTreeSnapshot.capture(root);
+        boolean anchorVisible = !state.designAnchor.isEmpty() && snap.containsText(state.designAnchor);
+        if (!DesignContinuityPolicy.allows(
+                action, state.designAnchor, anchorVisible, snap.looksLikeCanvaHome())) {
+            return false;
+        }
+
         switch (action.type) {
             case TAP_NORM:
                 return tapNorm(action.target);
@@ -29,23 +47,13 @@ public final class ActionExecutor {
             case BACK:
                 return service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
             case CLICK_TEXT:
+                return clickByTextOrDescription(root, action.target);
             case SET_TEXT:
+                return setText(root, action.target, action.value);
             case CLICK_NODE:
+                return clickExactNode(root, action.target);
             case SET_NODE_TEXT:
-                AccessibilityNodeInfo root = service.getRootInActiveWindow();
-                if (root == null) return false;
-                switch (action.type) {
-                    case CLICK_TEXT:
-                        return clickByTextOrDescription(root, action.target);
-                    case SET_TEXT:
-                        return setText(root, action.target, action.value);
-                    case CLICK_NODE:
-                        return clickExactNode(root, action.target);
-                    case SET_NODE_TEXT:
-                        return setExactNodeText(root, action.target, action.value);
-                    default:
-                        return false;
-                }
+                return setExactNodeText(root, action.target, action.value);
             default:
                 return false;
         }
