@@ -87,6 +87,30 @@ public class TeacherProtocolTest {
         assertFalse(visual.contains(marker));
     }
 
+    @Test public void promptsRequireContinuityRevalidationAfterHumanIntervention() {
+        String requestId = "abc123";
+        TaskState state = new TaskState(
+                "edit existing poster","initial-fp","Existing Poster","safe-fp", "",
+                TaskState.Mode.RUNNING,false,7
+        );
+        UiTreeSnapshot snap = new UiTreeSnapshot(
+                AgentConstants.CANVA_PACKAGE,
+                java.util.Collections.emptyList(),
+                0L
+        );
+
+        String structural = TeacherProtocol.buildRequest(
+                state,snap,"Kullanıcı müdahalesi tamamlandı. Önce mevcut durumu yeniden doğrula.",requestId
+        );
+        String visual = TeacherProtocol.buildVisualRequest(state,snap,requestId,"resume verification");
+
+        assertTrue(structural.contains("LastSafeSnapshotFingerprint: safe-fp"));
+        assertTrue(structural.contains("current screen as untrusted until continuity is re-established"));
+        assertTrue(structural.contains("otherwise request SCREENSHOT"));
+        assertTrue(visual.contains("LastSafeSnapshotFingerprint: safe-fp"));
+        assertTrue(visual.contains("visually verify that the screenshot belongs to that same existing design"));
+    }
+
     @Test public void parsesEscapedMultilineSetText() {
         String marker = TeacherProtocol.markerFor("abc123");
         AgentAction a = TeacherProtocol.parse(
