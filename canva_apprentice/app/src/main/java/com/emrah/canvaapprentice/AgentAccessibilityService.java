@@ -3,6 +3,8 @@ package com.emrah.canvaapprentice;
 import android.accessibilityservice.AccessibilityService;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.os.Handler;
+import android.os.Looper;
 import android.hardware.HardwareBuffer;
 import android.view.Display;
 import android.view.accessibility.AccessibilityEvent;
@@ -85,7 +87,14 @@ public final class AgentAccessibilityService extends AccessibilityService {
 
     public void stopTask(){repo.stop();overlay.hide();}
 
-    private void pauseForHuman(String reason){repo.pauseForHuman(); overlay.show(reason,()->{repo.resume(); cycleBusy.set(false);});}
+    private void pauseForHuman(String reason){
+        repo.pauseForHuman();
+        overlay.show(reason,()->{
+            repo.resume();
+            cycleBusy.set(false);
+            new Handler(Looper.getMainLooper()).postDelayed(this::runCanvaCycle, 350);
+        });
+    }
 
     public void captureScreenshotForDiagnostics(ScreenshotCallback cb){
         takeScreenshot(Display.DEFAULT_DISPLAY,getMainExecutor(),new TakeScreenshotCallback(){
