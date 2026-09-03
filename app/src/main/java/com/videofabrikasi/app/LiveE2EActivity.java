@@ -32,12 +32,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
 import java.text.DateFormat;
 import java.util.Date;
 import java.util.concurrent.ExecutorService;
@@ -107,7 +104,10 @@ public final class LiveE2EActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        if (prefs != null) render();
+        if (prefs != null) {
+            render();
+            resumeOAuthSuccessIfPending();
+        }
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -135,7 +135,11 @@ public final class LiveE2EActivity extends Activity {
 
     @Override protected void onDestroy() {
         handler.removeCallbacks(poll);
-        closeOAuthServer();
+        // When Chrome is in front, Android may recreate this Activity. Do not tear
+        // down the loopback listener in that case; the OAuth worker must finish.
+        if (isFinishing() || !workInFlight || oauthServer == null) {
+            closeOAuthServer();
+        }
         if (downloadReceiver != null) {
             try { unregisterReceiver(downloadReceiver); } catch (Exception ignored) {}
         }
@@ -253,10 +257,10 @@ public final class LiveE2EActivity extends Activity {
         status.setText("KAGGLE GÜVENLİ GİRİŞİ HAZIRLANIYOR…");
         details.setText("Kaggle’ın resmi SDK’sıyla aynı localhost PKCE/OAuth oturumu hazırlanıyor. Tarayıcı açılınca hesabına giriş yapıp erişime izin ver.");
 
-        executor.execute(() -> {
+        Thread oauthWorker = new Thread(() -> {
             ServerSocket server = null;
             try {
-                server = openOAuthLoopbackServer();
+                server = OAuthLoopbackServer.open();
                 oauthServer = server;
                 final int port = server.getLocalPort();
                 final String oauthState = KaggleOAuthPkce.newState();
@@ -277,7 +281,7 @@ public final class LiveE2EActivity extends Activity {
                     }
                 });
 
-                try (Socket socket = server.accept()) {
+                try (Socket socket = OAuthLoopbackServer.acceptLoopback(server)) {
                     socket.setSoTimeout(15_000);
                     BufferedReader reader = new BufferedReader(new InputStreamReader(
                             socket.getInputStream(), StandardCharsets.UTF_8));
@@ -333,20 +337,17 @@ public final class LiveE2EActivity extends Activity {
                     getSharedPreferences("video_factory_settings", MODE_PRIVATE)
                             .edit().putString("username", identity.username).apply();
 
-                    writeOAuthBrowserResponse(socket, 200,
-                            "Kaggle bağlantısı başarılı. Video Fabrikası’na geri dönebilirsin; gerçek T4 testi otomatik başlayacak.");
+                    prefs.edit()
+                            .putBoolean("oauth_success_pending", true)
+                            .putBoolean("oauth_autostart_pending", true)
+                            .apply();
 
-                    ui(() -> {
-                        username.setText(identity.username);
-                        token.setText("");
-                        token.setHint("Kaggle OAuth bağlı — kimlik Android Keystore’da");
-                        workInFlight = false;
-                        if (connectKaggle != null) connectKaggle.setEnabled(true);
-                        if (importTokenFile != null) importTokenFile.setEnabled(true);
-                        render();
-                        toast("Kaggle güvenli giriş tamamlandı: " + identity.username);
-                        handler.postDelayed(this::startLiveTest, 350L);
-                    });
+                    writeOAuthBrowserResponse(socket, 200,
+                            "Kaggle bağlantısı başarılı. Video Fabrikası’na geri dön; gerçek T4 testi otomatik başlayacak.");
+
+                    if (!isDestroyed()) {
+                        ui(this::resumeOAuthSuccessIfPending);
+                    }
                 }
             } catch (Exception e) {
                 ui(() -> {
@@ -363,28 +364,35 @@ public final class LiveE2EActivity extends Activity {
                 }
                 if (oauthServer == server) oauthServer = null;
             }
-        });
+        }, "KaggleOAuthLoopback");
+        oauthWorker.setDaemon(true);
+        oauthWorker.start();
     }
 
-    private ServerSocket openOAuthLoopbackServer() throws Exception {
-        SecureRandom random = new SecureRandom();
-        Exception last = null;
-        int range = KaggleOAuthPkce.MAX_LOOPBACK_PORT - KaggleOAuthPkce.MIN_LOOPBACK_PORT + 1;
-        for (int i = 0; i < range; i++) {
-            int port = KaggleOAuthPkce.MIN_LOOPBACK_PORT + random.nextInt(range);
-            ServerSocket server = new ServerSocket();
-            try {
-                server.setReuseAddress(true);
-                server.bind(new InetSocketAddress(
-                        InetAddress.getByName("127.0.0.1"), port), 1);
-                server.setSoTimeout(5 * 60 * 1000);
-                return server;
-            } catch (Exception bindError) {
-                last = bindError;
-                try { server.close(); } catch (Exception ignored) {}
-            }
+    private void resumeOAuthSuccessIfPending() {
+        if (prefs == null || !prefs.getBoolean("oauth_success_pending", false)) return;
+        String resolvedUser = prefs.getString("username", "").trim();
+        if (resolvedUser.isEmpty()
+                || secure.get("kaggle_token").isEmpty()
+                || secure.get("kaggle_refresh_token").isEmpty()) {
+            return;
         }
-        throw new IllegalStateException("Kaggle OAuth için boş localhost portu bulunamadı.", last);
+
+        boolean autoStart = prefs.getBoolean("oauth_autostart_pending", false);
+        prefs.edit()
+                .putBoolean("oauth_success_pending", false)
+                .putBoolean("oauth_autostart_pending", false)
+                .apply();
+
+        username.setText(resolvedUser);
+        token.setText("");
+        token.setHint("Kaggle OAuth bağlı — kimlik Android Keystore’da");
+        workInFlight = false;
+        if (connectKaggle != null) connectKaggle.setEnabled(true);
+        if (importTokenFile != null) importTokenFile.setEnabled(true);
+        render();
+        toast("Kaggle güvenli giriş tamamlandı: " + resolvedUser);
+        if (autoStart) handler.postDelayed(this::startLiveTest, 350L);
     }
 
     private void writeOAuthBrowserResponse(Socket socket, int code, String message) {
