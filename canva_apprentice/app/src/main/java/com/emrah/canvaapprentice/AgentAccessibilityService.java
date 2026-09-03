@@ -105,6 +105,11 @@ public final class AgentAccessibilityService extends AccessibilityService {
             return;
         }
 
+        if(action.type==AgentAction.Type.SCREENSHOT){
+            requestVisualTeacher(action.reason);
+            return;
+        }
+
         SafetyGate.Decision d=safety.evaluate(action,state,active);
         if(d.kind==SafetyGate.Decision.Kind.ALLOW){
             boolean ok=executor.execute(action);
@@ -149,6 +154,52 @@ public final class AgentAccessibilityService extends AccessibilityService {
         } else {
             cycleBusy.set(false);
         }
+    }
+
+    private void requestVisualTeacher(String screenshotReason){
+        AccessibilityNodeInfo root=getRootInActiveWindow();
+        String pkg=root!=null&&root.getPackageName()!=null?root.getPackageName().toString():"";
+        if(!AgentConstants.CANVA_PACKAGE.equals(pkg)){
+            pauseForHuman("Ekran görüntüsü yalnız Canva açıkken alınabilir.");
+            cycleBusy.set(false);
+            return;
+        }
+
+        UiTreeSnapshot snap=UiTreeSnapshot.capture(root);
+        TaskState state=repo.load();
+        captureScreenshotForDiagnostics(file -> {
+            if(file==null){
+                pauseForHuman("Canva ekran görüntüsü alınamadı; tahmin ederek devam edilmedi.");
+                cycleBusy.set(false);
+                return;
+            }
+
+            String requestId=UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+            String marker=TeacherProtocol.markerFor(requestId);
+            String prompt=TeacherProtocol.buildVisualRequest(state,snap,requestId,screenshotReason);
+            teacher.askWithScreenshot(prompt,ScreenshotProvider.uri(),marker,new TeacherBridge.ReplyCallback(){
+                @Override public void onReply(String reply){
+                    AgentAction visualAction=TeacherProtocol.parse(reply,marker);
+                    if(visualAction.type==AgentAction.Type.SCREENSHOT){
+                        pauseForHuman("Görüntülü öğretmen turu da hedefi güvenle ayıramadı.");
+                        cycleBusy.set(false);
+                        return;
+                    }
+                    Intent canva=getPackageManager().getLaunchIntentForPackage(AgentConstants.CANVA_PACKAGE);
+                    if(canva!=null){
+                        canva.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                        startActivity(canva);
+                    }
+                    new Handler(Looper.getMainLooper()).postDelayed(
+                            () -> waitForCanvaAndHandle(visualAction,snap.stableFingerprint(),0),450);
+                }
+
+                @Override public void onFailure(String reason){
+                    pauseForHuman("Ekran görüntüsü öğretmene aktarılamadı: "+reason);
+                    cycleBusy.set(false);
+                }
+            });
+        });
     }
 
     public void startTask(String goal, boolean allowNewDesign){
