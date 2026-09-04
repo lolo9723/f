@@ -31,7 +31,7 @@ public class TeacherExecutionLeaseTest {
         lease.invalidate();
 
         assertFalse(lease.isCurrent(token));
-        assertFalse(lease.isCurrent(""));
+        assertFalse(lease.isCurrent("") );
         assertFalse(lease.isCurrent(null));
     }
 
@@ -55,5 +55,13 @@ public class TeacherExecutionLeaseTest {
         assertEquals(token, second.executionLeaseToken);
         assertTrue(TeacherExecutionLease.isGlobalCurrent(first.executionLeaseToken));
         assertTrue(TeacherExecutionLease.isGlobalCurrent(second.executionLeaseToken));
+    }
+
+    @Test public void globalGuardRunsMutationOnlyForCurrentToken() {
+        String oldToken = TeacherExecutionLease.beginGlobal();
+        String currentToken = TeacherExecutionLease.beginGlobal();
+
+        assertEquals("stale", TeacherExecutionLease.withGlobalCurrent(oldToken, "stale", () -> "mutated"));
+        assertEquals("mutated", TeacherExecutionLease.withGlobalCurrent(currentToken, "stale", () -> "mutated"));
     }
 }
