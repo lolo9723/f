@@ -18,12 +18,12 @@ public final class AgentAction {
     public final String executionLeaseToken;
 
     public AgentAction(Type type, String target, String value, double confidence, String reason) {
-        this(type,target,value,confidence,reason,false,"");
+        this(type,target,value,confidence,reason,false,TeacherExecutionLease.currentGlobalToken());
     }
 
     public AgentAction(Type type, String target, String value, double confidence,
                        String reason, boolean visualGrounded) {
-        this(type,target,value,confidence,reason,visualGrounded,"");
+        this(type,target,value,confidence,reason,visualGrounded,TeacherExecutionLease.currentGlobalToken());
     }
 
     AgentAction(Type type, String target, String value, double confidence,
@@ -35,10 +35,6 @@ public final class AgentAction {
         this.reason = reason == null ? "" : reason;
         this.visualGrounded = visualGrounded;
         this.executionLeaseToken = executionLeaseToken == null ? "" : executionLeaseToken;
-    }
-
-    AgentAction withExecutionLease(String token) {
-        return new AgentAction(type,target,value,confidence,reason,visualGrounded,token);
     }
 
     public boolean isCoordinateGesture() {
