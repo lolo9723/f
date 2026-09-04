@@ -351,6 +351,8 @@ public final class AgentAccessibilityService extends AccessibilityService {
     }
 
     public void startTask(String goal, boolean allowNewDesign){
+        pendingVisualBeforeHash="";
+        cycleBusy.set(false);
         AccessibilityNodeInfo root=getRootInActiveWindow(); String fp="";
         if(root!=null && AgentConstants.CANVA_PACKAGE.equals(String.valueOf(root.getPackageName()))) fp=UiTreeSnapshot.capture(root).stableFingerprint();
         repo.start(goal,allowNewDesign,fp); overlay.hide();
@@ -358,7 +360,12 @@ public final class AgentAccessibilityService extends AccessibilityService {
         if(canva!=null){canva.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);startActivity(canva);}
     }
 
-    public void stopTask(){repo.stop();overlay.hide();}
+    public void stopTask(){
+        pendingVisualBeforeHash="";
+        cycleBusy.set(false);
+        repo.stop();
+        overlay.hide();
+    }
 
     private void pauseForHuman(String reason){
         repo.pauseForHuman(reason);
@@ -368,9 +375,15 @@ public final class AgentAccessibilityService extends AccessibilityService {
     private void showHumanOverlay(String reason){
         overlay.show(reason,()->{
             repo.resume();
+            pendingVisualBeforeHash="";
             cycleBusy.set(false);
             resumeOnCanva(0);
         });
+    }
+
+    public void onStaleTeacherRequestDiscarded(){
+        pendingVisualBeforeHash="";
+        cycleBusy.set(false);
     }
 
     private void resumeOnCanva(int attempt){
