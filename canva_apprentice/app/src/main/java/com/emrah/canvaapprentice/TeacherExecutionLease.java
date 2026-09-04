@@ -1,6 +1,7 @@
 package com.emrah.canvaapprentice;
 
 import java.util.UUID;
+import java.util.function.Supplier;
 
 /**
  * Owns the post-teacher execution chain independently from the teacher session.
@@ -38,6 +39,19 @@ public final class TeacherExecutionLease {
         if (!isCurrent(expectedToken)) return false;
         activeToken = "";
         return true;
+    }
+
+    /**
+     * Runs a state mutation while holding the same monitor that guards the global
+     * execution token. This closes the check-then-act race where a caller could
+     * observe a current token, lose ownership to a newer teacher request, and then
+     * still mutate visual/runtime state using the stale result.
+     */
+    public static <T> T withGlobalCurrent(String expectedToken, T staleValue, Supplier<T> operation) {
+        synchronized (GLOBAL) {
+            if (!GLOBAL.isCurrent(expectedToken)) return staleValue;
+            return operation.get();
+        }
     }
 
     public static String beginGlobal() { return GLOBAL.begin(); }
