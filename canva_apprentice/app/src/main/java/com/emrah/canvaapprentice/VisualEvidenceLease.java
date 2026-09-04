@@ -24,23 +24,20 @@ public final class VisualEvidenceLease {
 
     /**
      * Binds evidence only while the supplied execution token still owns the global
-     * teacher execution lease. A late screenshot callback from an older request is
-     * therefore side-effect free and cannot overwrite newer evidence.
-     *
-     * For the same live execution token, the first successful visual bind is immutable
-     * until consumed/cleared. This prevents duplicate or reordered screenshot callbacks
-     * from silently replacing the exact pre-action evidence used for drift verification.
-     * Rebinding the identical hash is accepted as an idempotent no-op.
+     * teacher execution lease. The ownership check and mutation are performed under
+     * the same global lease monitor, eliminating a check-then-act race with a newer
+     * teacher request. For the same live execution token, first successful bind wins.
      */
     public synchronized boolean bindIfExecutionCurrent(String executionToken, String hash) {
         if (hash == null || hash.isEmpty()) return false;
-        if (!TeacherExecutionLease.isGlobalCurrent(executionToken)) return false;
-        if (isOwnedBy(executionToken)) {
-            return visualHash.equals(hash);
-        }
-        ownerExecutionToken = executionToken;
-        visualHash = hash;
-        return true;
+        return TeacherExecutionLease.withGlobalCurrent(executionToken, false, () -> {
+            if (isOwnedBy(executionToken)) {
+                return visualHash.equals(hash);
+            }
+            ownerExecutionToken = executionToken;
+            visualHash = hash;
+            return true;
+        });
     }
 
     synchronized String readIfOwnedBy(String executionToken) {
@@ -48,10 +45,13 @@ public final class VisualEvidenceLease {
         return visualHash;
     }
 
-    /** Returns evidence only if ownership and the live global execution lease agree. */
+    /** Returns evidence only if ownership and the live global execution lease agree atomically. */
     public synchronized String readIfExecutionCurrent(String executionToken) {
-        if (!TeacherExecutionLease.isGlobalCurrent(executionToken)) return "";
-        return readIfOwnedBy(executionToken);
+        return TeacherExecutionLease.withGlobalCurrent(
+                executionToken,
+                "",
+                () -> readIfOwnedBy(executionToken)
+        );
     }
 
     /**
@@ -60,11 +60,12 @@ public final class VisualEvidenceLease {
      * cannot reuse the same screenshot proof after the first consumer has claimed it.
      */
     public synchronized String consumeIfExecutionCurrent(String executionToken) {
-        if (!TeacherExecutionLease.isGlobalCurrent(executionToken)) return "";
-        if (!isOwnedBy(executionToken)) return "";
-        String consumed = visualHash;
-        clear();
-        return consumed;
+        return TeacherExecutionLease.withGlobalCurrent(executionToken, "", () -> {
+            if (!isOwnedBy(executionToken)) return "";
+            String consumed = visualHash;
+            clear();
+            return consumed;
+        });
     }
 
     synchronized boolean clearIfOwnedBy(String executionToken) {
@@ -73,10 +74,13 @@ public final class VisualEvidenceLease {
         return true;
     }
 
-    /** Clears only the evidence owned by the still-current execution chain. */
+    /** Clears only the evidence owned by the still-current execution chain, atomically. */
     public synchronized boolean clearIfExecutionCurrent(String executionToken) {
-        if (!TeacherExecutionLease.isGlobalCurrent(executionToken)) return false;
-        return clearIfOwnedBy(executionToken);
+        return TeacherExecutionLease.withGlobalCurrent(
+                executionToken,
+                false,
+                () -> clearIfOwnedBy(executionToken)
+        );
     }
 
     synchronized boolean isOwnedBy(String executionToken) {
