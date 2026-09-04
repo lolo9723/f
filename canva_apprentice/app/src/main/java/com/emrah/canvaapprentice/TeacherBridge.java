@@ -30,6 +30,7 @@ public final class TeacherBridge {
 
     public void ask(String prompt, String awaitingMarker, ReplyCallback callback) {
         final String sessionId = stateRepo.currentTeacherSessionId();
+        TeacherRequestLeasePolicy.beginStructuralRequest();
         final String requestToken = beginRequest();
         Intent launch = service.getPackageManager().getLaunchIntentForPackage(AgentConstants.CHATGPT_PACKAGE);
         if (launch == null) {
@@ -43,6 +44,14 @@ public final class TeacherBridge {
 
     public void askWithScreenshot(String prompt, Uri screenshotUri, String awaitingMarker, ReplyCallback callback) {
         final String sessionId = stateRepo.currentTeacherSessionId();
+        // The screenshot was already captured and bound to the current execution lease
+        // by AgentAccessibilityService. Rotating the lease here would instantly stale
+        // that evidence before ChatGPT can answer, making every visual action fail.
+        final String visualExecutionToken = TeacherRequestLeasePolicy.currentVisualRequestLease();
+        if (visualExecutionToken.isEmpty()) {
+            callback.onFailure("Görüntülü öğretmen için geçerli execution lease bulunamadı.");
+            return;
+        }
         final String requestToken = beginRequest();
         Intent share = new Intent(Intent.ACTION_SEND);
         share.setPackage(AgentConstants.CHATGPT_PACKAGE);
@@ -60,7 +69,11 @@ public final class TeacherBridge {
 
         service.startActivity(share);
         handler.postDelayed(() -> {
-            if (!isRequestCurrent(sessionId, requestToken)) { discardStaleRequest(); return; }
+            if (!isRequestCurrent(sessionId, requestToken) ||
+                    !TeacherExecutionLease.isGlobalCurrent(visualExecutionToken)) {
+                discardStaleRequest();
+                return;
+            }
             AccessibilityNodeInfo root = service.getRootInActiveWindow();
             if (!AgentConstants.CHATGPT_PACKAGE.equals(packageOf(root))) {
                 failCurrentRequest(sessionId, requestToken, callback, "Görüntü ChatGPT'ye güvenli biçimde açılamadı.");
@@ -77,7 +90,11 @@ public final class TeacherBridge {
                 }
             }
 
-            if (!isRequestCurrent(sessionId, requestToken)) { discardStaleRequest(); return; }
+            if (!isRequestCurrent(sessionId, requestToken) ||
+                    !TeacherExecutionLease.isGlobalCurrent(visualExecutionToken)) {
+                discardStaleRequest();
+                return;
+            }
             AccessibilityNodeInfo send = findSend(service.getRootInActiveWindow());
             if (send == null || !clickNodeOrParent(send)) {
                 failCurrentRequest(sessionId, requestToken, callback, "ChatGPT görüntülü mesaj gönder düğmesi bulunamadı.");
@@ -143,10 +160,6 @@ public final class TeacherBridge {
     }
 
     private synchronized String beginRequest() {
-        // Every teacher request supersedes any previously accepted action chain, even
-        // inside the same task/session. AgentAction captures this global lease when
-        // the reply is parsed, so delayed execution/verification can fail closed.
-        TeacherExecutionLease.beginGlobal();
         activeRequestToken = UUID.randomUUID().toString();
         return activeRequestToken;
     }
