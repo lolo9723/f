@@ -26,10 +26,18 @@ public final class VisualEvidenceLease {
      * Binds evidence only while the supplied execution token still owns the global
      * teacher execution lease. A late screenshot callback from an older request is
      * therefore side-effect free and cannot overwrite newer evidence.
+     *
+     * For the same live execution token, the first successful visual bind is immutable
+     * until consumed/cleared. This prevents duplicate or reordered screenshot callbacks
+     * from silently replacing the exact pre-action evidence used for drift verification.
+     * Rebinding the identical hash is accepted as an idempotent no-op.
      */
     public synchronized boolean bindIfExecutionCurrent(String executionToken, String hash) {
         if (hash == null || hash.isEmpty()) return false;
         if (!TeacherExecutionLease.isGlobalCurrent(executionToken)) return false;
+        if (isOwnedBy(executionToken)) {
+            return visualHash.equals(hash);
+        }
         ownerExecutionToken = executionToken;
         visualHash = hash;
         return true;
