@@ -29,7 +29,10 @@ public final class AgentAction {
         this.confidence = Math.max(0.0, Math.min(1.0, confidence));
         this.reason = reason == null ? "" : reason;
         this.visualGrounded = visualGrounded;
-        this.executionLeaseToken = TeacherExecutionLease.currentGlobalToken();
+        // Every newly accepted/constructed action becomes the sole owner of the post-teacher
+        // execution chain. If a newer reply is parsed before this one executes, its construction
+        // rotates the global lease and this action will fail closed in the runtime gate.
+        this.executionLeaseToken = TeacherExecutionLease.beginGlobal();
     }
 
     public boolean isCoordinateGesture() {
