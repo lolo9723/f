@@ -120,4 +120,24 @@ public class VisualEvidenceLeaseTest {
         assertEquals("", lease.consumeIfExecutionCurrent(token));
         assertEquals("hash", lease.readIfOwnedBy(token));
     }
+
+    @Test public void sameExecutionCannotReplaceFirstVisualEvidence() {
+        VisualEvidenceLease lease = new VisualEvidenceLease();
+        String token = TeacherExecutionLease.beginGlobal();
+        assertTrue(lease.bindIfExecutionCurrent(token, "first-hash"));
+
+        assertFalse(lease.bindIfExecutionCurrent(token, "late-second-hash"));
+        assertEquals("first-hash", lease.readIfExecutionCurrent(token));
+        assertEquals("first-hash", lease.consumeIfExecutionCurrent(token));
+    }
+
+    @Test public void sameExecutionIdenticalRebindIsIdempotent() {
+        VisualEvidenceLease lease = new VisualEvidenceLease();
+        String token = TeacherExecutionLease.beginGlobal();
+        assertTrue(lease.bindIfExecutionCurrent(token, "same-hash"));
+
+        assertTrue(lease.bindIfExecutionCurrent(token, "same-hash"));
+        assertEquals("same-hash", lease.consumeIfExecutionCurrent(token));
+        assertEquals("", lease.consumeIfExecutionCurrent(token));
+    }
 }
