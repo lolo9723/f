@@ -16,8 +16,19 @@ public final class SafetyGate {
     ));
 
     public Decision evaluate(AgentAction action, TaskState state, String activePackage) {
+        if (action == null) return Decision.block("Boş eylem uygulanamaz.");
         if (state.mode != TaskState.Mode.RUNNING) return Decision.block("Ajan çalışma modunda değil.");
         if (!AgentConstants.ALLOWED_PACKAGES.contains(activePackage)) return Decision.block("İzin verilmeyen uygulama.");
+
+        // Execution lease is a runtime safety boundary, not merely a continuity hint.
+        // A teacher-produced action that belonged to an older request must never pass
+        // the general safety gate after a newer teacher request has rotated the lease.
+        // Keep unleased locally-constructed/test actions compatible, but fail closed
+        // for every non-empty stale teacher lease before confidence/target checks.
+        if (!action.executionLeaseToken.isEmpty()
+                && !TeacherExecutionLease.isGlobalCurrent(action.executionLeaseToken)) {
+            return Decision.block("Eski öğretmen eylemi geçersiz execution lease nedeniyle engellendi.");
+        }
 
         if (action.isCoordinateGesture()) {
             if (!action.visualGrounded) return Decision.block("Koordinat eylemi görsel öğretmen turundan gelmedi.");
