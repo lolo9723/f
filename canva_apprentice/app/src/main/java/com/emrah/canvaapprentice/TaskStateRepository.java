@@ -2,9 +2,11 @@ package com.emrah.canvaapprentice;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import java.util.UUID;
 
 public final class TaskStateRepository {
     private static final String PREFS = "agent_state_v2";
+    private static final String SESSION_ID = "teacher_session_id";
     private final SharedPreferences prefs;
 
     public TaskStateRepository(Context context) {
@@ -29,6 +31,15 @@ public final class TaskStateRepository {
         );
     }
 
+    public synchronized String currentTeacherSessionId() {
+        String id = prefs.getString(SESSION_ID, "");
+        if (id == null || id.isEmpty()) {
+            id = newSessionId();
+            prefs.edit().putString(SESSION_ID, id).apply();
+        }
+        return id;
+    }
+
     public synchronized void start(String goal, boolean allowNewDesign, String currentFingerprint) {
         prefs.edit()
                 .putString("goal", goal == null ? "" : goal.trim())
@@ -38,6 +49,7 @@ public final class TaskStateRepository {
                 .putString("last_safe_hash", "")
                 .putString("human_reason", "")
                 .putString("mode", TaskState.Mode.RUNNING.name())
+                .putString(SESSION_ID, newSessionId())
                 .putInt("step", 0)
                 .apply();
     }
@@ -61,6 +73,7 @@ public final class TaskStateRepository {
         prefs.edit()
                 .putString("mode", TaskState.Mode.HUMAN_TAKEOVER.name())
                 .putString("human_reason", reason == null ? "" : reason)
+                .putString(SESSION_ID, newSessionId())
                 .apply();
     }
 
@@ -68,6 +81,7 @@ public final class TaskStateRepository {
         prefs.edit()
                 .putString("mode", TaskState.Mode.RUNNING.name())
                 .putString("human_reason", "")
+                .putString(SESSION_ID, newSessionId())
                 .apply();
     }
 
@@ -75,6 +89,11 @@ public final class TaskStateRepository {
         prefs.edit()
                 .putString("mode", TaskState.Mode.STOPPED.name())
                 .putString("human_reason", "")
+                .putString(SESSION_ID, newSessionId())
                 .apply();
+    }
+
+    private static String newSessionId() {
+        return UUID.randomUUID().toString();
     }
 }
