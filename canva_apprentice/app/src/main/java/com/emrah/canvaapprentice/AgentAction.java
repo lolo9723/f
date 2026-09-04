@@ -31,7 +31,12 @@ public final class AgentAction {
         this.type = type;
         this.target = target == null ? "" : target;
         this.value = value == null ? "" : value;
-        this.confidence = Math.max(0.0, Math.min(1.0, confidence));
+        // Fail closed on malformed teacher confidence. Double.parseDouble accepts
+        // NaN/Infinity and ordinary comparisons against NaN are false, which can
+        // otherwise bypass minimum-confidence safety thresholds.
+        this.confidence = Double.isFinite(confidence)
+                ? Math.max(0.0, Math.min(1.0, confidence))
+                : 0.0;
         this.reason = reason == null ? "" : reason;
         this.visualGrounded = visualGrounded;
         this.executionLeaseToken = executionLeaseToken == null ? "" : executionLeaseToken;
