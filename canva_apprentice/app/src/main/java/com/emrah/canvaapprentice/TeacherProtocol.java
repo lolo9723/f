@@ -88,9 +88,16 @@ public final class TeacherProtocol {
     public static AgentAction parse(String raw, String marker, boolean visualGrounded) {
         if (raw == null) return new AgentAction(AgentAction.Type.NOOP,"","",0,"empty teacher reply",visualGrounded);
         String line = null;
+        int markerMatches = 0;
         for (String s : raw.split("\\R")) {
             String t = s.trim();
-            if (t.startsWith(marker)) line = t.substring(marker.length());
+            if (t.startsWith(marker)) {
+                markerMatches++;
+                if (markerMatches > 1) {
+                    return new AgentAction(AgentAction.Type.NOOP,"","",0,"ambiguous duplicate protocol marker",visualGrounded);
+                }
+                line = t.substring(marker.length());
+            }
         }
         if (line == null) return new AgentAction(AgentAction.Type.NOOP,"","",0,"unique protocol marker missing",visualGrounded);
 
