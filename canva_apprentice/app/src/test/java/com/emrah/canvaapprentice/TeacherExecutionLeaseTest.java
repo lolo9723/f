@@ -35,12 +35,25 @@ public class TeacherExecutionLeaseTest {
         assertFalse(lease.isCurrent(null));
     }
 
-    @Test public void newerActionMakesOlderActionFailClosedAtRuntimeGate() {
+    @Test public void newerTeacherRequestMakesOlderActionFailClosedAtRuntimeGate() {
+        TeacherExecutionLease.beginGlobal();
         AgentAction older = new AgentAction(AgentAction.Type.CLICK_TEXT,"Old target","",0.99,"older reply");
         assertTrue(DesignContinuityPolicy.allows(older,"",true,false,false));
 
+        TeacherExecutionLease.beginGlobal();
         AgentAction newer = new AgentAction(AgentAction.Type.CLICK_TEXT,"New target","",0.99,"newer reply");
         assertFalse(DesignContinuityPolicy.allows(older,"",true,false,false));
         assertTrue(DesignContinuityPolicy.allows(newer,"",true,false,false));
+    }
+
+    @Test public void constructingCandidateActionsDoesNotRotateCurrentLease() {
+        String token = TeacherExecutionLease.beginGlobal();
+        AgentAction first = new AgentAction(AgentAction.Type.CLICK_TEXT,"A","",0.99,"candidate A");
+        AgentAction second = new AgentAction(AgentAction.Type.CLICK_TEXT,"B","",0.99,"candidate B");
+
+        assertEquals(token, first.executionLeaseToken);
+        assertEquals(token, second.executionLeaseToken);
+        assertTrue(TeacherExecutionLease.isGlobalCurrent(first.executionLeaseToken));
+        assertTrue(TeacherExecutionLease.isGlobalCurrent(second.executionLeaseToken));
     }
 }
