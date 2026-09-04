@@ -9,9 +9,13 @@ public final class VisualEvidenceLease {
     private String ownerExecutionToken = "";
     private String visualHash = "";
 
-    public synchronized void bind(String executionToken, String hash) {
+    /**
+     * Legacy/test-only owner binding. Invalid input is intentionally side-effect free:
+     * a malformed or late callback must never erase valid evidence owned by another chain.
+     * Production code should prefer bindIfExecutionCurrent().
+     */
+    synchronized void bind(String executionToken, String hash) {
         if (executionToken == null || executionToken.isEmpty() || hash == null || hash.isEmpty()) {
-            clear();
             return;
         }
         ownerExecutionToken = executionToken;
@@ -31,7 +35,7 @@ public final class VisualEvidenceLease {
         return true;
     }
 
-    public synchronized String readIfOwnedBy(String executionToken) {
+    synchronized String readIfOwnedBy(String executionToken) {
         if (!isOwnedBy(executionToken)) return "";
         return visualHash;
     }
@@ -55,7 +59,7 @@ public final class VisualEvidenceLease {
         return consumed;
     }
 
-    public synchronized boolean clearIfOwnedBy(String executionToken) {
+    synchronized boolean clearIfOwnedBy(String executionToken) {
         if (!isOwnedBy(executionToken)) return false;
         clear();
         return true;
@@ -67,13 +71,14 @@ public final class VisualEvidenceLease {
         return clearIfOwnedBy(executionToken);
     }
 
-    public synchronized boolean isOwnedBy(String executionToken) {
+    synchronized boolean isOwnedBy(String executionToken) {
         return executionToken != null
                 && !executionToken.isEmpty()
                 && executionToken.equals(ownerExecutionToken)
                 && !visualHash.isEmpty();
     }
 
+    /** Explicit lifecycle reset; never use this from asynchronous request callbacks. */
     public synchronized void clear() {
         ownerExecutionToken = "";
         visualHash = "";

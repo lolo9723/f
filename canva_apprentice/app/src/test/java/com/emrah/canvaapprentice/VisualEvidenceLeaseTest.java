@@ -27,12 +27,20 @@ public class VisualEvidenceLeaseTest {
         assertEquals("lease-b", lease.ownerTokenForTest());
     }
 
-    @Test public void invalidBindFailsClosedAndClearsEvidence() {
+    @Test public void invalidBindFailsClosedWithoutErasingCurrentEvidence() {
         VisualEvidenceLease lease = new VisualEvidenceLease();
         lease.bind("lease-a", "hash-a");
         lease.bind("", "hash-b");
-        assertEquals("", lease.readIfOwnedBy("lease-a"));
-        assertEquals("", lease.ownerTokenForTest());
+        assertEquals("hash-a", lease.readIfOwnedBy("lease-a"));
+        assertEquals("lease-a", lease.ownerTokenForTest());
+    }
+
+    @Test public void malformedLateBindCannotEraseNewerEvidence() {
+        VisualEvidenceLease lease = new VisualEvidenceLease();
+        lease.bind("lease-new", "new-hash");
+        lease.bind("lease-old", "");
+        assertEquals("new-hash", lease.readIfOwnedBy("lease-new"));
+        assertEquals("lease-new", lease.ownerTokenForTest());
     }
 
     @Test public void arbitraryTokenCannotObserveEvidence() {
