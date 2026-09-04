@@ -19,12 +19,15 @@ public final class TeacherBridge {
 
     private final AccessibilityService service;
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private final TaskStateRepository stateRepo;
 
     public TeacherBridge(AccessibilityService service) {
         this.service = service;
+        this.stateRepo = new TaskStateRepository(service);
     }
 
     public void ask(String prompt, String awaitingMarker, ReplyCallback callback) {
+        final String sessionId = stateRepo.currentTeacherSessionId();
         Intent launch = service.getPackageManager().getLaunchIntentForPackage(AgentConstants.CHATGPT_PACKAGE);
         if (launch == null) {
             callback.onFailure("ChatGPT uygulaması bulunamadı.");
@@ -32,10 +35,11 @@ public final class TeacherBridge {
         }
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
         service.startActivity(launch);
-        handler.postDelayed(() -> submitPromptOnCurrentChat(prompt, awaitingMarker, callback), 1000);
+        handler.postDelayed(() -> submitPromptOnCurrentChat(prompt, awaitingMarker, sessionId, callback), 1000);
     }
 
     public void askWithScreenshot(String prompt, Uri screenshotUri, String awaitingMarker, ReplyCallback callback) {
+        final String sessionId = stateRepo.currentTeacherSessionId();
         Intent share = new Intent(Intent.ACTION_SEND);
         share.setPackage(AgentConstants.CHATGPT_PACKAGE);
         share.setType("image/png");
@@ -52,36 +56,35 @@ public final class TeacherBridge {
 
         service.startActivity(share);
         handler.postDelayed(() -> {
+            if (!isSessionCurrent(sessionId)) { discardStaleRequest(); return; }
             AccessibilityNodeInfo root = service.getRootInActiveWindow();
             if (!AgentConstants.CHATGPT_PACKAGE.equals(packageOf(root))) {
                 callback.onFailure("Görüntü ChatGPT'ye güvenli biçimde açılamadı.");
                 return;
             }
 
-            // Some Android share targets prefill EXTRA_TEXT, some do not.
             AccessibilityNodeInfo editor = findEditable(root);
             if (editor != null) {
                 String existing = text(editor.getText());
                 if (!existing.contains("CANVA_APPRENTICE_VISUAL_TEACHER_REQUEST")) {
                     Bundle args = new Bundle();
-                    args.putCharSequence(
-                            AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
-                            prompt
-                    );
+                    args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, prompt);
                     editor.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args);
                 }
             }
 
+            if (!isSessionCurrent(sessionId)) { discardStaleRequest(); return; }
             AccessibilityNodeInfo send = findSend(service.getRootInActiveWindow());
             if (send == null || !clickNodeOrParent(send)) {
                 callback.onFailure("ChatGPT görüntülü mesaj gönder düğmesi bulunamadı.");
                 return;
             }
-            pollReply(awaitingMarker, callback, 0);
+            pollReply(awaitingMarker, sessionId, callback, 0);
         }, 1400);
     }
 
-    private void submitPromptOnCurrentChat(String prompt, String awaitingMarker, ReplyCallback callback) {
+    private void submitPromptOnCurrentChat(String prompt, String awaitingMarker, String sessionId, ReplyCallback callback) {
+        if (!isSessionCurrent(sessionId)) { discardStaleRequest(); return; }
         AccessibilityNodeInfo root = service.getRootInActiveWindow();
         if (!AgentConstants.CHATGPT_PACKAGE.equals(packageOf(root))) {
             callback.onFailure("ChatGPT aktif pencere olarak doğrulanamadı.");
@@ -101,29 +104,51 @@ public final class TeacherBridge {
             return;
         }
 
+        if (!isSessionCurrent(sessionId)) { discardStaleRequest(); return; }
         AccessibilityNodeInfo send = findSend(service.getRootInActiveWindow());
         if (send == null || !clickNodeOrParent(send)) {
             callback.onFailure("ChatGPT gönder düğmesi bulunamadı.");
             return;
         }
-        pollReply(awaitingMarker, callback, 0);
+        pollReply(awaitingMarker, sessionId, callback, 0);
     }
 
-    private void pollReply(String awaitingMarker, ReplyCallback callback, int attempt) {
+    private void pollReply(String awaitingMarker, String sessionId, ReplyCallback callback, int attempt) {
+        if (!isSessionCurrent(sessionId)) { discardStaleRequest(); return; }
         if (attempt > 60) {
             callback.onFailure("Öğretmen yanıtı zaman aşımına uğradı.");
             return;
         }
         handler.postDelayed(() -> {
+            if (!isSessionCurrent(sessionId)) { discardStaleRequest(); return; }
             AccessibilityNodeInfo root = service.getRootInActiveWindow();
             if (!AgentConstants.CHATGPT_PACKAGE.equals(packageOf(root))) {
-                pollReply(awaitingMarker, callback, attempt + 1);
+                pollReply(awaitingMarker, sessionId, callback, attempt + 1);
                 return;
             }
             String found = latestTextContaining(root, awaitingMarker);
-            if (found != null) callback.onReply(found);
-            else pollReply(awaitingMarker, callback, attempt + 1);
+            if (found != null) {
+                if (!isSessionCurrent(sessionId)) { discardStaleRequest(); return; }
+                callback.onReply(found);
+            } else {
+                pollReply(awaitingMarker, sessionId, callback, attempt + 1);
+            }
         }, 1000);
+    }
+
+    private boolean isSessionCurrent(String expectedSessionId) {
+        TaskState state = stateRepo.load();
+        return TeacherSessionPolicy.isCurrent(
+                expectedSessionId,
+                stateRepo.currentTeacherSessionId(),
+                state.mode
+        );
+    }
+
+    private void discardStaleRequest() {
+        if (service instanceof AgentAccessibilityService) {
+            ((AgentAccessibilityService) service).onStaleTeacherRequestDiscarded();
+        }
     }
 
     private static AccessibilityNodeInfo findEditable(AccessibilityNodeInfo root) {
