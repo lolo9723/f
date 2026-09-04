@@ -42,6 +42,19 @@ public final class VisualEvidenceLease {
         return readIfOwnedBy(executionToken);
     }
 
+    /**
+     * Atomically returns and clears evidence for the still-current execution chain.
+     * This makes visual-before evidence single-use: duplicate verification callbacks
+     * cannot reuse the same screenshot proof after the first consumer has claimed it.
+     */
+    public synchronized String consumeIfExecutionCurrent(String executionToken) {
+        if (!TeacherExecutionLease.isGlobalCurrent(executionToken)) return "";
+        if (!isOwnedBy(executionToken)) return "";
+        String consumed = visualHash;
+        clear();
+        return consumed;
+    }
+
     public synchronized boolean clearIfOwnedBy(String executionToken) {
         if (!isOwnedBy(executionToken)) return false;
         clear();

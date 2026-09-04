@@ -78,4 +78,38 @@ public class VisualEvidenceLeaseTest {
         assertFalse(lease.clearIfExecutionCurrent(token));
         assertEquals("hash", lease.readIfOwnedBy(token));
     }
+
+    @Test public void currentExecutionConsumesEvidenceExactlyOnce() {
+        VisualEvidenceLease lease = new VisualEvidenceLease();
+        String token = TeacherExecutionLease.beginGlobal();
+        assertTrue(lease.bindIfExecutionCurrent(token, "hash"));
+
+        assertEquals("hash", lease.consumeIfExecutionCurrent(token));
+        assertEquals("", lease.consumeIfExecutionCurrent(token));
+        assertEquals("", lease.readIfExecutionCurrent(token));
+        assertEquals("", lease.ownerTokenForTest());
+    }
+
+    @Test public void staleExecutionCannotConsumeNewerEvidence() {
+        VisualEvidenceLease lease = new VisualEvidenceLease();
+        String oldToken = TeacherExecutionLease.beginGlobal();
+        assertTrue(lease.bindIfExecutionCurrent(oldToken, "old-hash"));
+
+        String newToken = TeacherExecutionLease.beginGlobal();
+        assertTrue(lease.bindIfExecutionCurrent(newToken, "new-hash"));
+
+        assertEquals("", lease.consumeIfExecutionCurrent(oldToken));
+        assertEquals("new-hash", lease.readIfExecutionCurrent(newToken));
+        assertEquals("new-hash", lease.consumeIfExecutionCurrent(newToken));
+    }
+
+    @Test public void invalidatedExecutionCannotConsumeEvidence() {
+        VisualEvidenceLease lease = new VisualEvidenceLease();
+        String token = TeacherExecutionLease.beginGlobal();
+        assertTrue(lease.bindIfExecutionCurrent(token, "hash"));
+        TeacherExecutionLease.invalidateGlobal();
+
+        assertEquals("", lease.consumeIfExecutionCurrent(token));
+        assertEquals("hash", lease.readIfOwnedBy(token));
+    }
 }
