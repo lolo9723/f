@@ -10,6 +10,7 @@ import android.os.Looper;
 import android.view.accessibility.AccessibilityNodeInfo;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.UUID;
 
 public final class TeacherBridge {
     public interface ReplyCallback {
@@ -20,6 +21,7 @@ public final class TeacherBridge {
     private final AccessibilityService service;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final TaskStateRepository stateRepo;
+    private volatile String activeRequestToken = "";
 
     public TeacherBridge(AccessibilityService service) {
         this.service = service;
@@ -28,18 +30,20 @@ public final class TeacherBridge {
 
     public void ask(String prompt, String awaitingMarker, ReplyCallback callback) {
         final String sessionId = stateRepo.currentTeacherSessionId();
+        final String requestToken = beginRequest();
         Intent launch = service.getPackageManager().getLaunchIntentForPackage(AgentConstants.CHATGPT_PACKAGE);
         if (launch == null) {
-            callback.onFailure("ChatGPT uygulaması bulunamadı.");
+            failCurrentRequest(sessionId, requestToken, callback, "ChatGPT uygulaması bulunamadı.");
             return;
         }
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
         service.startActivity(launch);
-        handler.postDelayed(() -> submitPromptOnCurrentChat(prompt, awaitingMarker, sessionId, callback), 1000);
+        handler.postDelayed(() -> submitPromptOnCurrentChat(prompt, awaitingMarker, sessionId, requestToken, callback), 1000);
     }
 
     public void askWithScreenshot(String prompt, Uri screenshotUri, String awaitingMarker, ReplyCallback callback) {
         final String sessionId = stateRepo.currentTeacherSessionId();
+        final String requestToken = beginRequest();
         Intent share = new Intent(Intent.ACTION_SEND);
         share.setPackage(AgentConstants.CHATGPT_PACKAGE);
         share.setType("image/png");
@@ -50,16 +54,16 @@ public final class TeacherBridge {
                 Intent.FLAG_GRANT_READ_URI_PERMISSION);
 
         if (share.resolveActivity(service.getPackageManager()) == null) {
-            callback.onFailure("ChatGPT görüntü paylaşım hedefi bulunamadı.");
+            failCurrentRequest(sessionId, requestToken, callback, "ChatGPT görüntü paylaşım hedefi bulunamadı.");
             return;
         }
 
         service.startActivity(share);
         handler.postDelayed(() -> {
-            if (!isSessionCurrent(sessionId)) { discardStaleRequest(); return; }
+            if (!isRequestCurrent(sessionId, requestToken)) { discardStaleRequest(); return; }
             AccessibilityNodeInfo root = service.getRootInActiveWindow();
             if (!AgentConstants.CHATGPT_PACKAGE.equals(packageOf(root))) {
-                callback.onFailure("Görüntü ChatGPT'ye güvenli biçimde açılamadı.");
+                failCurrentRequest(sessionId, requestToken, callback, "Görüntü ChatGPT'ye güvenli biçimde açılamadı.");
                 return;
             }
 
@@ -73,76 +77,100 @@ public final class TeacherBridge {
                 }
             }
 
-            if (!isSessionCurrent(sessionId)) { discardStaleRequest(); return; }
+            if (!isRequestCurrent(sessionId, requestToken)) { discardStaleRequest(); return; }
             AccessibilityNodeInfo send = findSend(service.getRootInActiveWindow());
             if (send == null || !clickNodeOrParent(send)) {
-                callback.onFailure("ChatGPT görüntülü mesaj gönder düğmesi bulunamadı.");
+                failCurrentRequest(sessionId, requestToken, callback, "ChatGPT görüntülü mesaj gönder düğmesi bulunamadı.");
                 return;
             }
-            pollReply(awaitingMarker, sessionId, callback, 0);
+            pollReply(awaitingMarker, sessionId, requestToken, callback, 0);
         }, 1400);
     }
 
-    private void submitPromptOnCurrentChat(String prompt, String awaitingMarker, String sessionId, ReplyCallback callback) {
-        if (!isSessionCurrent(sessionId)) { discardStaleRequest(); return; }
+    private void submitPromptOnCurrentChat(String prompt, String awaitingMarker, String sessionId,
+                                           String requestToken, ReplyCallback callback) {
+        if (!isRequestCurrent(sessionId, requestToken)) { discardStaleRequest(); return; }
         AccessibilityNodeInfo root = service.getRootInActiveWindow();
         if (!AgentConstants.CHATGPT_PACKAGE.equals(packageOf(root))) {
-            callback.onFailure("ChatGPT aktif pencere olarak doğrulanamadı.");
+            failCurrentRequest(sessionId, requestToken, callback, "ChatGPT aktif pencere olarak doğrulanamadı.");
             return;
         }
 
         AccessibilityNodeInfo editor = findEditable(root);
         if (editor == null) {
-            callback.onFailure("ChatGPT mesaj alanı bulunamadı.");
+            failCurrentRequest(sessionId, requestToken, callback, "ChatGPT mesaj alanı bulunamadı.");
             return;
         }
 
         Bundle args = new Bundle();
         args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, prompt);
         if (!editor.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
-            callback.onFailure("ChatGPT mesajı yazılamadı.");
+            failCurrentRequest(sessionId, requestToken, callback, "ChatGPT mesajı yazılamadı.");
             return;
         }
 
-        if (!isSessionCurrent(sessionId)) { discardStaleRequest(); return; }
+        if (!isRequestCurrent(sessionId, requestToken)) { discardStaleRequest(); return; }
         AccessibilityNodeInfo send = findSend(service.getRootInActiveWindow());
         if (send == null || !clickNodeOrParent(send)) {
-            callback.onFailure("ChatGPT gönder düğmesi bulunamadı.");
+            failCurrentRequest(sessionId, requestToken, callback, "ChatGPT gönder düğmesi bulunamadı.");
             return;
         }
-        pollReply(awaitingMarker, sessionId, callback, 0);
+        pollReply(awaitingMarker, sessionId, requestToken, callback, 0);
     }
 
-    private void pollReply(String awaitingMarker, String sessionId, ReplyCallback callback, int attempt) {
-        if (!isSessionCurrent(sessionId)) { discardStaleRequest(); return; }
+    private void pollReply(String awaitingMarker, String sessionId, String requestToken,
+                           ReplyCallback callback, int attempt) {
+        if (!isRequestCurrent(sessionId, requestToken)) { discardStaleRequest(); return; }
         if (attempt > 60) {
-            callback.onFailure("Öğretmen yanıtı zaman aşımına uğradı.");
+            failCurrentRequest(sessionId, requestToken, callback, "Öğretmen yanıtı zaman aşımına uğradı.");
             return;
         }
         handler.postDelayed(() -> {
-            if (!isSessionCurrent(sessionId)) { discardStaleRequest(); return; }
+            if (!isRequestCurrent(sessionId, requestToken)) { discardStaleRequest(); return; }
             AccessibilityNodeInfo root = service.getRootInActiveWindow();
             if (!AgentConstants.CHATGPT_PACKAGE.equals(packageOf(root))) {
-                pollReply(awaitingMarker, sessionId, callback, attempt + 1);
+                pollReply(awaitingMarker, sessionId, requestToken, callback, attempt + 1);
                 return;
             }
             String found = latestTextContaining(root, awaitingMarker);
             if (found != null) {
-                if (!isSessionCurrent(sessionId)) { discardStaleRequest(); return; }
+                if (!consumeIfCurrent(sessionId, requestToken)) { discardStaleRequest(); return; }
                 callback.onReply(found);
             } else {
-                pollReply(awaitingMarker, sessionId, callback, attempt + 1);
+                pollReply(awaitingMarker, sessionId, requestToken, callback, attempt + 1);
             }
         }, 1000);
     }
 
-    private boolean isSessionCurrent(String expectedSessionId) {
+    private synchronized String beginRequest() {
+        activeRequestToken = UUID.randomUUID().toString();
+        return activeRequestToken;
+    }
+
+    private boolean isRequestCurrent(String expectedSessionId, String requestToken) {
         TaskState state = stateRepo.load();
-        return TeacherSessionPolicy.isCurrent(
+        return TeacherRequestPolicy.isCurrent(
                 expectedSessionId,
                 stateRepo.currentTeacherSessionId(),
-                state.mode
+                state.mode,
+                requestToken,
+                activeRequestToken
         );
+    }
+
+    private synchronized boolean consumeIfCurrent(String expectedSessionId, String requestToken) {
+        if (!isRequestCurrent(expectedSessionId, requestToken)) return false;
+        activeRequestToken = "";
+        return true;
+    }
+
+    private void failCurrentRequest(String expectedSessionId, String requestToken,
+                                    ReplyCallback callback, String reason) {
+        if (!consumeIfCurrent(expectedSessionId, requestToken)) {
+            discardStaleRequest();
+            return;
+        }
+        callback.onFailure(reason);
     }
 
     private void discardStaleRequest() {
