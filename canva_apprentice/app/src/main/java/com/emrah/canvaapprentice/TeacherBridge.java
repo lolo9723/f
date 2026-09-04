@@ -143,6 +143,10 @@ public final class TeacherBridge {
     }
 
     private synchronized String beginRequest() {
+        // Every teacher request supersedes any previously accepted action chain, even
+        // inside the same task/session. AgentAction captures this global lease when
+        // the reply is parsed, so delayed execution/verification can fail closed.
+        TeacherExecutionLease.beginGlobal();
         activeRequestToken = UUID.randomUUID().toString();
         return activeRequestToken;
     }
