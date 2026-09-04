@@ -8,6 +8,7 @@ import java.util.UUID;
  * accepted reply can no longer execute or verify actions in the same session.
  */
 public final class TeacherExecutionLease {
+    private static final TeacherExecutionLease GLOBAL = new TeacherExecutionLease();
     private String activeToken = "";
 
     public synchronized String begin() {
@@ -25,6 +26,10 @@ public final class TeacherExecutionLease {
                 && expectedToken.equals(activeToken);
     }
 
+    public synchronized String currentToken() {
+        return activeToken;
+    }
+
     /**
      * Completes the chain only if the caller still owns it. This prevents an
      * old verification callback from clearing ownership belonging to a newer chain.
@@ -34,4 +39,9 @@ public final class TeacherExecutionLease {
         activeToken = "";
         return true;
     }
+
+    public static String beginGlobal() { return GLOBAL.begin(); }
+    public static void invalidateGlobal() { GLOBAL.invalidate(); }
+    public static String currentGlobalToken() { return GLOBAL.currentToken(); }
+    public static boolean isGlobalCurrent(String token) { return GLOBAL.isCurrent(token); }
 }
