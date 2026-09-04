@@ -34,4 +34,13 @@ public class TeacherExecutionLeaseTest {
         assertFalse(lease.isCurrent(""));
         assertFalse(lease.isCurrent(null));
     }
+
+    @Test public void newerActionMakesOlderActionFailClosedAtRuntimeGate() {
+        AgentAction older = new AgentAction(AgentAction.Type.CLICK_TEXT,"Old target","",0.99,"older reply");
+        assertTrue(DesignContinuityPolicy.allows(older,"",true,false,false));
+
+        AgentAction newer = new AgentAction(AgentAction.Type.CLICK_TEXT,"New target","",0.99,"newer reply");
+        assertFalse(DesignContinuityPolicy.allows(older,"",true,false,false));
+        assertTrue(DesignContinuityPolicy.allows(newer,"",true,false,false));
+    }
 }
