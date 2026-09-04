@@ -15,6 +15,7 @@ public final class AgentAction {
     public final double confidence;
     public final String reason;
     public final boolean visualGrounded;
+    public final String executionLeaseToken;
 
     public AgentAction(Type type, String target, String value, double confidence, String reason) {
         this(type,target,value,confidence,reason,false);
@@ -28,6 +29,7 @@ public final class AgentAction {
         this.confidence = Math.max(0.0, Math.min(1.0, confidence));
         this.reason = reason == null ? "" : reason;
         this.visualGrounded = visualGrounded;
+        this.executionLeaseToken = TeacherExecutionLease.currentGlobalToken();
     }
 
     public boolean isCoordinateGesture() {
