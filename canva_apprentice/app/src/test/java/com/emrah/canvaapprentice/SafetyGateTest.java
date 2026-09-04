@@ -126,4 +126,19 @@ public class SafetyGateTest {
                 gate.evaluate(a,running(false),AgentConstants.CANVA_PACKAGE).kind
         );
     }
+
+    @Test public void blocksTeacherActionAfterExecutionLeaseRotates() {
+        TeacherExecutionLease.beginGlobal();
+        AgentAction stale = new AgentAction(
+                AgentAction.Type.CLICK_TEXT,"Resize","",0.99,"safe edit"
+        );
+        TeacherExecutionLease.beginGlobal();
+        try {
+            SafetyGate.Decision d = gate.evaluate(stale,running(false),AgentConstants.CANVA_PACKAGE);
+            assertEquals(SafetyGate.Decision.Kind.BLOCK,d.kind);
+            assertTrue(d.reason.toLowerCase().contains("execution lease"));
+        } finally {
+            TeacherExecutionLease.invalidateGlobal();
+        }
+    }
 }
