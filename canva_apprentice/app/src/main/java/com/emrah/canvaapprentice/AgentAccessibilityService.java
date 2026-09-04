@@ -104,12 +104,13 @@ public final class AgentAccessibilityService extends AccessibilityService {
     }
 
     private void waitForCanvaAndHandle(AgentAction action, String beforeFingerprint, String teacherSessionId, int attempt){
-        if(!isTeacherSessionCurrent(teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
+        if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
         AccessibilityNodeInfo root=getRootInActiveWindow();
         String pkg=root!=null&&root.getPackageName()!=null?root.getPackageName().toString():"";
         if(AgentConstants.CANVA_PACKAGE.equals(pkg)){
             UiTreeSnapshot current=UiTreeSnapshot.capture(root);
             if(!beforeFingerprint.equals(current.stableFingerprint())){
+                if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
                 pendingVisualBeforeHash="";
                 cycleBusy.set(false);
                 runCanvaCycle("Öğretmene danışılırken Canva ekranı değişti. Eski komut güvenlik nedeniyle atıldı; mevcut ekranı baştan değerlendir.");
@@ -119,7 +120,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
             if(action.visualGrounded && !pendingVisualBeforeHash.isEmpty()){
                 final String expectedVisual=pendingVisualBeforeHash;
                 captureScreenshotForDiagnostics(file -> {
-                    if(!isTeacherSessionCurrent(teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
+                    if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
                     String nowVisual=VisualFingerprint.fromFile(file);
                     double drift=VisualFingerprint.distance(expectedVisual,nowVisual);
                     if(drift>=0.0100){
@@ -137,6 +138,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
             return;
         }
         if(attempt>=10){
+            if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
             pauseForHuman("Canva güvenli biçimde öne getirilemedi; yanlış uygulamada eylem uygulanmadı.");
             cycleBusy.set(false);
             return;
@@ -148,7 +150,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
     }
 
     private void handleTeacherAction(AgentAction action, String beforeFingerprint, String teacherSessionId){
-        if(!isTeacherSessionCurrent(teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
+        if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
         TaskState state=repo.load();
         if(action.type==AgentAction.Type.HUMAN_TAKEOVER){
             pendingVisualBeforeHash="";
@@ -211,10 +213,12 @@ public final class AgentAccessibilityService extends AccessibilityService {
 
         SafetyGate.Decision d=safety.evaluate(action,state,active);
         if(d.kind==SafetyGate.Decision.Kind.ALLOW){
-            if(!isTeacherSessionCurrent(teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
+            if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
             boolean ok=executor.execute(action);
+            if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
             if(!ok){
                 if(memory!=null) memory.record(false,state.goal,beforeFingerprint,action,"");
+                if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
                 consecutiveExecutionFailures++;
                 cycleBusy.set(false);
                 if(consecutiveExecutionFailures>=3){
@@ -223,7 +227,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
                     String note="Önceki eylem uygulanamadı ("+action.type+" / "+action.target+"). " +
                             "Aynı hedefi körlemesine tekrarlama; mevcut UI ağacından başka güvenli yol bul.";
                     new Handler(Looper.getMainLooper()).postDelayed(
-                            () -> runCanvaCycleIfSessionCurrent(teacherSessionId,note),500);
+                            () -> runCanvaCycleIfActionCurrent(action,teacherSessionId,note),500);
                 }
                 return;
             }
@@ -240,12 +244,13 @@ public final class AgentAccessibilityService extends AccessibilityService {
     }
 
     private void verifyActionResult(TaskState state, AgentAction action, String beforeFingerprint, String teacherSessionId){
-        if(!isTeacherSessionCurrent(teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
+        if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
         AccessibilityNodeInfo afterRoot=getRootInActiveWindow();
         String afterPkg=afterRoot!=null&&afterRoot.getPackageName()!=null
                 ?afterRoot.getPackageName().toString():"";
         if(!AgentConstants.CANVA_PACKAGE.equals(afterPkg)){
             recoverCanvaThenCycle(
+                    action,
                     "Önceki eylemden sonra Canva görünür durumda değil. Mevcut tasarıma güvenli biçimde dön; yeni tasarım oluşturma.",
                     teacherSessionId,
                     0
@@ -259,9 +264,10 @@ public final class AgentAccessibilityService extends AccessibilityService {
         if(action.visualGrounded && !pendingVisualBeforeHash.isEmpty()){
             final String beforeVisual=pendingVisualBeforeHash;
             captureScreenshotForDiagnostics(file -> {
-                if(!isTeacherSessionCurrent(teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
+                if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
                 String afterVisual=VisualFingerprint.fromFile(file);
                 double visualDistance=VisualFingerprint.distance(beforeVisual,afterVisual);
+                if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
                 pendingVisualBeforeHash="";
                 boolean changed=treeChanged || visualDistance>=0.0010;
                 finishActionVerification(
@@ -276,10 +282,11 @@ public final class AgentAccessibilityService extends AccessibilityService {
 
     private void finishActionVerification(TaskState state, AgentAction action, String beforeFingerprint,
                                           UiTreeSnapshot after, boolean changed, String evidence, String teacherSessionId){
-        if(!isTeacherSessionCurrent(teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
+        if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
         if(memory!=null){
             memory.record(changed,state.goal,beforeFingerprint,action,changed?after.stableFingerprint():"");
         }
+        if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
         if(changed) consecutiveNoVisualChange=0;
         else consecutiveNoVisualChange++;
 
@@ -293,19 +300,20 @@ public final class AgentAccessibilityService extends AccessibilityService {
                 ? "Önceki eylem uygulandı ve değişiklik doğrulandı ("+evidence+"). Sonucu değerlendir; gerekiyorsa sonraki tek adımı ver."
                 : "Önceki eylem sonrası doğrulanabilir değişiklik görünmedi ("+action.type+" / "+action.target+"; "+evidence+"). " +
                   "Aynı eylemi körlemesine tekrarlama; başka güvenli yol seç veya SCREENSHOT iste.";
-        runCanvaCycleIfSessionCurrent(teacherSessionId,note);
+        runCanvaCycleIfActionCurrent(action,teacherSessionId,note);
     }
 
-    private void recoverCanvaThenCycle(String note, String teacherSessionId, int attempt){
-        if(!isTeacherSessionCurrent(teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
+    private void recoverCanvaThenCycle(AgentAction action, String note, String teacherSessionId, int attempt){
+        if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
         AccessibilityNodeInfo root=getRootInActiveWindow();
         String pkg=root!=null&&root.getPackageName()!=null?root.getPackageName().toString():"";
         if(AgentConstants.CANVA_PACKAGE.equals(pkg)){
             cycleBusy.set(false);
-            runCanvaCycleIfSessionCurrent(teacherSessionId,note);
+            runCanvaCycleIfActionCurrent(action,teacherSessionId,note);
             return;
         }
         if(attempt>=10){
+            if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
             cycleBusy.set(false);
             pauseForHuman("Canva eylem sonrası yeniden açılamadı. Ajan başka uygulamada işlem yapmadı.");
             return;
@@ -316,7 +324,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
             startActivity(canva);
         }
         new Handler(Looper.getMainLooper()).postDelayed(
-                () -> recoverCanvaThenCycle(note,teacherSessionId,attempt+1),250);
+                () -> recoverCanvaThenCycle(action,note,teacherSessionId,attempt+1),250);
     }
 
     private void requestVisualTeacher(String screenshotReason){
@@ -370,8 +378,11 @@ public final class AgentAccessibilityService extends AccessibilityService {
     }
 
     public void startTask(String goal, boolean allowNewDesign){
+        TeacherExecutionLease.invalidateGlobal();
         pendingVisualBeforeHash="";
         cycleBusy.set(false);
+        consecutiveNoVisualChange=0;
+        consecutiveExecutionFailures=0;
         AccessibilityNodeInfo root=getRootInActiveWindow(); String fp="";
         if(root!=null && AgentConstants.CANVA_PACKAGE.equals(String.valueOf(root.getPackageName()))) fp=UiTreeSnapshot.capture(root).stableFingerprint();
         repo.start(goal,allowNewDesign,fp); overlay.hide();
@@ -380,29 +391,36 @@ public final class AgentAccessibilityService extends AccessibilityService {
     }
 
     public void stopTask(){
+        TeacherExecutionLease.invalidateGlobal();
         pendingVisualBeforeHash="";
         cycleBusy.set(false);
+        consecutiveNoVisualChange=0;
+        consecutiveExecutionFailures=0;
         repo.stop();
         overlay.hide();
     }
 
     private void pauseForHuman(String reason){
+        TeacherExecutionLease.invalidateGlobal();
         repo.pauseForHuman(reason);
         showHumanOverlay(reason);
     }
 
     private void showHumanOverlay(String reason){
         overlay.show(reason,()->{
+            TeacherExecutionLease.invalidateGlobal();
             repo.resume();
             pendingVisualBeforeHash="";
             cycleBusy.set(false);
+            consecutiveNoVisualChange=0;
+            consecutiveExecutionFailures=0;
             resumeOnCanva(0);
         });
     }
 
     public void onStaleTeacherRequestDiscarded(){
-        pendingVisualBeforeHash="";
-        cycleBusy.set(false);
+        // Stale callbacks must be side-effect free: they do not own shared runtime state.
+        // The current request/action chain is responsible for clearing its own busy/visual state.
     }
 
     private boolean isTeacherSessionCurrent(String expectedSessionId){
@@ -415,8 +433,14 @@ public final class AgentAccessibilityService extends AccessibilityService {
         );
     }
 
-    private void runCanvaCycleIfSessionCurrent(String teacherSessionId, String note){
-        if(!isTeacherSessionCurrent(teacherSessionId)){
+    private boolean isActionChainCurrent(AgentAction action, String expectedSessionId){
+        return action!=null
+                && isTeacherSessionCurrent(expectedSessionId)
+                && TeacherExecutionLease.isGlobalCurrent(action.executionLeaseToken);
+    }
+
+    private void runCanvaCycleIfActionCurrent(AgentAction action, String teacherSessionId, String note){
+        if(!isActionChainCurrent(action,teacherSessionId)){
             onStaleTeacherRequestDiscarded();
             return;
         }
@@ -465,5 +489,5 @@ public final class AgentAccessibilityService extends AccessibilityService {
 
     public interface ScreenshotCallback{void onDone(File file);}
     @Override public void onInterrupt() {}
-    @Override public void onDestroy(){ if(overlay!=null) overlay.hide(); INSTANCE=null; super.onDestroy(); }
+    @Override public void onDestroy(){ TeacherExecutionLease.invalidateGlobal(); if(overlay!=null) overlay.hide(); INSTANCE=null; super.onDestroy(); }
 }
