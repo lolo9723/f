@@ -18,9 +18,18 @@ public final class DesignContinuityPolicy {
     public static boolean allows(AgentAction action, String boundAnchor,
                                  boolean anchorVisible, boolean canvaHomeVisible,
                                  boolean matchesLastSafeEditorSnapshot) {
+        if (action == null) return false;
+
+        // Teacher-produced actions carry the execution lease that was current when the reply
+        // was parsed. If a newer teacher request has started since then, this is a stale action.
+        // Reject it before any Canva continuity checks can authorize a click/edit.
+        if (!action.executionLeaseToken.isEmpty()
+                && !TeacherExecutionLease.isGlobalCurrent(action.executionLeaseToken)) {
+            return false;
+        }
+
         String anchor = norm(boundAnchor);
         if (anchor.isEmpty()) return true;
-        if (action == null) return false;
 
         // Canva home/projects is never editor identity evidence. The bound design name is often
         // visible there as a project card, so neither anchor visibility nor a stale snapshot match
