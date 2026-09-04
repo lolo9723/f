@@ -38,7 +38,7 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
 
     public synchronized void record(boolean success, String goal, String beforeFp,
                                     AgentAction action, String afterFp) {
-        if (action == null) return;
+        if (!LearningMemoryLeasePolicy.canRecord(action)) return;
         // Learn navigation structure, not user-authored content.
         if (action.type != AgentAction.Type.CLICK_TEXT && action.type != AgentAction.Type.BACK) return;
         if (beforeFp == null || beforeFp.isEmpty()) return;
