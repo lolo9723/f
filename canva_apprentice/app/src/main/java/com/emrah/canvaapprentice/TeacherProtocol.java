@@ -137,7 +137,14 @@ public final class TeacherProtocol {
     }
 
     private static String at(java.util.List<String> p, int i) { return i < p.size() ? p.get(i).trim() : ""; }
-    private static double dbl(String s) { try { return Double.parseDouble(s); } catch(Exception e) { return 0; } }
+    private static double dbl(String s) {
+        try {
+            double value = Double.parseDouble(s);
+            return Double.isFinite(value) ? value : 0;
+        } catch(Exception e) {
+            return 0;
+        }
+    }
     private static int integer(String s) {
         int v = Integer.parseInt(s.trim());
         if (v < 0 || v >= 220) throw new IllegalArgumentException("node index out of range");
