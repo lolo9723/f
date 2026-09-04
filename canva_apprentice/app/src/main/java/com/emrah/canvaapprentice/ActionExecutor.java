@@ -80,9 +80,6 @@ public final class ActionExecutor {
         String expectedLabel = NodeTargetCodec.label(encodedTarget);
         if (wantedIndex < 0 || expectedLabel.trim().isEmpty()) return null;
 
-        // Fail closed on legacy/index+label-only targets. The compact index can shift when Canva
-        // inserts or removes a node; class+bounds+flags prove that this is still the same row the
-        // teacher saw, rather than another duplicate label that happened to inherit the index.
         if (!NodeTargetCodec.hasStructuralEvidence(encodedTarget)) return null;
 
         int[] current = new int[]{0};
@@ -173,7 +170,7 @@ public final class ActionExecutor {
 
     private boolean tapNorm(String spec) {
         double[] v = parseCsv(spec, 2);
-        if (v == null) return false;
+        if (v == null || !normalizedCoordinate(v[0]) || !normalizedCoordinate(v[1])) return false;
         Rect b = displayBounds();
         float x = normToX(v[0], b);
         float y = normToY(v[1], b);
@@ -189,7 +186,10 @@ public final class ActionExecutor {
 
     private boolean dragNorm(String spec) {
         double[] v = parseCsv(spec, 5);
-        if (v == null) return false;
+        if (v == null
+                || !normalizedCoordinate(v[0]) || !normalizedCoordinate(v[1])
+                || !normalizedCoordinate(v[2]) || !normalizedCoordinate(v[3])
+                || !normalizedDuration(v[4])) return false;
         Rect b = displayBounds();
         float x1 = normToX(v[0], b);
         float y1 = normToY(v[1], b);
@@ -206,6 +206,14 @@ public final class ActionExecutor {
                 new GestureDescription.Builder().addStroke(stroke).build(),
                 null, null
         );
+    }
+
+    static boolean normalizedCoordinate(double value) {
+        return Double.isFinite(value) && value >= 0.0 && value <= 1000.0;
+    }
+
+    static boolean normalizedDuration(double value) {
+        return Double.isFinite(value) && value >= 150.0 && value <= 2000.0;
     }
 
     private Rect displayBounds() {
