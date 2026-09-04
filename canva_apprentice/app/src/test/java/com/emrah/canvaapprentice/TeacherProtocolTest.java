@@ -14,6 +14,18 @@ public class TeacherProtocolTest {
         assertEquals(0.0,a.confidence,0.0001);
     }
 
+    @Test public void rejectsDuplicateMatchingMarkersInsteadOfChoosingOne() {
+        String marker = TeacherProtocol.markerFor("abc123");
+        AgentAction a = TeacherProtocol.parse(
+                marker+"CLICK_TEXT|Elements|0.99|first action\n"+
+                marker+"CLICK_TEXT|Share|0.99|second action",
+                marker
+        );
+        assertEquals(AgentAction.Type.NOOP,a.type);
+        assertEquals(0.0,a.confidence,0.0001);
+        assertEquals("ambiguous duplicate protocol marker",a.reason);
+    }
+
     @Test public void parsesStructuralClickAsNonVisual() {
         String marker = TeacherProtocol.markerFor("abc123");
         AgentAction a = TeacherProtocol.parse(
