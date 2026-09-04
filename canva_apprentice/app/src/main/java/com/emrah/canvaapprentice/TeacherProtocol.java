@@ -4,6 +4,7 @@ public final class TeacherProtocol {
     private TeacherProtocol() {}
 
     public static String markerFor(String requestId) {
+        TeacherExecutionLease.beginGlobal();
         return "CAA1_REPLY_" + requestId + "|";
     }
 
