@@ -121,7 +121,14 @@ public final class TeacherProtocol {
                 case "BACK": return new AgentAction(AgentAction.Type.BACK,"","",dbl(at(p,3).isEmpty()?at(p,2):at(p,3)),at(p,4),visualGrounded);
                 case "SCREENSHOT": return new AgentAction(AgentAction.Type.SCREENSHOT,"","",1.0,at(p,4),visualGrounded);
                 case "HUMAN": return new AgentAction(AgentAction.Type.HUMAN_TAKEOVER,"","",1.0,at(p,4),visualGrounded);
-                case "DONE": return new AgentAction(AgentAction.Type.DONE,"","",1.0,at(p,4),visualGrounded);
+                case "DONE": {
+                    double doneConfidence = dbl(at(p,3));
+                    if (doneConfidence < 0.995) {
+                        return new AgentAction(AgentAction.Type.NOOP,"","",0,
+                                "final done confidence below safety threshold",visualGrounded);
+                    }
+                    return new AgentAction(AgentAction.Type.DONE,"","",doneConfidence,at(p,4),visualGrounded);
+                }
                 default: return new AgentAction(AgentAction.Type.NOOP,"","",1.0,at(p,4),visualGrounded);
             }
         } catch (Exception e) {
