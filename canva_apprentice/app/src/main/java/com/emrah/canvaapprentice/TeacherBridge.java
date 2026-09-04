@@ -174,9 +174,9 @@ public final class TeacherBridge {
     }
 
     private void discardStaleRequest() {
-        if (service instanceof AgentAccessibilityService) {
-            ((AgentAccessibilityService) service).onStaleTeacherRequestDiscarded();
-        }
+        // A stale callback does not own service-level state. In particular it must not
+        // clear cycleBusy or visual evidence that may belong to a newer teacher request.
+        // Task/session transitions and the current request's callback perform their own cleanup.
     }
 
     private static AccessibilityNodeInfo findEditable(AccessibilityNodeInfo root) {
