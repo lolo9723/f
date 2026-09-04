@@ -18,21 +18,27 @@ public final class AgentAction {
     public final String executionLeaseToken;
 
     public AgentAction(Type type, String target, String value, double confidence, String reason) {
-        this(type,target,value,confidence,reason,false);
+        this(type,target,value,confidence,reason,false,"");
     }
 
     public AgentAction(Type type, String target, String value, double confidence,
                        String reason, boolean visualGrounded) {
+        this(type,target,value,confidence,reason,visualGrounded,"");
+    }
+
+    AgentAction(Type type, String target, String value, double confidence,
+                String reason, boolean visualGrounded, String executionLeaseToken) {
         this.type = type;
         this.target = target == null ? "" : target;
         this.value = value == null ? "" : value;
         this.confidence = Math.max(0.0, Math.min(1.0, confidence));
         this.reason = reason == null ? "" : reason;
         this.visualGrounded = visualGrounded;
-        // Every newly accepted/constructed action becomes the sole owner of the post-teacher
-        // execution chain. If a newer reply is parsed before this one executes, its construction
-        // rotates the global lease and this action will fail closed in the runtime gate.
-        this.executionLeaseToken = TeacherExecutionLease.beginGlobal();
+        this.executionLeaseToken = executionLeaseToken == null ? "" : executionLeaseToken;
+    }
+
+    AgentAction withExecutionLease(String token) {
+        return new AgentAction(type,target,value,confidence,reason,visualGrounded,token);
     }
 
     public boolean isCoordinateGesture() {
