@@ -212,4 +212,23 @@ public class TeacherProtocolTest {
         assertEquals("C:\\Temp",a.value);
         assertEquals(0.99,a.confidence,0.0001);
     }
+
+    @Test public void nonFiniteConfidenceFailsClosed() {
+        String marker = TeacherProtocol.markerFor("abc123");
+        AgentAction nan = TeacherProtocol.parse(
+                marker+"CLICK_TEXT|Elements|NaN|must not bypass threshold",
+                marker
+        );
+        assertEquals(AgentAction.Type.CLICK_TEXT,nan.type);
+        assertEquals(0.0,nan.confidence,0.0001);
+
+        marker = TeacherProtocol.markerFor("def456");
+        AgentAction inf = TeacherProtocol.parse(
+                marker+"TAP_NORM|520,410|Infinity|must not bypass threshold",
+                marker,
+                true
+        );
+        assertEquals(AgentAction.Type.TAP_NORM,inf.type);
+        assertEquals(0.0,inf.confidence,0.0001);
+    }
 }
