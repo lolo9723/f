@@ -29,6 +29,20 @@ public final class LearningMemoryLeasePolicyTest {
         assertFalse(LearningMemoryLeasePolicy.canRecord(stale));
     }
 
+    @Test public void invalidatedTeacherActionCannotRecord() {
+        String token = TeacherExecutionLease.beginGlobal();
+        AgentAction action = new AgentAction(
+                AgentAction.Type.CLICK_TEXT, "Open", "", 0.99, "old", false, token);
+
+        TeacherExecutionLease.invalidateGlobal();
+
+        assertFalse(LearningMemoryLeasePolicy.canRecord(action));
+    }
+
+    @Test public void nullActionCannotRecord() {
+        assertFalse(LearningMemoryLeasePolicy.canRecord(null));
+    }
+
     @Test public void unleasedInternalActionRemainsRecordable() {
         AgentAction internal = new AgentAction(
                 AgentAction.Type.BACK, "", "", 0.99, "internal", false, "");
