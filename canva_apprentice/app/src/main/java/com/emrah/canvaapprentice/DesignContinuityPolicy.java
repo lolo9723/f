@@ -8,6 +8,8 @@ import java.util.Locale;
  * This is deliberately independent from teacher prompts: a teacher reply cannot bypass it.
  */
 public final class DesignContinuityPolicy {
+    private static final double MAX_VISUAL_CONTINUITY_DISTANCE = 0.0350;
+
     private DesignContinuityPolicy() {}
 
     public static boolean allows(AgentAction action, String boundAnchor,
@@ -60,6 +62,17 @@ public final class DesignContinuityPolicy {
         if (action.type == AgentAction.Type.BACK) return true;
 
         return false;
+    }
+
+    /**
+     * Converts a lease-owned pre/post screenshot comparison into a conservative visual editor
+     * continuity candidate. Invalid/non-finite distances fail closed. This does not override the
+     * explicit Canva home/projects rejection in verifiesBoundDesignAfterAction().
+     */
+    public static boolean visualEditorContinuityFromDistance(double visualDistance) {
+        return Double.isFinite(visualDistance)
+                && visualDistance >= 0.0
+                && visualDistance <= MAX_VISUAL_CONTINUITY_DISTANCE;
     }
 
     /**
