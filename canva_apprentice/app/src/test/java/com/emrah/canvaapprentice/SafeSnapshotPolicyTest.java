@@ -6,8 +6,12 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 public final class SafeSnapshotPolicyTest {
-    @Test public void unboundTaskMayEstablishInitialSafeCheckpoint() {
-        assertTrue(SafeSnapshotPolicy.shouldMarkSafe("", false, true));
+    @Test public void unboundTaskMustNotLearnCanvaHomeAsSafe() {
+        assertFalse(SafeSnapshotPolicy.shouldMarkSafe("", false, true));
+    }
+
+    @Test public void unboundNonHomeSurfaceMayEstablishTemporaryBaseline() {
+        assertTrue(SafeSnapshotPolicy.shouldMarkSafe("", false, false));
     }
 
     @Test public void boundDesignOnCanvaHomeIsNeverLearnedAsSafe() {

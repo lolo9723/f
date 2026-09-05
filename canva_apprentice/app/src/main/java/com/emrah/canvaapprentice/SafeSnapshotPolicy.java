@@ -11,10 +11,14 @@ public final class SafeSnapshotPolicy {
                                          boolean anchorVisible,
                                          boolean canvaHomeVisible) {
         String anchor = boundAnchor == null ? "" : boundAnchor.trim();
-        if (anchor.isEmpty()) return true;
 
-        // A project card on home is not proof that the bound design is currently open.
+        // Home/projects is never an editor continuity checkpoint, even before a design is bound.
+        // Otherwise that pre-bind hash can survive the later bind and masquerade as editor identity.
         if (canvaHomeVisible) return false;
+
+        // Before binding, a non-home Canva surface may be remembered only as a temporary baseline.
+        // bindDesignAnchor() clears this baseline so it can never become proof for the bound design.
+        if (anchor.isEmpty()) return true;
 
         // Once bound, only a screen that visibly proves the same design may refresh the
         // last-safe continuity checkpoint. Unknown/transient editor states remain untrusted.

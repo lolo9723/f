@@ -58,7 +58,13 @@ public final class TaskStateRepository {
         if (anchor == null) return;
         String a = anchor.trim();
         if (a.isEmpty()) return;
-        prefs.edit().putString("design_anchor", a).apply();
+        // Any checkpoint learned before binding had no proof that it belonged to this design.
+        // Clear it atomically with the bind so pre-bind/home/unknown fingerprints can never
+        // become post-bind continuity evidence.
+        prefs.edit()
+                .putString("design_anchor", a)
+                .putString("last_safe_hash", "")
+                .apply();
     }
 
     public synchronized void markSafe(String hash) {
