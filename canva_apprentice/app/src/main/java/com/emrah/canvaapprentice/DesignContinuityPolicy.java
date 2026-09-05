@@ -49,6 +49,24 @@ public final class DesignContinuityPolicy {
     }
 
     /**
+     * Independent pre-action proof used by visual continuity. A positive proof must already refer
+     * to a bound design, must not come from Canva home/projects, and must be backed either by the
+     * bound anchor being visible or by an exact previously-safe editor snapshot.
+     *
+     * Keeping this calculation here prevents callers from accidentally treating "task unbound",
+     * "home screen", or a generic visual similarity signal as proof of design identity.
+     */
+    public static boolean preActionBoundDesignVerified(String boundAnchor,
+                                                       boolean anchorVisible,
+                                                       boolean canvaHomeVisible,
+                                                       boolean matchesLastSafeEditorSnapshot) {
+        String anchor = norm(boundAnchor);
+        if (anchor.isEmpty()) return false;
+        if (canvaHomeVisible) return false;
+        return anchorVisible || matchesLastSafeEditorSnapshot;
+    }
+
+    /**
      * Visual similarity by itself is never design identity. This legacy entry point intentionally
      * remains fail-closed so callers cannot accidentally authorize continuity from distance alone.
      */

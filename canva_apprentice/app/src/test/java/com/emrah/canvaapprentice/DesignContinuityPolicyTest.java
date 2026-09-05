@@ -81,6 +81,26 @@ public final class DesignContinuityPolicyTest {
         assertTrue(DesignContinuityPolicy.allows(exact, "calisma plani", false, true));
     }
 
+    @Test public void preActionProofRequiresBoundNonHomeEditorEvidence() {
+        assertTrue(DesignContinuityPolicy.preActionBoundDesignVerified(
+                "Campaign A", true, false, false));
+        assertTrue(DesignContinuityPolicy.preActionBoundDesignVerified(
+                "Campaign A", false, false, true));
+        assertFalse(DesignContinuityPolicy.preActionBoundDesignVerified(
+                "", true, false, true));
+        assertFalse(DesignContinuityPolicy.preActionBoundDesignVerified(
+                "Campaign A", false, false, false));
+    }
+
+    @Test public void preActionProofNeverAcceptsCanvaHome() {
+        assertFalse(DesignContinuityPolicy.preActionBoundDesignVerified(
+                "Campaign A", true, true, false));
+        assertFalse(DesignContinuityPolicy.preActionBoundDesignVerified(
+                "Campaign A", false, true, true));
+        assertFalse(DesignContinuityPolicy.preActionBoundDesignVerified(
+                "Campaign A", true, true, true));
+    }
+
     @Test public void visualDistanceAloneNeverProvesDesignIdentity() {
         assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(0.0));
         assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(0.0349));
