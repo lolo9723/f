@@ -105,6 +105,34 @@ public class SafetyGateTest {
         );
     }
 
+    @Test public void asksForDiscardAndPermanentDeleteVariants() {
+        AgentAction discard = new AgentAction(
+                AgentAction.Type.CLICK_TEXT,"Discard","",0.999,"discard unsaved changes"
+        );
+        AgentAction permanent = new AgentAction(
+                AgentAction.Type.CLICK_TEXT,"Delete permanently","",0.999,"remove project"
+        );
+        assertEquals(
+                SafetyGate.Decision.Kind.ASK_TEACHER,
+                gate.evaluate(discard,running(false),AgentConstants.CANVA_PACKAGE).kind
+        );
+        assertEquals(
+                SafetyGate.Decision.Kind.ASK_TEACHER,
+                gate.evaluate(permanent,running(false),AgentConstants.CANVA_PACKAGE).kind
+        );
+    }
+
+    @Test public void asksForTurkishIrreversibleDeleteVariants() {
+        AgentAction a = new AgentAction(
+                AgentAction.Type.CLICK_TEXT,"Çöp kutusuna taşı","",0.999,
+                "Bu işlem geri dönülemez olabilir"
+        );
+        assertEquals(
+                SafetyGate.Decision.Kind.ASK_TEACHER,
+                gate.evaluate(a,running(false),AgentConstants.CANVA_PACKAGE).kind
+        );
+    }
+
     @Test public void doesNotBlockRecoveryBecauseReasonMentionsNoNewDesign() {
         AgentAction a = new AgentAction(
                 AgentAction.Type.CLICK_TEXT,"Projects","",0.99,
