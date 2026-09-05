@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 public final class SafeSnapshotPolicyTest {
+    // Pre-bind checkpoints must never let Canva home become future bound-design identity evidence.
     @Test public void unboundTaskMustNotLearnCanvaHomeAsSafe() {
         assertFalse(SafeSnapshotPolicy.shouldMarkSafe("", false, true));
     }
