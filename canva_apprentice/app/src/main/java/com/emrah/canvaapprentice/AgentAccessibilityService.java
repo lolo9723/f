@@ -294,24 +294,28 @@ public final class AgentAccessibilityService extends AccessibilityService {
                 boolean changed=treeChanged || visualDistance>=0.0010;
                 finishActionVerification(
                         state,action,beforeFingerprint,after,changed,
-                        "visualDistance="+String.format(java.util.Locale.US,"%.4f",visualDistance),teacherSessionId
+                        "visualDistance="+String.format(java.util.Locale.US,"%.4f",visualDistance),teacherSessionId,
+                        visualDistance
                 );
             });
         }else{
-            finishActionVerification(state,action,beforeFingerprint,after,treeChanged,"treeOnly",teacherSessionId);
+            finishActionVerification(state,action,beforeFingerprint,after,treeChanged,"treeOnly",teacherSessionId,Double.NaN);
         }
     }
 
     private void finishActionVerification(TaskState state, AgentAction action, String beforeFingerprint,
-                                          UiTreeSnapshot after, boolean changed, String evidence, String teacherSessionId){
+                                          UiTreeSnapshot after, boolean changed, String evidence, String teacherSessionId,
+                                          double visualDistance){
         if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
 
         boolean anchorVisible=!state.designAnchor.isEmpty() && after.containsText(state.designAnchor);
         boolean homeVisible=after.looksLikeCanvaHome();
         boolean matchesLastSafe=!state.lastSafeSnapshotHash.isEmpty()
                 && state.lastSafeSnapshotHash.equals(after.stableFingerprint());
+        boolean visualEditorContinuityVerified=action.visualGrounded
+                && DesignContinuityPolicy.visualEditorContinuityFromDistance(visualDistance);
         boolean continuityVerified=DesignContinuityPolicy.verifiesBoundDesignAfterAction(
-                state.designAnchor,anchorVisible,homeVisible,matchesLastSafe);
+                state.designAnchor,anchorVisible,homeVisible,matchesLastSafe,visualEditorContinuityVerified);
 
         if(!continuityVerified){
             if(memory!=null){
