@@ -49,21 +49,32 @@ public final class DesignContinuityPolicy {
     }
 
     /**
-     * Visual similarity by itself is not design identity. Two different Canva editors can have
-     * nearly identical chrome/layout and therefore a tiny luminance-fingerprint distance. Until
-     * the runtime supplies an independent pre-action proof that the screenshot belongs to the
-     * bound design, visual-only continuity must fail closed.
-     *
-     * The finite/range checks are intentionally retained here so malformed values remain rejected
-     * if this channel is later re-enabled with a second identity factor.
+     * Visual similarity by itself is never design identity. This legacy entry point intentionally
+     * remains fail-closed so callers cannot accidentally authorize continuity from distance alone.
      */
     public static boolean visualEditorContinuityFromDistance(double visualDistance) {
+        return false;
+    }
+
+    /**
+     * Three-factor visual continuity proof for transient Canva editor panels:
+     *  1) the pre-action UI was independently proven to belong to the bound design,
+     *  2) the visual evidence belongs to the current execution lease,
+     *  3) the post-action screenshot remains within a very small finite visual distance.
+     *
+     * Missing any factor fails closed. This method does not override an explicit Canva-home signal;
+     * verifiesBoundDesignAfterAction() still rejects home/projects even with a positive proof.
+     */
+    public static boolean visualEditorContinuityFromDistance(double visualDistance,
+                                                             boolean preActionBoundDesignVerified,
+                                                             boolean leaseOwnedVisualEvidence) {
+        if (!preActionBoundDesignVerified || !leaseOwnedVisualEvidence) return false;
         if (!Double.isFinite(visualDistance)
                 || visualDistance < 0.0
                 || visualDistance > MAX_VISUAL_CONTINUITY_DISTANCE) {
             return false;
         }
-        return false;
+        return true;
     }
 
     public static boolean verifiesBoundDesignAfterAction(String boundAnchor,
@@ -81,8 +92,7 @@ public final class DesignContinuityPolicy {
 
     /**
      * Visual editor continuity is accepted only when the caller has already produced an explicit
-     * independently verified visualEditorContinuityVerified flag. The current runtime deliberately
-     * does not create that flag from visual distance alone.
+     * independently verified visualEditorContinuityVerified flag.
      */
     public static boolean verifiesBoundDesignAfterAction(String boundAnchor,
                                                          boolean anchorVisible,
