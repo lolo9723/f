@@ -61,10 +61,11 @@ public final class ActionExecutor {
 
     private boolean clickExactNode(AccessibilityNodeInfo root, String encodedTarget) {
         AccessibilityNodeInfo node = verifiedCompactNode(root, encodedTarget);
-        if (node == null || !node.isEnabled()) return false;
-        AccessibilityNodeInfo clickable = node;
-        while (clickable != null && !clickable.isClickable()) clickable = clickable.getParent();
-        return clickable != null && clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        // Exact-node execution must never silently climb to a clickable ancestor.
+        // The teacher proved one concrete row; clicking any other node would turn
+        // structural grounding into a guessed target.
+        if (node == null || !node.isEnabled() || !node.isClickable()) return false;
+        return node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
     }
 
     private boolean setExactNodeText(AccessibilityNodeInfo root, String encodedTarget, String value) {
