@@ -15,6 +15,20 @@ public class DesignAnchorPolicyTest {
         assertFalse(DesignAnchorPolicy.isPlausible("Create a design"));
     }
 
+    @Test public void rejectsGenericDesignTypeLabels() {
+        assertFalse(DesignAnchorPolicy.isPlausible("Presentation"));
+        assertFalse(DesignAnchorPolicy.isPlausible("Sunum"));
+        assertFalse(DesignAnchorPolicy.isPlausible("Instagram post"));
+        assertFalse(DesignAnchorPolicy.isPlausible("Poster"));
+    }
+
+    @Test public void rejectsDefaultUntitledNamesBecauseTheyAreNotUniqueIdentity() {
+        assertFalse(DesignAnchorPolicy.isPlausible("Untitled design"));
+        assertFalse(DesignAnchorPolicy.isPlausible("Untitled presentation"));
+        assertFalse(DesignAnchorPolicy.isPlausible("Adsız tasarım"));
+        assertFalse(DesignAnchorPolicy.isPlausible("Başlıksız sunum"));
+    }
+
     @Test public void rejectsUrlsAsDesignAnchor() {
         assertFalse(DesignAnchorPolicy.isPlausible("https://www.canva.com/design/abc"));
     }
