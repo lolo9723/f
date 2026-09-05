@@ -206,6 +206,20 @@ public final class AgentAccessibilityService extends AccessibilityService {
                         "değilse tek bir güvenli düzeltme ver.");
                 return;
             }
+            boolean leaseOwnedVisualEvidence=!visualEvidence.readIfExecutionCurrent(action.executionLeaseToken).isEmpty();
+            boolean finalDoneVerified=DesignContinuityPolicy.finalDoneMayStop(
+                    state.designAnchor,action.visualGrounded,preActionBoundDesignVerified,leaseOwnedVisualEvidence);
+            if(!finalDoneVerified){
+                visualEvidence.clearIfExecutionCurrent(action.executionLeaseToken);
+                cycleBusy.set(false);
+                runCanvaCycleIfActionCurrent(
+                        action,
+                        teacherSessionId,
+                        "FINAL QUALITY GATE reddedildi: Görsel DONE yanıtı bağlı mevcut tasarım kimliği ve current-lease ekran kanıtı ile " +
+                        "bağımsız olarak doğrulanamadı. Görevi bitirme; önce aynı mevcut tasarım bağlamını yeniden kanıtla."
+                );
+                return;
+            }
             visualEvidence.clearIfExecutionCurrent(action.executionLeaseToken);
             repo.stop();
             overlay.hide();
