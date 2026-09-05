@@ -11,6 +11,7 @@ Tek kullanıcı için güvenlik-öncelikli Android ajan prototipi. Ajan yalnızc
 - ChatGPT için sıkı `CAA1` öğretmen protokolü vardır; öğretmenin bir seferde yalnız bir eylem vermesi beklenir.
 - Düşük güven veya yıkıcı işlem güvenlik kapısında engellenir.
 - AccessibilityService ekran görüntüsü alıp uygulama önbelleğine yazabilir.
+- Lease-owned post-action ekran görüntüsü mesafesi, bağlı tasarımın görsel continuity kanıtına fail-closed biçimde bağlanır; Canva home/projects bu kanıtla bile editör sayılmaz.
 
 ## Bilinçli sınır
 
