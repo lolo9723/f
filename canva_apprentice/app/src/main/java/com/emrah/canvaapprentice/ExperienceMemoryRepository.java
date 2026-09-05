@@ -11,7 +11,7 @@ import java.util.Locale;
 
 public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
     private static final String DB = "canva_apprentice_memory.db";
-    private static final int VERSION = 2;
+    private static final int VERSION = 3;
     private static final int MAX_ROWS = 500;
     private final Context appContext;
 
@@ -40,13 +40,21 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
 
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         if (oldVersion < 2) createVerifiedCompletionsTable(db);
+        if (oldVersion < 3) {
+            // v2 completion rows were goal-scoped only. Reusing them after adding design scope
+            // could falsely teach a success from design A to design B, so discard them fail-closed.
+            db.execSQL("DROP TABLE IF EXISTS verified_completions");
+            createVerifiedCompletionsTable(db);
+        }
     }
 
     private static void createVerifiedCompletionsTable(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE IF NOT EXISTS verified_completions (" +
-                "goal_key TEXT PRIMARY KEY," +
+                "goal_key TEXT NOT NULL," +
+                "design_key TEXT NOT NULL," +
                 "success_count INTEGER NOT NULL DEFAULT 0," +
-                "last_at INTEGER NOT NULL)");
+                "last_at INTEGER NOT NULL," +
+                "PRIMARY KEY(goal_key,design_key))");
     }
 
     public synchronized void record(boolean success, String goal, String beforeFp,
@@ -88,7 +96,8 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
      * Persists only a final success that is already executing inside FinalDoneCommitGuard's
      * exact execution-lease and current-teacher-session boundary. The current task must still
      * be RUNNING and must have a bound design anchor; otherwise persistence fails and STOP is
-     * prevented by the guard.
+     * prevented by the guard. Completion memory is additionally scoped to that exact design
+     * anchor so the same goal on another Canva design cannot inherit a false success prior.
      */
     public synchronized void recordVerifiedCompletion() {
         TaskState state = new TaskStateRepository(appContext).load();
@@ -103,17 +112,18 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
         }
 
         String key = goalKey(state.goal);
+        String designKey = completionScopeKey(state.designAnchor);
         long now = System.currentTimeMillis();
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {
             db.execSQL(
-                    "INSERT OR IGNORE INTO verified_completions(goal_key,success_count,last_at) VALUES(?,0,?)",
-                    new Object[]{key,now}
+                    "INSERT OR IGNORE INTO verified_completions(goal_key,design_key,success_count,last_at) VALUES(?,?,0,?)",
+                    new Object[]{key,designKey,now}
             );
             db.execSQL(
-                    "UPDATE verified_completions SET success_count=success_count+1,last_at=? WHERE goal_key=?",
-                    new Object[]{now,key}
+                    "UPDATE verified_completions SET success_count=success_count+1,last_at=? WHERE goal_key=? AND design_key=?",
+                    new Object[]{now,key,designKey}
             );
             db.setTransactionSuccessful();
         } finally {
@@ -155,18 +165,22 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
             c.close();
         }
 
-        int verifiedCompletions = verifiedCompletionCount(goalKey);
-        if (verifiedCompletions > 0) {
-            out.append("verifiedGoalCompletions=").append(verifiedCompletions)
-                    .append(" (final visual QA + bound-design proof)\n");
+        TaskState state = new TaskStateRepository(appContext).load();
+        if (state.designAnchor != null && !state.designAnchor.trim().isEmpty()) {
+            int verifiedCompletions = verifiedCompletionCount(
+                    goalKey, completionScopeKey(state.designAnchor));
+            if (verifiedCompletions > 0) {
+                out.append("verifiedDesignGoalCompletions=").append(verifiedCompletions)
+                        .append(" (final visual QA + exact bound-design proof)\n");
+            }
         }
         return out.length() == 0 ? "none" : out.toString();
     }
 
-    private int verifiedCompletionCount(String goalKey) {
+    private int verifiedCompletionCount(String goalKey, String designKey) {
         Cursor c = getReadableDatabase().rawQuery(
-                "SELECT success_count FROM verified_completions WHERE goal_key=?",
-                new String[]{goalKey}
+                "SELECT success_count FROM verified_completions WHERE goal_key=? AND design_key=?",
+                new String[]{goalKey,designKey}
         );
         try { return c.moveToFirst() ? c.getInt(0) : 0; }
         finally { c.close(); }
@@ -178,6 +192,14 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
         );
         try { return c.moveToFirst() ? c.getInt(0) : 0; }
         finally { c.close(); }
+    }
+
+    static String completionScopeKey(String designAnchor) {
+        String normalized = normalize(designAnchor);
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException("completion scope requires bound design");
+        }
+        return sha256(normalized);
     }
 
     private static String goalKey(String goal) {
