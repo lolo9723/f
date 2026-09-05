@@ -12,7 +12,10 @@ public final class SafetyGate {
     ));
     private static final Set<String> DESTRUCTIVE_PATTERNS = new HashSet<>(Arrays.asList(
             "sil", "delete", "trash", "remove page", "sayfayi sil", "tasarimi sil",
-            "payment", "odeme", "purchase", "buy", "share externally", "hesabi sil"
+            "payment", "odeme", "purchase", "buy", "share externally", "hesabi sil",
+            "discard", "permanently delete", "delete permanently", "move to trash",
+            "cop kutusuna tasi", "kalici olarak sil", "geri donulemez", "irreversible",
+            "remove design", "remove project", "delete design", "delete project"
     ));
 
     public Decision evaluate(AgentAction action, TaskState state, String activePackage) {
