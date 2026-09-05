@@ -305,6 +305,31 @@ public final class AgentAccessibilityService extends AccessibilityService {
     private void finishActionVerification(TaskState state, AgentAction action, String beforeFingerprint,
                                           UiTreeSnapshot after, boolean changed, String evidence, String teacherSessionId){
         if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
+
+        boolean anchorVisible=!state.designAnchor.isEmpty() && after.containsText(state.designAnchor);
+        boolean homeVisible=after.looksLikeCanvaHome();
+        boolean matchesLastSafe=!state.lastSafeSnapshotHash.isEmpty()
+                && state.lastSafeSnapshotHash.equals(after.stableFingerprint());
+        boolean continuityVerified=DesignContinuityPolicy.verifiesBoundDesignAfterAction(
+                state.designAnchor,anchorVisible,homeVisible,matchesLastSafe);
+
+        if(!continuityVerified){
+            if(memory!=null){
+                memory.record(false,state.goal,beforeFingerprint,action,"");
+            }
+            if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
+            visualEvidence.clearIfExecutionCurrent(action.executionLeaseToken);
+            cycleBusy.set(false);
+            runCanvaCycleIfActionCurrent(
+                    action,
+                    teacherSessionId,
+                    "Önceki eylem UI'ı değiştirdi ancak bağlı mevcut tasarımın içinde kaldığı doğrulanamadı. " +
+                    "Bu yol başarı olarak öğrenilmedi. Mevcut tasarım '"+state.designAnchor+
+                    "' bağlamını yeniden doğrula; gerekirse yalnız güvenli recovery yap."
+            );
+            return;
+        }
+
         if(memory!=null){
             memory.record(changed,state.goal,beforeFingerprint,action,changed?after.stableFingerprint():"");
         }
@@ -319,7 +344,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
         }
 
         String note=changed
-                ? "Önceki eylem uygulandı ve değişiklik doğrulandı ("+evidence+"). Sonucu değerlendir; gerekiyorsa sonraki tek adımı ver."
+                ? "Önceki eylem uygulandı, bağlı tasarım bağlamı korundu ve değişiklik doğrulandı ("+evidence+"). Sonucu değerlendir; gerekiyorsa sonraki tek adımı ver."
                 : "Önceki eylem sonrası doğrulanabilir değişiklik görünmedi ("+action.type+" / "+action.target+"; "+evidence+"). " +
                   "Aynı eylemi körlemesine tekrarlama; başka güvenli yol seç veya SCREENSHOT iste.";
         runCanvaCycleIfActionCurrent(action,teacherSessionId,note);
