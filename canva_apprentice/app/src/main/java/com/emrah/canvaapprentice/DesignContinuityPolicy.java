@@ -62,6 +62,22 @@ public final class DesignContinuityPolicy {
         return false;
     }
 
+    /**
+     * Post-action success proof for learning memory. UI change alone is not success: once a task
+     * is bound to an existing design, the resulting screen must still be positively attributable
+     * to that design. Canva home/projects is explicitly rejected even when its project card shows
+     * the bound anchor, because that is not editor identity evidence.
+     */
+    public static boolean verifiesBoundDesignAfterAction(String boundAnchor,
+                                                         boolean anchorVisible,
+                                                         boolean canvaHomeVisible,
+                                                         boolean matchesLastSafeEditorSnapshot) {
+        String anchor = norm(boundAnchor);
+        if (anchor.isEmpty()) return true;
+        if (canvaHomeVisible) return false;
+        return anchorVisible || matchesLastSafeEditorSnapshot;
+    }
+
     private static String norm(String s) {
         String x = Normalizer.normalize(s == null ? "" : s, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}", "")
