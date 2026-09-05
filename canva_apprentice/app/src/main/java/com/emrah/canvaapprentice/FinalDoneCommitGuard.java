@@ -10,11 +10,10 @@ import java.util.function.BooleanSupplier;
  * before TaskStateRepository.stop() runs. Keeping the final mutations inside the
  * execution-lease monitor closes that TOCTOU window. A stale chain is side-effect free.
  *
- * Verified-success learning must use the same proof boundary as STOP. The overload
- * accepting verifiedSuccessMutation therefore executes that mutation under the exact
- * same lease/session guard, before STOP is committed. If verified-success persistence
- * throws, STOP is not committed and the task remains fail-closed instead of silently
- * learning/finishing from divergent evidence.
+ * Verified-success learning must use the same proof boundary as STOP. Production's
+ * three-argument overload therefore requires the memory hook installed by
+ * ExperienceMemoryRepository. If the hook is missing or verified-success persistence
+ * throws, STOP is not committed and the task remains fail-closed.
  */
 public final class FinalDoneCommitGuard {
     private FinalDoneCommitGuard() {}
@@ -22,17 +21,24 @@ public final class FinalDoneCommitGuard {
     public static boolean commitIfCurrent(String executionLeaseToken,
                                           BooleanSupplier sessionStillCurrent,
                                           Runnable stopMutation) {
-        return commitIfCurrent(executionLeaseToken, sessionStillCurrent, null, stopMutation);
+        Runnable verifiedSuccessMutation = VerifiedCompletionMemoryHook.current();
+        if (verifiedSuccessMutation == null) return false;
+        return commitIfCurrent(
+                executionLeaseToken,
+                sessionStillCurrent,
+                verifiedSuccessMutation,
+                stopMutation
+        );
     }
 
     public static boolean commitIfCurrent(String executionLeaseToken,
                                           BooleanSupplier sessionStillCurrent,
                                           Runnable verifiedSuccessMutation,
                                           Runnable stopMutation) {
-        if (sessionStillCurrent == null || stopMutation == null) return false;
+        if (sessionStillCurrent == null || verifiedSuccessMutation == null || stopMutation == null) return false;
         return TeacherExecutionLease.withGlobalCurrent(executionLeaseToken, false, () -> {
             if (!sessionStillCurrent.getAsBoolean()) return false;
-            if (verifiedSuccessMutation != null) verifiedSuccessMutation.run();
+            verifiedSuccessMutation.run();
             stopMutation.run();
             return true;
         });
