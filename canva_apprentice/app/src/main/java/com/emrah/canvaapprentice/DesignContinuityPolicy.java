@@ -22,9 +22,6 @@ public final class DesignContinuityPolicy {
                                  boolean matchesLastSafeEditorSnapshot) {
         if (action == null) return false;
 
-        // Teacher-produced actions carry the execution lease that was current when the reply
-        // was parsed. If a newer teacher request has started since then, this is a stale action.
-        // Reject it before any Canva continuity checks can authorize a click/edit.
         if (!action.executionLeaseToken.isEmpty()
                 && !TeacherExecutionLease.isGlobalCurrent(action.executionLeaseToken)) {
             return false;
@@ -33,10 +30,6 @@ public final class DesignContinuityPolicy {
         String anchor = norm(boundAnchor);
         if (anchor.isEmpty()) return true;
 
-        // Canva home/projects is never editor identity evidence. The bound design name is often
-        // visible there as a project card, so neither anchor visibility nor a stale snapshot match
-        // may authorize editing from home. Fail closed: permit only BACK recovery or opening the
-        // exact already-bound design.
         if (canvaHomeVisible) {
             if (action.type == AgentAction.Type.BACK) return true;
             if (action.type == AgentAction.Type.CLICK_TEXT) {
@@ -48,39 +41,31 @@ public final class DesignContinuityPolicy {
             return false;
         }
 
-        // Primary editor evidence: the bound design identity is visible in the current UI tree.
         if (anchorVisible) return true;
-
-        // Secondary independent evidence: the current non-home UI tree exactly matches the last
-        // snapshot that was learned only while this bound design had been positively verified.
-        // This covers transient Canva states where the title/anchor temporarily disappears without
-        // weakening the fail-closed rule for an unknown or changed editor.
         if (matchesLastSafeEditorSnapshot) return true;
-
-        // BACK is the only generic recovery action allowed without design identity evidence.
-        // It can leave a wrong/transient screen but cannot edit the unknown design.
         if (action.type == AgentAction.Type.BACK) return true;
 
         return false;
     }
 
     /**
-     * Converts a lease-owned pre/post screenshot comparison into a conservative visual editor
-     * continuity candidate. Invalid/non-finite distances fail closed. This does not override the
-     * explicit Canva home/projects rejection in verifiesBoundDesignAfterAction().
+     * Visual similarity by itself is not design identity. Two different Canva editors can have
+     * nearly identical chrome/layout and therefore a tiny luminance-fingerprint distance. Until
+     * the runtime supplies an independent pre-action proof that the screenshot belongs to the
+     * bound design, visual-only continuity must fail closed.
+     *
+     * The finite/range checks are intentionally retained here so malformed values remain rejected
+     * if this channel is later re-enabled with a second identity factor.
      */
     public static boolean visualEditorContinuityFromDistance(double visualDistance) {
-        return Double.isFinite(visualDistance)
-                && visualDistance >= 0.0
-                && visualDistance <= MAX_VISUAL_CONTINUITY_DISTANCE;
+        if (!Double.isFinite(visualDistance)
+                || visualDistance < 0.0
+                || visualDistance > MAX_VISUAL_CONTINUITY_DISTANCE) {
+            return false;
+        }
+        return false;
     }
 
-    /**
-     * Post-action success proof for learning memory. UI change alone is not success: once a task
-     * is bound to an existing design, the resulting screen must still be positively attributable
-     * to that design. Canva home/projects is explicitly rejected even when its project card shows
-     * the bound anchor, because that is not editor identity evidence.
-     */
     public static boolean verifiesBoundDesignAfterAction(String boundAnchor,
                                                          boolean anchorVisible,
                                                          boolean canvaHomeVisible,
@@ -95,12 +80,9 @@ public final class DesignContinuityPolicy {
     }
 
     /**
-     * Visual editor continuity is an additional post-action proof channel for transient Canva
-     * panels where the title disappears and the UI-tree fingerprint legitimately changes. It is
-     * deliberately weaker than the home/projects guard: visual similarity can never turn Canva
-     * home into editor identity evidence. The caller must only set this flag after comparing a
-     * lease-owned pre-action screenshot from an already-authorized editor with the post-action
-     * screenshot and passing a conservative visual-drift threshold.
+     * Visual editor continuity is accepted only when the caller has already produced an explicit
+     * independently verified visualEditorContinuityVerified flag. The current runtime deliberately
+     * does not create that flag from visual distance alone.
      */
     public static boolean verifiesBoundDesignAfterAction(String boundAnchor,
                                                          boolean anchorVisible,
