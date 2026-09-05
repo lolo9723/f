@@ -176,4 +176,23 @@ public class SafetyGateTest {
                 gate.evaluate(a,running(false),AgentConstants.CANVA_PACKAGE).kind
         );
     }
+
+    @Test public void blocksUiActionOnChatGptCompanionSurface() {
+        AgentAction a = new AgentAction(
+                AgentAction.Type.CLICK_TEXT,"Send","",0.999,"teacher reply visible"
+        );
+        SafetyGate.Decision d = gate.evaluate(a,running(false),AgentConstants.CHATGPT_PACKAGE);
+        assertEquals(SafetyGate.Decision.Kind.BLOCK,d.kind);
+        assertTrue(d.reason.contains("Canva"));
+    }
+
+    @Test public void blocksUiActionOnUnknownSurface() {
+        AgentAction a = new AgentAction(
+                AgentAction.Type.SET_TEXT,"Title","hello",0.999,"wrong app"
+        );
+        assertEquals(
+                SafetyGate.Decision.Kind.BLOCK,
+                gate.evaluate(a,running(false),"com.example.other").kind
+        );
+    }
 }
