@@ -67,6 +67,19 @@ public final class DesignContinuityPolicy {
     }
 
     /**
+     * Final visual DONE is stronger than an ordinary teacher assertion: it may terminate the task
+     * only if the current Canva editor was independently proven to be the already-bound design and
+     * the screenshot inspected by the visual teacher still belongs to this execution lease.
+     */
+    public static boolean finalDoneMayStop(String boundAnchor,
+                                           boolean visualGrounded,
+                                           boolean preActionBoundDesignVerified,
+                                           boolean leaseOwnedVisualEvidence) {
+        if (norm(boundAnchor).isEmpty()) return false;
+        return visualGrounded && preActionBoundDesignVerified && leaseOwnedVisualEvidence;
+    }
+
+    /**
      * Visual similarity by itself is never design identity. This legacy entry point intentionally
      * remains fail-closed so callers cannot accidentally authorize continuity from distance alone.
      */
