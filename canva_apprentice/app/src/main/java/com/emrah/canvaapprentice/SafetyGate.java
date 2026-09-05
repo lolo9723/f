@@ -18,7 +18,14 @@ public final class SafetyGate {
     public Decision evaluate(AgentAction action, TaskState state, String activePackage) {
         if (action == null) return Decision.block("Boş eylem uygulanamaz.");
         if (state.mode != TaskState.Mode.RUNNING) return Decision.block("Ajan çalışma modunda değil.");
-        if (!AgentConstants.ALLOWED_PACKAGES.contains(activePackage)) return Decision.block("İzin verilmeyen uygulama.");
+
+        // ChatGPT is an allowed companion app for teacher communication, but it is never an
+        // execution surface. UI actions must fail closed unless Canva itself is the active app.
+        // This keeps a future caller from accidentally reusing ALLOWED_PACKAGES as permission
+        // to click/type inside ChatGPT or any other companion package.
+        if (!AgentConstants.CANVA_PACKAGE.equals(activePackage)) {
+            return Decision.block("Eylem yüzeyi Canva değil; başka uygulamada işlem uygulanamaz.");
+        }
 
         // Execution lease is a runtime safety boundary, not merely a continuity hint.
         // A teacher-produced action that belonged to an older request must never pass
