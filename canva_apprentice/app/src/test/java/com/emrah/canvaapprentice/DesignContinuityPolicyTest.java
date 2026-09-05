@@ -82,4 +82,23 @@ public final class DesignContinuityPolicyTest {
         AgentAction exact = action(AgentAction.Type.CLICK_TEXT, "  Çalışma   Planı  ", "");
         assertTrue(DesignContinuityPolicy.allows(exact, "calisma plani", false, true));
     }
+
+    @Test public void postActionHomeIsNeverLearnedAsBoundDesignSuccess() {
+        assertFalse(DesignContinuityPolicy.verifiesBoundDesignAfterAction(
+                "Campaign A", true, true, true));
+    }
+
+    @Test public void postActionRequiresPositiveBoundEditorEvidence() {
+        assertFalse(DesignContinuityPolicy.verifiesBoundDesignAfterAction(
+                "Campaign A", false, false, false));
+        assertTrue(DesignContinuityPolicy.verifiesBoundDesignAfterAction(
+                "Campaign A", true, false, false));
+        assertTrue(DesignContinuityPolicy.verifiesBoundDesignAfterAction(
+                "Campaign A", false, false, true));
+    }
+
+    @Test public void unboundTaskDoesNotNeedPostActionAnchorProof() {
+        assertTrue(DesignContinuityPolicy.verifiesBoundDesignAfterAction(
+                "", false, true, false));
+    }
 }
