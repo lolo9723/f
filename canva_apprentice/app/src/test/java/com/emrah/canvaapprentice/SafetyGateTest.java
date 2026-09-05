@@ -141,4 +141,39 @@ public class SafetyGateTest {
             TeacherExecutionLease.invalidateGlobal();
         }
     }
+
+    @Test public void blocksExactNodeClickWhenEvidencedRowIsNotClickable() {
+        AgentAction a = new AgentAction(
+                AgentAction.Type.CLICK_NODE,
+                NodeTargetCodec.encode(7,"Template","android.widget.TextView","20 100 220 160","--"),
+                "",0.999,"text child inside clickable card"
+        );
+        SafetyGate.Decision d = gate.evaluate(a,running(false),AgentConstants.CANVA_PACKAGE);
+        assertEquals(SafetyGate.Decision.Kind.BLOCK,d.kind);
+        assertTrue(d.reason.contains("üst öğe"));
+    }
+
+    @Test public void allowsExactNodeClickOnlyWhenEvidencedRowIsClickable() {
+        AgentAction a = new AgentAction(
+                AgentAction.Type.CLICK_NODE,
+                NodeTargetCodec.encode(7,"Template","android.widget.Button","20 100 220 160","C-"),
+                "",0.999,"exact clickable row"
+        );
+        assertEquals(
+                SafetyGate.Decision.Kind.ALLOW,
+                gate.evaluate(a,running(false),AgentConstants.CANVA_PACKAGE).kind
+        );
+    }
+
+    @Test public void blocksExactNodeSetTextWhenEvidencedRowIsNotEditable() {
+        AgentAction a = new AgentAction(
+                AgentAction.Type.SET_NODE_TEXT,
+                NodeTargetCodec.encode(8,"Title","android.widget.TextView","20 180 500 240","C-"),
+                "New title",0.999,"wrong capability"
+        );
+        assertEquals(
+                SafetyGate.Decision.Kind.BLOCK,
+                gate.evaluate(a,running(false),AgentConstants.CANVA_PACKAGE).kind
+        );
+    }
 }
