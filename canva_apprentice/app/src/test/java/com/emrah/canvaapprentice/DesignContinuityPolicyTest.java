@@ -60,8 +60,6 @@ public final class DesignContinuityPolicyTest {
                 AgentAction.Type.TAP_NORM, "500,500", "", 0.99, "test", true);
         AgentAction exact = action(AgentAction.Type.CLICK_TEXT, "Campaign A", "");
 
-        // A project card exposes the bound design name on home; that must not be confused with
-        // proof that the editor for that design is open.
         assertFalse(DesignContinuityPolicy.allows(edit, "Campaign A", true, true));
         assertFalse(DesignContinuityPolicy.allows(share, "Campaign A", true, true));
         assertFalse(DesignContinuityPolicy.allows(coordinateTap, "Campaign A", true, true));
@@ -83,10 +81,10 @@ public final class DesignContinuityPolicyTest {
         assertTrue(DesignContinuityPolicy.allows(exact, "calisma plani", false, true));
     }
 
-    @Test public void visualContinuityDistanceAcceptsOnlyConservativeFiniteRange() {
-        assertTrue(DesignContinuityPolicy.visualEditorContinuityFromDistance(0.0));
-        assertTrue(DesignContinuityPolicy.visualEditorContinuityFromDistance(0.0349));
-        assertTrue(DesignContinuityPolicy.visualEditorContinuityFromDistance(0.0350));
+    @Test public void visualDistanceAloneNeverProvesDesignIdentity() {
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(0.0));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(0.0349));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(0.0350));
     }
 
     @Test public void visualContinuityDistanceRejectsDriftBeyondThreshold() {
@@ -115,7 +113,7 @@ public final class DesignContinuityPolicyTest {
                 "Campaign A", false, false, true));
     }
 
-    @Test public void postActionVisualEditorProofCoversTransientTreeChange() {
+    @Test public void explicitIndependentVisualIdentityProofMayCoverTransientTreeChange() {
         assertTrue(DesignContinuityPolicy.verifiesBoundDesignAfterAction(
                 "Campaign A", false, false, false, true));
     }
