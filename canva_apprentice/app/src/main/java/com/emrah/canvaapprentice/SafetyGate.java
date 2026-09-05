@@ -8,7 +8,10 @@ import java.util.Arrays;
 
 public final class SafetyGate {
     private static final Set<String> NEW_DESIGN_PATTERNS = new HashSet<>(Arrays.asList(
-            "yeni tasarim", "tasarim olustur", "create a design", "new design", "create design"
+            "yeni tasarim", "tasarim olustur", "create a design", "new design", "create design",
+            "create new design", "create new", "blank design", "new presentation", "new whiteboard",
+            "new document", "yeni olustur", "yeni sunum", "bos tasarim", "tasarim yarat",
+            "sifirdan tasarla"
     ));
     private static final Set<String> DESTRUCTIVE_PATTERNS = new HashSet<>(Arrays.asList(
             "sil", "delete", "trash", "remove page", "sayfayi sil", "tasarimi sil",
