@@ -30,6 +30,22 @@ public final class SafetyGate {
             return Decision.block("Eski öğretmen eylemi geçersiz execution lease nedeniyle engellendi.");
         }
 
+        // Exact-node means the exact evidenced row must itself own the capability that
+        // will be invoked. In particular, do not accept a non-clickable text child and
+        // later climb to an unverified clickable ancestor: that turns exact-node proof
+        // into an implicit/guessed target. Teacher-produced node actions carry full row
+        // evidence, so fail closed whenever that evidence contradicts the requested act.
+        if (action.type == AgentAction.Type.CLICK_NODE
+                && NodeTargetCodec.hasStructuralEvidence(action.target)
+                && !NodeTargetCodec.flags(action.target).startsWith("C")) {
+            return Decision.block("Exact-node tıklama kanıtındaki düğüm tıklanabilir değil; üst öğe tahmin edilmedi.");
+        }
+        if (action.type == AgentAction.Type.SET_NODE_TEXT
+                && NodeTargetCodec.hasStructuralEvidence(action.target)
+                && !NodeTargetCodec.flags(action.target).endsWith("E")) {
+            return Decision.block("Exact-node metin kanıtındaki düğüm düzenlenebilir değil.");
+        }
+
         if (action.isCoordinateGesture()) {
             if (!action.visualGrounded) return Decision.block("Koordinat eylemi görsel öğretmen turundan gelmedi.");
             if (action.confidence < AgentConstants.SAFE_COORDINATE_CONFIDENCE) {
