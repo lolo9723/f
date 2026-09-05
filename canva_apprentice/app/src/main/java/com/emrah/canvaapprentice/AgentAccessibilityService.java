@@ -220,8 +220,19 @@ public final class AgentAccessibilityService extends AccessibilityService {
                 );
                 return;
             }
-            visualEvidence.clearIfExecutionCurrent(action.executionLeaseToken);
-            repo.stop();
+            boolean stopCommitted=FinalDoneCommitGuard.commitIfCurrent(
+                    action.executionLeaseToken,
+                    () -> isTeacherSessionCurrent(teacherSessionId),
+                    repo::stop
+            );
+            if(!stopCommitted){
+                onStaleTeacherRequestDiscarded();
+                return;
+            }
+            // The task is now STOPPED under the exact execution lease. A lifecycle-level clear is
+            // safe here and cannot erase evidence belonging to a newer live chain, because a newer
+            // chain could not have acquired the lease before the atomic stop commit completed.
+            visualEvidence.clear();
             overlay.hide();
             cycleBusy.set(false);
             return;
