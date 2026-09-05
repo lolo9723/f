@@ -87,16 +87,33 @@ public final class DesignContinuityPolicyTest {
         assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(0.0350));
     }
 
-    @Test public void visualContinuityDistanceRejectsDriftBeyondThreshold() {
-        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(0.0351));
-        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(1.0));
+    @Test public void threeFactorVisualContinuityAcceptsOnlyCompleteProof() {
+        assertTrue(DesignContinuityPolicy.visualEditorContinuityFromDistance(
+                0.0200, true, true));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(
+                0.0200, false, true));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(
+                0.0200, true, false));
     }
 
-    @Test public void visualContinuityDistanceRejectsMalformedValues() {
-        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(-0.0001));
-        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(Double.NaN));
-        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(Double.POSITIVE_INFINITY));
-        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(Double.NEGATIVE_INFINITY));
+    @Test public void threeFactorVisualContinuityRejectsDriftBeyondThreshold() {
+        assertTrue(DesignContinuityPolicy.visualEditorContinuityFromDistance(
+                0.0350, true, true));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(
+                0.0351, true, true));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(
+                1.0, true, true));
+    }
+
+    @Test public void threeFactorVisualContinuityRejectsMalformedValues() {
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(
+                -0.0001, true, true));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(
+                Double.NaN, true, true));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(
+                Double.POSITIVE_INFINITY, true, true));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(
+                Double.NEGATIVE_INFINITY, true, true));
     }
 
     @Test public void postActionHomeIsNeverLearnedAsBoundDesignSuccess() {
