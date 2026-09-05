@@ -72,10 +72,32 @@ public final class DesignContinuityPolicy {
                                                          boolean anchorVisible,
                                                          boolean canvaHomeVisible,
                                                          boolean matchesLastSafeEditorSnapshot) {
+        return verifiesBoundDesignAfterAction(
+                boundAnchor,
+                anchorVisible,
+                canvaHomeVisible,
+                matchesLastSafeEditorSnapshot,
+                false
+        );
+    }
+
+    /**
+     * Visual editor continuity is an additional post-action proof channel for transient Canva
+     * panels where the title disappears and the UI-tree fingerprint legitimately changes. It is
+     * deliberately weaker than the home/projects guard: visual similarity can never turn Canva
+     * home into editor identity evidence. The caller must only set this flag after comparing a
+     * lease-owned pre-action screenshot from an already-authorized editor with the post-action
+     * screenshot and passing a conservative visual-drift threshold.
+     */
+    public static boolean verifiesBoundDesignAfterAction(String boundAnchor,
+                                                         boolean anchorVisible,
+                                                         boolean canvaHomeVisible,
+                                                         boolean matchesLastSafeEditorSnapshot,
+                                                         boolean visualEditorContinuityVerified) {
         String anchor = norm(boundAnchor);
         if (anchor.isEmpty()) return true;
         if (canvaHomeVisible) return false;
-        return anchorVisible || matchesLastSafeEditorSnapshot;
+        return anchorVisible || matchesLastSafeEditorSnapshot || visualEditorContinuityVerified;
     }
 
     private static String norm(String s) {
