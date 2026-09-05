@@ -43,10 +43,18 @@ public final class LearningMemoryLeasePolicyTest {
         assertFalse(LearningMemoryLeasePolicy.canRecord(null));
     }
 
-    @Test public void unleasedInternalActionRemainsRecordable() {
-        AgentAction internal = new AgentAction(
-                AgentAction.Type.BACK, "", "", 0.99, "internal", false, "");
+    @Test public void unleasedActionCannotContaminatePersistentMemory() {
+        AgentAction malformed = new AgentAction(
+                AgentAction.Type.BACK, "", "", 0.99, "missing provenance", false, "");
 
-        assertTrue(LearningMemoryLeasePolicy.canRecord(internal));
+        assertFalse(LearningMemoryLeasePolicy.canRecord(malformed));
+    }
+
+    @Test public void emptyLeaseCannotPiggybackOnCurrentTeacherRequest() {
+        TeacherExecutionLease.beginGlobal();
+        AgentAction malformed = new AgentAction(
+                AgentAction.Type.CLICK_TEXT, "Open", "", 0.99, "missing provenance", false, "");
+
+        assertFalse(LearningMemoryLeasePolicy.canRecord(malformed));
     }
 }
