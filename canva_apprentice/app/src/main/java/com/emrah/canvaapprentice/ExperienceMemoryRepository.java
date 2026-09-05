@@ -11,11 +11,14 @@ import java.util.Locale;
 
 public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
     private static final String DB = "canva_apprentice_memory.db";
-    private static final int VERSION = 1;
+    private static final int VERSION = 2;
     private static final int MAX_ROWS = 500;
+    private final Context appContext;
 
     public ExperienceMemoryRepository(Context context) {
         super(context, DB, null, VERSION);
+        appContext = context.getApplicationContext();
+        VerifiedCompletionMemoryHook.install(this::recordVerifiedCompletion);
     }
 
     @Override public void onCreate(SQLiteDatabase db) {
@@ -32,9 +35,19 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
                 "UNIQUE(goal_key,before_fp,action_type,target,after_fp))");
         db.execSQL("CREATE INDEX idx_exp_before ON experiences(before_fp)");
         db.execSQL("CREATE INDEX idx_exp_goal_before ON experiences(goal_key,before_fp)");
+        createVerifiedCompletionsTable(db);
     }
 
-    @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {}
+    @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        if (oldVersion < 2) createVerifiedCompletionsTable(db);
+    }
+
+    private static void createVerifiedCompletionsTable(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS verified_completions (" +
+                "goal_key TEXT PRIMARY KEY," +
+                "success_count INTEGER NOT NULL DEFAULT 0," +
+                "last_at INTEGER NOT NULL)");
+    }
 
     public synchronized void record(boolean success, String goal, String beforeFp,
                                     AgentAction action, String afterFp) {
@@ -64,6 +77,43 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
             db.execSQL(
                     "DELETE FROM experiences WHERE id NOT IN " +
                             "(SELECT id FROM experiences ORDER BY last_at DESC LIMIT " + MAX_ROWS + ")"
+            );
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+    }
+
+    /**
+     * Persists only a final success that is already executing inside FinalDoneCommitGuard's
+     * exact execution-lease and current-teacher-session boundary. The current task must still
+     * be RUNNING and must have a bound design anchor; otherwise persistence fails and STOP is
+     * prevented by the guard.
+     */
+    public synchronized void recordVerifiedCompletion() {
+        TaskState state = new TaskStateRepository(appContext).load();
+        if (state.mode != TaskState.Mode.RUNNING) {
+            throw new IllegalStateException("verified completion requires RUNNING task");
+        }
+        if (state.goal == null || state.goal.trim().isEmpty()) {
+            throw new IllegalStateException("verified completion requires task goal");
+        }
+        if (state.designAnchor == null || state.designAnchor.trim().isEmpty()) {
+            throw new IllegalStateException("verified completion requires bound design");
+        }
+
+        String key = goalKey(state.goal);
+        long now = System.currentTimeMillis();
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            db.execSQL(
+                    "INSERT OR IGNORE INTO verified_completions(goal_key,success_count,last_at) VALUES(?,0,?)",
+                    new Object[]{key,now}
+            );
+            db.execSQL(
+                    "UPDATE verified_completions SET success_count=success_count+1,last_at=? WHERE goal_key=?",
+                    new Object[]{now,key}
             );
             db.setTransactionSuccessful();
         } finally {
@@ -104,7 +154,22 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
         } finally {
             c.close();
         }
+
+        int verifiedCompletions = verifiedCompletionCount(goalKey);
+        if (verifiedCompletions > 0) {
+            out.append("verifiedGoalCompletions=").append(verifiedCompletions)
+                    .append(" (final visual QA + bound-design proof)\n");
+        }
         return out.length() == 0 ? "none" : out.toString();
+    }
+
+    private int verifiedCompletionCount(String goalKey) {
+        Cursor c = getReadableDatabase().rawQuery(
+                "SELECT success_count FROM verified_completions WHERE goal_key=?",
+                new String[]{goalKey}
+        );
+        try { return c.moveToFirst() ? c.getInt(0) : 0; }
+        finally { c.close(); }
     }
 
     public synchronized int learnedTransitionCount() {
