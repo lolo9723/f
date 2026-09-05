@@ -84,9 +84,15 @@ public final class TaskStateRepository {
     }
 
     public synchronized void resume() {
+        // Human takeover can legitimately navigate, dismiss dialogs, authenticate, or even
+        // momentarily leave/re-enter the bound design. A checkpoint captured before takeover is
+        // therefore stale provenance and must never authorize post-resume design continuity.
+        // Preserve the bound design anchor, but force the runtime to establish a fresh safe
+        // checkpoint from the current Canva editor before relying on snapshot continuity again.
         prefs.edit()
                 .putString("mode", TaskState.Mode.RUNNING.name())
                 .putString("human_reason", "")
+                .putString("last_safe_hash", "")
                 .putString(SESSION_ID, newSessionId())
                 .apply();
     }
