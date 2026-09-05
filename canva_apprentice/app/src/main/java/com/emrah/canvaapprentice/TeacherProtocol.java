@@ -140,7 +140,7 @@ public final class TeacherProtocol {
     private static double dbl(String s) {
         try {
             double value = Double.parseDouble(s);
-            return Double.isFinite(value) ? value : 0;
+            return Double.isFinite(value) && value >= 0.0 && value <= 1.0 ? value : 0;
         } catch(Exception e) {
             return 0;
         }
