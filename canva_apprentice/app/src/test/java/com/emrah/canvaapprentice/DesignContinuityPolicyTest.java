@@ -28,14 +28,12 @@ public final class DesignContinuityPolicyTest {
 
     @Test public void exactLastSafeEditorSnapshotAllowsTransientMissingAnchor() {
         AgentAction edit = action(AgentAction.Type.SET_TEXT, "Title", "Hello");
-        assertTrue(DesignContinuityPolicy.allows(
-                edit, "Campaign A", false, false, true));
+        assertTrue(DesignContinuityPolicy.allows(edit, "Campaign A", false, false, true));
     }
 
     @Test public void changedUnknownEditorStillBlocksWhenAnchorMissing() {
         AgentAction edit = action(AgentAction.Type.SET_TEXT, "Title", "Wrong");
-        assertFalse(DesignContinuityPolicy.allows(
-                edit, "Campaign A", false, false, false));
+        assertFalse(DesignContinuityPolicy.allows(edit, "Campaign A", false, false, false));
     }
 
     @Test public void backIsAllowedAsNonMutatingRecovery() {
@@ -47,7 +45,6 @@ public final class DesignContinuityPolicyTest {
         AgentAction exact = action(AgentAction.Type.CLICK_TEXT, "Campaign A", "");
         AgentAction other = action(AgentAction.Type.CLICK_TEXT, "Campaign B", "");
         AgentAction create = action(AgentAction.Type.CLICK_TEXT, "Create a design", "");
-
         assertTrue(DesignContinuityPolicy.allows(exact, "Campaign A", false, true));
         assertFalse(DesignContinuityPolicy.allows(other, "Campaign A", false, true));
         assertFalse(DesignContinuityPolicy.allows(create, "Campaign A", false, true));
@@ -56,10 +53,8 @@ public final class DesignContinuityPolicyTest {
     @Test public void homeAnchorVisibilityDoesNotAuthorizeUnrelatedActions() {
         AgentAction edit = action(AgentAction.Type.SET_TEXT, "Title", "Wrong");
         AgentAction share = action(AgentAction.Type.CLICK_TEXT, "Share", "");
-        AgentAction coordinateTap = new AgentAction(
-                AgentAction.Type.TAP_NORM, "500,500", "", 0.99, "test", true);
+        AgentAction coordinateTap = new AgentAction(AgentAction.Type.TAP_NORM, "500,500", "", 0.99, "test", true);
         AgentAction exact = action(AgentAction.Type.CLICK_TEXT, "Campaign A", "");
-
         assertFalse(DesignContinuityPolicy.allows(edit, "Campaign A", true, true));
         assertFalse(DesignContinuityPolicy.allows(share, "Campaign A", true, true));
         assertFalse(DesignContinuityPolicy.allows(coordinateTap, "Campaign A", true, true));
@@ -69,11 +64,8 @@ public final class DesignContinuityPolicyTest {
     @Test public void homeNeverTrustsLastSafeEditorSnapshotFallback() {
         AgentAction edit = action(AgentAction.Type.SET_TEXT, "Title", "Wrong");
         AgentAction exact = action(AgentAction.Type.CLICK_TEXT, "Campaign A", "");
-
-        assertFalse(DesignContinuityPolicy.allows(
-                edit, "Campaign A", false, true, true));
-        assertTrue(DesignContinuityPolicy.allows(
-                exact, "Campaign A", false, true, true));
+        assertFalse(DesignContinuityPolicy.allows(edit, "Campaign A", false, true, true));
+        assertTrue(DesignContinuityPolicy.allows(exact, "Campaign A", false, true, true));
     }
 
     @Test public void matchingIsCaseAccentAndWhitespaceStable() {
@@ -82,23 +74,24 @@ public final class DesignContinuityPolicyTest {
     }
 
     @Test public void preActionProofRequiresBoundNonHomeEditorEvidence() {
-        assertTrue(DesignContinuityPolicy.preActionBoundDesignVerified(
-                "Campaign A", true, false, false));
-        assertTrue(DesignContinuityPolicy.preActionBoundDesignVerified(
-                "Campaign A", false, false, true));
-        assertFalse(DesignContinuityPolicy.preActionBoundDesignVerified(
-                "", true, false, true));
-        assertFalse(DesignContinuityPolicy.preActionBoundDesignVerified(
-                "Campaign A", false, false, false));
+        assertTrue(DesignContinuityPolicy.preActionBoundDesignVerified("Campaign A", true, false, false));
+        assertTrue(DesignContinuityPolicy.preActionBoundDesignVerified("Campaign A", false, false, true));
+        assertFalse(DesignContinuityPolicy.preActionBoundDesignVerified("", true, false, true));
+        assertFalse(DesignContinuityPolicy.preActionBoundDesignVerified("Campaign A", false, false, false));
     }
 
     @Test public void preActionProofNeverAcceptsCanvaHome() {
-        assertFalse(DesignContinuityPolicy.preActionBoundDesignVerified(
-                "Campaign A", true, true, false));
-        assertFalse(DesignContinuityPolicy.preActionBoundDesignVerified(
-                "Campaign A", false, true, true));
-        assertFalse(DesignContinuityPolicy.preActionBoundDesignVerified(
-                "Campaign A", true, true, true));
+        assertFalse(DesignContinuityPolicy.preActionBoundDesignVerified("Campaign A", true, true, false));
+        assertFalse(DesignContinuityPolicy.preActionBoundDesignVerified("Campaign A", false, true, true));
+        assertFalse(DesignContinuityPolicy.preActionBoundDesignVerified("Campaign A", true, true, true));
+    }
+
+    @Test public void finalDoneRequiresBoundDesignVisualAndCurrentLeaseEvidence() {
+        assertTrue(DesignContinuityPolicy.finalDoneMayStop("Campaign A", true, true, true));
+        assertFalse(DesignContinuityPolicy.finalDoneMayStop("", true, true, true));
+        assertFalse(DesignContinuityPolicy.finalDoneMayStop("Campaign A", false, true, true));
+        assertFalse(DesignContinuityPolicy.finalDoneMayStop("Campaign A", true, false, true));
+        assertFalse(DesignContinuityPolicy.finalDoneMayStop("Campaign A", true, true, false));
     }
 
     @Test public void visualDistanceAloneNeverProvesDesignIdentity() {
@@ -108,65 +101,47 @@ public final class DesignContinuityPolicyTest {
     }
 
     @Test public void threeFactorVisualContinuityAcceptsOnlyCompleteProof() {
-        assertTrue(DesignContinuityPolicy.visualEditorContinuityFromDistance(
-                0.0200, true, true));
-        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(
-                0.0200, false, true));
-        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(
-                0.0200, true, false));
+        assertTrue(DesignContinuityPolicy.visualEditorContinuityFromDistance(0.0200, true, true));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(0.0200, false, true));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(0.0200, true, false));
     }
 
     @Test public void threeFactorVisualContinuityRejectsDriftBeyondThreshold() {
-        assertTrue(DesignContinuityPolicy.visualEditorContinuityFromDistance(
-                0.0350, true, true));
-        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(
-                0.0351, true, true));
-        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(
-                1.0, true, true));
+        assertTrue(DesignContinuityPolicy.visualEditorContinuityFromDistance(0.0350, true, true));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(0.0351, true, true));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(1.0, true, true));
     }
 
     @Test public void threeFactorVisualContinuityRejectsMalformedValues() {
-        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(
-                -0.0001, true, true));
-        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(
-                Double.NaN, true, true));
-        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(
-                Double.POSITIVE_INFINITY, true, true));
-        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(
-                Double.NEGATIVE_INFINITY, true, true));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(-0.0001, true, true));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(Double.NaN, true, true));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(Double.POSITIVE_INFINITY, true, true));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(Double.NEGATIVE_INFINITY, true, true));
     }
 
     @Test public void postActionHomeIsNeverLearnedAsBoundDesignSuccess() {
-        assertFalse(DesignContinuityPolicy.verifiesBoundDesignAfterAction(
-                "Campaign A", true, true, true));
+        assertFalse(DesignContinuityPolicy.verifiesBoundDesignAfterAction("Campaign A", true, true, true));
     }
 
     @Test public void postActionRequiresPositiveBoundEditorEvidence() {
-        assertFalse(DesignContinuityPolicy.verifiesBoundDesignAfterAction(
-                "Campaign A", false, false, false));
-        assertTrue(DesignContinuityPolicy.verifiesBoundDesignAfterAction(
-                "Campaign A", true, false, false));
-        assertTrue(DesignContinuityPolicy.verifiesBoundDesignAfterAction(
-                "Campaign A", false, false, true));
+        assertFalse(DesignContinuityPolicy.verifiesBoundDesignAfterAction("Campaign A", false, false, false));
+        assertTrue(DesignContinuityPolicy.verifiesBoundDesignAfterAction("Campaign A", true, false, false));
+        assertTrue(DesignContinuityPolicy.verifiesBoundDesignAfterAction("Campaign A", false, false, true));
     }
 
     @Test public void explicitIndependentVisualIdentityProofMayCoverTransientTreeChange() {
-        assertTrue(DesignContinuityPolicy.verifiesBoundDesignAfterAction(
-                "Campaign A", false, false, false, true));
+        assertTrue(DesignContinuityPolicy.verifiesBoundDesignAfterAction("Campaign A", false, false, false, true));
     }
 
     @Test public void postActionHomeRejectsEvenPositiveVisualEditorProof() {
-        assertFalse(DesignContinuityPolicy.verifiesBoundDesignAfterAction(
-                "Campaign A", true, true, true, true));
+        assertFalse(DesignContinuityPolicy.verifiesBoundDesignAfterAction("Campaign A", true, true, true, true));
     }
 
     @Test public void postActionVisualProofMustBeExplicit() {
-        assertFalse(DesignContinuityPolicy.verifiesBoundDesignAfterAction(
-                "Campaign A", false, false, false, false));
+        assertFalse(DesignContinuityPolicy.verifiesBoundDesignAfterAction("Campaign A", false, false, false, false));
     }
 
     @Test public void unboundTaskDoesNotNeedPostActionAnchorProof() {
-        assertTrue(DesignContinuityPolicy.verifiesBoundDesignAfterAction(
-                "", false, true, false));
+        assertTrue(DesignContinuityPolicy.verifiesBoundDesignAfterAction("", false, true, false));
     }
 }
