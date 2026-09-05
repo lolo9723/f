@@ -178,6 +178,13 @@ public final class AgentAccessibilityService extends AccessibilityService {
             return;
         }
 
+        UiTreeSnapshot preAction=UiTreeSnapshot.capture(root);
+        boolean preAnchorVisible=!state.designAnchor.isEmpty() && preAction.containsText(state.designAnchor);
+        boolean preMatchesLastSafe=!state.lastSafeSnapshotHash.isEmpty()
+                && state.lastSafeSnapshotHash.equals(preAction.stableFingerprint());
+        boolean preActionBoundDesignVerified=DesignContinuityPolicy.preActionBoundDesignVerified(
+                state.designAnchor,preAnchorVisible,preAction.looksLikeCanvaHome(),preMatchesLastSafe);
+
         if(action.type==AgentAction.Type.BIND_DESIGN){
             if(action.confidence<0.98 || !DesignAnchorPolicy.isPlausible(action.target)){
                 visualEvidence.clearIfExecutionCurrent(action.executionLeaseToken);
@@ -245,7 +252,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
             }
             consecutiveExecutionFailures=0;
             new Handler(Looper.getMainLooper()).postDelayed(
-                    () -> verifyActionResult(state,action,beforeFingerprint,teacherSessionId),750);
+                    () -> verifyActionResult(state,action,beforeFingerprint,teacherSessionId,preActionBoundDesignVerified),750);
         } else if(d.kind==SafetyGate.Decision.Kind.ASK_TEACHER) {
             visualEvidence.clearIfExecutionCurrent(action.executionLeaseToken);
             pauseForHuman("Belirsiz/yüksek riskli işlem engellendi: "+d.reason);
@@ -256,7 +263,8 @@ public final class AgentAccessibilityService extends AccessibilityService {
         }
     }
 
-    private void verifyActionResult(TaskState state, AgentAction action, String beforeFingerprint, String teacherSessionId){
+    private void verifyActionResult(TaskState state, AgentAction action, String beforeFingerprint, String teacherSessionId,
+                                    boolean preActionBoundDesignVerified){
         if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
         AccessibilityNodeInfo afterRoot=getRootInActiveWindow();
         String afterPkg=afterRoot!=null&&afterRoot.getPackageName()!=null
@@ -281,6 +289,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
                 cycleBusy.set(false);
                 return;
             }
+            final boolean leaseOwnedVisualEvidence=true;
             captureScreenshotForDiagnostics(file -> {
                 if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
                 if(file==null){
@@ -295,17 +304,21 @@ public final class AgentAccessibilityService extends AccessibilityService {
                 finishActionVerification(
                         state,action,beforeFingerprint,after,changed,
                         "visualDistance="+String.format(java.util.Locale.US,"%.4f",visualDistance),teacherSessionId,
-                        visualDistance
+                        visualDistance,preActionBoundDesignVerified,leaseOwnedVisualEvidence
                 );
             });
         }else{
-            finishActionVerification(state,action,beforeFingerprint,after,treeChanged,"treeOnly",teacherSessionId,Double.NaN);
+            finishActionVerification(
+                    state,action,beforeFingerprint,after,treeChanged,"treeOnly",teacherSessionId,Double.NaN,
+                    preActionBoundDesignVerified,false
+            );
         }
     }
 
     private void finishActionVerification(TaskState state, AgentAction action, String beforeFingerprint,
                                           UiTreeSnapshot after, boolean changed, String evidence, String teacherSessionId,
-                                          double visualDistance){
+                                          double visualDistance, boolean preActionBoundDesignVerified,
+                                          boolean leaseOwnedVisualEvidence){
         if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
 
         boolean anchorVisible=!state.designAnchor.isEmpty() && after.containsText(state.designAnchor);
@@ -313,7 +326,8 @@ public final class AgentAccessibilityService extends AccessibilityService {
         boolean matchesLastSafe=!state.lastSafeSnapshotHash.isEmpty()
                 && state.lastSafeSnapshotHash.equals(after.stableFingerprint());
         boolean visualEditorContinuityVerified=action.visualGrounded
-                && DesignContinuityPolicy.visualEditorContinuityFromDistance(visualDistance);
+                && DesignContinuityPolicy.visualEditorContinuityFromDistance(
+                        visualDistance,preActionBoundDesignVerified,leaseOwnedVisualEvidence);
         boolean continuityVerified=DesignContinuityPolicy.verifiesBoundDesignAfterAction(
                 state.designAnchor,anchorVisible,homeVisible,matchesLastSafe,visualEditorContinuityVerified);
 
