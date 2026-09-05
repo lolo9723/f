@@ -97,6 +97,21 @@ public final class DesignContinuityPolicyTest {
                 "Campaign A", false, false, true));
     }
 
+    @Test public void postActionVisualEditorProofCoversTransientTreeChange() {
+        assertTrue(DesignContinuityPolicy.verifiesBoundDesignAfterAction(
+                "Campaign A", false, false, false, true));
+    }
+
+    @Test public void postActionHomeRejectsEvenPositiveVisualEditorProof() {
+        assertFalse(DesignContinuityPolicy.verifiesBoundDesignAfterAction(
+                "Campaign A", true, true, true, true));
+    }
+
+    @Test public void postActionVisualProofMustBeExplicit() {
+        assertFalse(DesignContinuityPolicy.verifiesBoundDesignAfterAction(
+                "Campaign A", false, false, false, false));
+    }
+
     @Test public void unboundTaskDoesNotNeedPostActionAnchorProof() {
         assertTrue(DesignContinuityPolicy.verifiesBoundDesignAfterAction(
                 "", false, true, false));
