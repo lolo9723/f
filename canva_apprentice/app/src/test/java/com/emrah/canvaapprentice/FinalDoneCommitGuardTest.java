@@ -10,39 +10,60 @@ import org.junit.Test;
 public final class FinalDoneCommitGuardTest {
     @After public void cleanup() {
         TeacherExecutionLease.invalidateGlobal();
+        VerifiedCompletionMemoryHook.clearForTests();
     }
 
-    @Test public void currentLeaseAndSessionMayCommitStop() {
+    @Test public void currentLeaseAndSessionMayCommitStopOnlyWithVerifiedMemoryHook() {
+        String token = TeacherExecutionLease.beginGlobal();
+        AtomicBoolean learned = new AtomicBoolean(false);
+        AtomicBoolean stopped = new AtomicBoolean(false);
+        VerifiedCompletionMemoryHook.install(() -> learned.set(true));
+
+        assertTrue(FinalDoneCommitGuard.commitIfCurrent(token, () -> true, () -> stopped.set(true)));
+        assertTrue(learned.get());
+        assertTrue(stopped.get());
+    }
+
+    @Test public void missingVerifiedMemoryHookFailsClosedWithoutStop() {
         String token = TeacherExecutionLease.beginGlobal();
         AtomicBoolean stopped = new AtomicBoolean(false);
 
-        assertTrue(FinalDoneCommitGuard.commitIfCurrent(token, () -> true, () -> stopped.set(true)));
-        assertTrue(stopped.get());
+        assertFalse(FinalDoneCommitGuard.commitIfCurrent(token, () -> true, () -> stopped.set(true)));
+        assertFalse(stopped.get());
     }
 
     @Test public void staleLeaseCannotCommitStop() {
         String stale = TeacherExecutionLease.beginGlobal();
         TeacherExecutionLease.beginGlobal();
+        AtomicBoolean learned = new AtomicBoolean(false);
         AtomicBoolean stopped = new AtomicBoolean(false);
+        VerifiedCompletionMemoryHook.install(() -> learned.set(true));
 
         assertFalse(FinalDoneCommitGuard.commitIfCurrent(stale, () -> true, () -> stopped.set(true)));
+        assertFalse(learned.get());
         assertFalse(stopped.get());
     }
 
     @Test public void invalidatedLeaseCannotCommitStop() {
         String stale = TeacherExecutionLease.beginGlobal();
         TeacherExecutionLease.invalidateGlobal();
+        AtomicBoolean learned = new AtomicBoolean(false);
         AtomicBoolean stopped = new AtomicBoolean(false);
+        VerifiedCompletionMemoryHook.install(() -> learned.set(true));
 
         assertFalse(FinalDoneCommitGuard.commitIfCurrent(stale, () -> true, () -> stopped.set(true)));
+        assertFalse(learned.get());
         assertFalse(stopped.get());
     }
 
     @Test public void staleSessionCannotCommitEvenWithCurrentLease() {
         String token = TeacherExecutionLease.beginGlobal();
+        AtomicBoolean learned = new AtomicBoolean(false);
         AtomicBoolean stopped = new AtomicBoolean(false);
+        VerifiedCompletionMemoryHook.install(() -> learned.set(true));
 
         assertFalse(FinalDoneCommitGuard.commitIfCurrent(token, () -> false, () -> stopped.set(true)));
+        assertFalse(learned.get());
         assertFalse(stopped.get());
     }
 
