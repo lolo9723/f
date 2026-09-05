@@ -83,6 +83,24 @@ public final class DesignContinuityPolicyTest {
         assertTrue(DesignContinuityPolicy.allows(exact, "calisma plani", false, true));
     }
 
+    @Test public void visualContinuityDistanceAcceptsOnlyConservativeFiniteRange() {
+        assertTrue(DesignContinuityPolicy.visualEditorContinuityFromDistance(0.0));
+        assertTrue(DesignContinuityPolicy.visualEditorContinuityFromDistance(0.0349));
+        assertTrue(DesignContinuityPolicy.visualEditorContinuityFromDistance(0.0350));
+    }
+
+    @Test public void visualContinuityDistanceRejectsDriftBeyondThreshold() {
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(0.0351));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(1.0));
+    }
+
+    @Test public void visualContinuityDistanceRejectsMalformedValues() {
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(-0.0001));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(Double.NaN));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(Double.POSITIVE_INFINITY));
+        assertFalse(DesignContinuityPolicy.visualEditorContinuityFromDistance(Double.NEGATIVE_INFINITY));
+    }
+
     @Test public void postActionHomeIsNeverLearnedAsBoundDesignSuccess() {
         assertFalse(DesignContinuityPolicy.verifiesBoundDesignAfterAction(
                 "Campaign A", true, true, true));
