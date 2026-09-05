@@ -28,7 +28,15 @@ public final class DesignContinuityPolicy {
         }
 
         String anchor = norm(boundAnchor);
-        if (anchor.isEmpty()) return true;
+        if (anchor.isEmpty()) {
+            // Before an existing design has been bound, the agent may only perform
+            // non-content navigation needed to locate/recover that design. In particular,
+            // text edits and coordinate gestures must not touch an arbitrary editor just
+            // because the task has not established design identity yet.
+            return action.type == AgentAction.Type.CLICK_TEXT
+                    || action.type == AgentAction.Type.CLICK_NODE
+                    || action.type == AgentAction.Type.BACK;
+        }
 
         if (canvaHomeVisible) {
             if (action.type == AgentAction.Type.BACK) return true;
