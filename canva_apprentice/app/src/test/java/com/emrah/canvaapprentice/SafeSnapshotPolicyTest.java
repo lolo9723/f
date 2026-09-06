@@ -5,6 +5,7 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+// Persistence tests intentionally model design-scoped restore semantics, not just UI capture policy.
 public final class SafeSnapshotPolicyTest {
     @Test public void unboundTaskMustNotLearnCanvaHomeAsSafe() {
         assertFalse(SafeSnapshotPolicy.shouldMarkSafe("", false, true));
