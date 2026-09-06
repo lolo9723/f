@@ -64,13 +64,13 @@ public final class ActionExecutor {
         // Exact-node execution must never silently climb to a clickable ancestor.
         // The teacher proved one concrete row; clicking any other node would turn
         // structural grounding into a guessed target.
-        if (node == null || !node.isEnabled() || !node.isClickable()) return false;
+        if (node == null || !node.isVisibleToUser() || !node.isEnabled() || !node.isClickable()) return false;
         return node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
     }
 
     private boolean setExactNodeText(AccessibilityNodeInfo root, String encodedTarget, String value) {
         AccessibilityNodeInfo node = verifiedCompactNode(root, encodedTarget);
-        if (node == null || !node.isEditable() || !node.isEnabled()) return false;
+        if (node == null || !node.isVisibleToUser() || !node.isEditable() || !node.isEnabled()) return false;
         Bundle args = new Bundle();
         args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value);
         return node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args);
@@ -97,6 +97,7 @@ public final class ActionExecutor {
     }
 
     private boolean matchesStructuralEvidence(AccessibilityNodeInfo node, String encodedTarget) {
+        if (!node.isVisibleToUser()) return false;
         if (!raw(node.getClassName()).trim().equals(NodeTargetCodec.className(encodedTarget))) return false;
 
         String expectedFlags = NodeTargetCodec.flags(encodedTarget);
@@ -106,7 +107,9 @@ public final class ActionExecutor {
         Rect actual = new Rect();
         node.getBoundsInScreen(actual);
         Rect expected = parseBounds(NodeTargetCodec.bounds(encodedTarget));
-        return expected != null && boundsNear(expected, actual, 8);
+        return exactNodeBoundsUsable(expected)
+                && exactNodeBoundsUsable(actual)
+                && boundsNear(expected, actual, 8);
     }
 
     static Rect parseBounds(String raw) {
@@ -119,6 +122,10 @@ public final class ActionExecutor {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    static boolean exactNodeBoundsUsable(Rect rect) {
+        return rect != null && rect.width() > 0 && rect.height() > 0;
     }
 
     static boolean boundsNear(Rect a, Rect b, int tolerancePx) {
