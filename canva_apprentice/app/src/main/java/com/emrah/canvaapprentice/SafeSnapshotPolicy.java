@@ -7,23 +7,33 @@ package com.emrah.canvaapprentice;
 public final class SafeSnapshotPolicy {
     private SafeSnapshotPolicy() {}
 
+    /**
+     * Legacy structural-only checkpoint admission is deliberately disabled. Anchor text by itself
+     * can be stale, duplicated, or visible in a shell/navigation surface and therefore cannot prove
+     * that the pixels belong to the exact bound Canva design. Callers must migrate to the explicit
+     * structural + visual overload below before they may persist continuity authority.
+     */
     public static boolean shouldMarkSafe(String boundAnchor,
                                          boolean anchorVisible,
                                          boolean canvaHomeVisible) {
+        return false;
+    }
+
+    /**
+     * A continuity checkpoint is admissible only when exact-design structural evidence and a fresh
+     * visual proof from the same observation are both present. The visual proof is represented here
+     * as an already-verified same-observation boolean; screenshot lease/fingerprint ownership is
+     * enforced by the caller that produces it.
+     */
+    public static boolean shouldMarkSafe(String boundAnchor,
+                                         boolean anchorVisible,
+                                         boolean canvaHomeVisible,
+                                         boolean sameObservationVisualVerified) {
         String anchor = boundAnchor == null ? "" : boundAnchor.trim();
-
-        // Home/projects is never an editor continuity checkpoint.
         if (canvaHomeVisible) return false;
-
-        // Fail closed before exact design identity is bound. An unbound editor fingerprint has no
-        // trustworthy ownership relationship to the user's existing design. Persisting it as a
-        // temporary baseline is unnecessary and creates stale-provenance surface across lifecycle
-        // races. Once BIND_DESIGN succeeds, the bound design must prove itself explicitly.
         if (anchor.isEmpty()) return false;
-
-        // Once bound, only a screen that visibly proves the same design may refresh the
-        // last-safe continuity checkpoint. Unknown/transient editor states remain untrusted.
-        return anchorVisible;
+        if (!anchorVisible) return false;
+        return sameObservationVisualVerified;
     }
 
     /**
