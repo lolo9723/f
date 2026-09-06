@@ -27,8 +27,19 @@ public final class SafeSnapshotPolicyTest {
         assertFalse(SafeSnapshotPolicy.shouldMarkSafe("Annual Report", false, false));
     }
 
-    @Test public void boundDesignVisibleInsideEditorMayRefreshSafeCheckpoint() {
-        assertTrue(SafeSnapshotPolicy.shouldMarkSafe("Annual Report", true, false));
+    @Test public void legacyStructuralOnlyAdmissionFailsClosedEvenWhenAnchorVisible() {
+        assertFalse(SafeSnapshotPolicy.shouldMarkSafe("Annual Report", true, false));
+    }
+
+    @Test public void dualEvidenceRequiresFreshVisualProof() {
+        assertFalse(SafeSnapshotPolicy.shouldMarkSafe("Annual Report", true, false, false));
+        assertTrue(SafeSnapshotPolicy.shouldMarkSafe("Annual Report", true, false, true));
+    }
+
+    @Test public void dualEvidenceStillRejectsHomeUnboundAndMissingAnchor() {
+        assertFalse(SafeSnapshotPolicy.shouldMarkSafe("Annual Report", true, true, true));
+        assertFalse(SafeSnapshotPolicy.shouldMarkSafe("", true, false, true));
+        assertFalse(SafeSnapshotPolicy.shouldMarkSafe("Annual Report", false, false, true));
     }
 
     @Test public void repositoryCheckpointRequiresRunningMode() {
