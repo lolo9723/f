@@ -61,13 +61,14 @@ public final class SafeSnapshotPolicy {
      * must still belong to the same teacher session, exact bound design and unchanged structural
      * observation that requested it. The recaptured structural observation must visibly identify the
      * bound design and must not be Canva home/projects. The visual fingerprint must be the complete
-     * 16x16 hexadecimal fingerprint emitted by VisualFingerprint.fromFile; arbitrary non-empty
-     * strings are not visual evidence and must never recreate continuity authority.
+     * 16x16 hexadecimal fingerprint emitted by VisualFingerprint.fromFile and must contain more than
+     * one luminance bucket. A uniform 256-cell fingerprint is treated as a blank/corrupt capture and
+     * cannot create continuity authority even though it is syntactically valid hexadecimal.
      *
      * This guard exists specifically for resume/process-restore races: a screenshot callback that
      * arrives after DEVAM ET rotates the teacher session, after a design rebind, after navigation to
-     * Canva home, after the anchor disappears, or after the Canva UI tree changes must never recreate
-     * continuity authority from stale pixels.
+     * Canva home, after the anchor disappears, after the Canva UI tree changes, or with a blank
+     * screenshot must never recreate continuity authority from stale or unusable pixels.
      */
     public static boolean mayCommitObservedCheckpoint(TaskState.Mode mode,
                                                       String currentBoundAnchor,
@@ -93,7 +94,7 @@ public final class SafeSnapshotPolicy {
         if (currentSession.isEmpty() || expectedSession.isEmpty() || !currentSession.equals(expectedSession)) return false;
         if (before.isEmpty() || after.isEmpty() || !before.equals(after)) return false;
         if (!recapturedAnchorVisible || recapturedCanvaHomeVisible) return false;
-        return isWellFormedVisualFingerprint(visual);
+        return isUsableVisualFingerprint(visual);
     }
 
     /**
@@ -139,12 +140,15 @@ public final class SafeSnapshotPolicy {
         return current.equals(owner);
     }
 
-    private static boolean isWellFormedVisualFingerprint(String value) {
+    private static boolean isUsableVisualFingerprint(String value) {
         if (value == null || value.length() != VISUAL_FINGERPRINT_HEX_LENGTH) return false;
+        char first = value.charAt(0);
+        boolean hasDifferentBucket = false;
         for (int i = 0; i < value.length(); i++) {
             if (Character.digit(value.charAt(i), 16) < 0) return false;
+            if (value.charAt(i) != first) hasDifferentBucket = true;
         }
-        return true;
+        return hasDifferentBucket;
     }
 
     private static String normalize(String value) {
