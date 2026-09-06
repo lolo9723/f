@@ -51,10 +51,27 @@ public class ExactNodeStructuralEvidenceTest {
     }
 
     @Test public void exactNodeBoundsMustHavePositiveArea() {
-        assertTrue(ActionExecutor.exactNodeBoundsUsable(new Rect(24, 180, 260, 236)));
-        assertFalse(ActionExecutor.exactNodeBoundsUsable(new Rect(24, 180, 24, 236)));
-        assertFalse(ActionExecutor.exactNodeBoundsUsable(new Rect(24, 180, 260, 180)));
-        assertFalse(ActionExecutor.exactNodeBoundsUsable(new Rect(260, 236, 24, 180)));
+        // android.jar Rect constructors are mocked/no-op in local JVM tests. Populate the
+        // public edge fields directly so this test exercises the production admission guard
+        // rather than accidentally testing the Android stub implementation.
+        Rect valid = rect(24, 180, 260, 236);
+        Rect zeroWidth = rect(24, 180, 24, 236);
+        Rect zeroHeight = rect(24, 180, 260, 180);
+        Rect inverted = rect(260, 236, 24, 180);
+
+        assertTrue(ActionExecutor.exactNodeBoundsUsable(valid));
+        assertFalse(ActionExecutor.exactNodeBoundsUsable(zeroWidth));
+        assertFalse(ActionExecutor.exactNodeBoundsUsable(zeroHeight));
+        assertFalse(ActionExecutor.exactNodeBoundsUsable(inverted));
         assertFalse(ActionExecutor.exactNodeBoundsUsable(null));
+    }
+
+    private static Rect rect(int left, int top, int right, int bottom) {
+        Rect r = new Rect();
+        r.left = left;
+        r.top = top;
+        r.right = right;
+        r.bottom = bottom;
+        return r;
     }
 }
