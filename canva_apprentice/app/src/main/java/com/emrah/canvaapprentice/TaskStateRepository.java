@@ -103,18 +103,18 @@ public final class TaskStateRepository {
                 .apply();
     }
 
+    /**
+     * Legacy structural-only checkpoint persistence is permanently disabled.
+     *
+     * A structural fingerprint can be produced while stale anchor text is duplicated in Canva UI,
+     * after shell/navigation changes, or without pixel evidence from the exact observation. Keeping
+     * this compatibility method as a hard no-op prevents any overlooked or future caller from
+     * bypassing the screenshot-backed admission boundary. Only markSafeIfObserved(...) may create
+     * continuity authority.
+     */
+    @Deprecated
     public synchronized void markSafe(String hash) {
-        TaskState state = load();
-        // Persistence is a security boundary, not a blind setter. A stale callback or future
-        // call-site bug must never be able to recreate continuity while paused/stopped, before an
-        // exact design is bound, or with an unusable fingerprint.
-        if (!SafeSnapshotPolicy.mayPersistCheckpoint(state.mode, state.designAnchor, hash)) return;
-        String owner = state.designAnchor.trim();
-        prefs.edit()
-                .putString(LAST_SAFE_HASH, hash.trim())
-                .putString(LAST_SAFE_ANCHOR, owner)
-                .putInt("step", state.step + 1)
-                .apply();
+        // Fail closed by design. Do not persist LAST_SAFE_HASH/LAST_SAFE_ANCHOR here.
     }
 
     /**
