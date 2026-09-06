@@ -85,6 +85,19 @@ public final class SafeSnapshotPolicy {
     }
 
     /**
+     * Runtime restore is fail-closed by mode as well as design ownership. A checkpoint is execution
+     * authority, so HUMAN_TAKEOVER, STOPPED and IDLE states must expose no trusted safe hash even if
+     * old preferences still contain an otherwise matching anchor/hash pair.
+     */
+    public static boolean mayRestoreCheckpoint(TaskState.Mode mode,
+                                               String currentBoundAnchor,
+                                               String checkpointAnchor,
+                                               String snapshotHash) {
+        if (mode != TaskState.Mode.RUNNING) return false;
+        return mayRestoreCheckpoint(currentBoundAnchor, checkpointAnchor, snapshotHash);
+    }
+
+    /**
      * Durable checkpoints are design-scoped evidence. A hash without the exact anchor that owned
      * it must fail closed (including legacy/migrated records where checkpointAnchor is absent).
      * This prevents an old editor fingerprint from authorizing continuity after a design rebind or
