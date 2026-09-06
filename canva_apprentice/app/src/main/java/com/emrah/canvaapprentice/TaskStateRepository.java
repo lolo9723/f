@@ -93,8 +93,12 @@ public final class TaskStateRepository {
 
     public synchronized void markSafe(String hash) {
         TaskState state = load();
+        // Persistence is a security boundary, not a blind setter. A stale callback or future
+        // call-site bug must never be able to recreate continuity while paused/stopped, before an
+        // exact design is bound, or with an unusable fingerprint.
+        if (!SafeSnapshotPolicy.mayPersistCheckpoint(state.mode, state.designAnchor, hash)) return;
         prefs.edit()
-                .putString("last_safe_hash", hash == null ? "" : hash)
+                .putString("last_safe_hash", hash.trim())
                 .putInt("step", state.step + 1)
                 .apply();
     }
