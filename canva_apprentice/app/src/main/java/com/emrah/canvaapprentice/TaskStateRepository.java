@@ -100,9 +100,10 @@ public final class TaskStateRepository {
      * Compatibility entry point used by the production Canva cycle.
      *
      * This method no longer persists structural-only evidence. Instead it starts a screenshot-backed
-     * admission attempt tied to the exact current teacher session and bound design. The structural
-     * fingerprint supplied by the cycle must still match the live Canva tree before capture, and the
-     * tree is recaptured after the screenshot. Only markSafeIfObserved(...) is allowed to persist.
+     * admission attempt tied to the exact current teacher session, bound design, and service runtime.
+     * The structural fingerprint supplied by the cycle must still match the live Canva tree before
+     * capture, and the tree is recaptured after the screenshot. Only markSafeIfObserved(...) may
+     * persist continuity authority.
      */
     @Deprecated
     public void markSafe(String hash) {
@@ -132,6 +133,7 @@ public final class TaskStateRepository {
 
         service.captureScreenshotForDiagnostics(file -> {
             if (file == null) return;
+            if (!RuntimeOwnerPolicy.isCurrent(service, AgentAccessibilityService.INSTANCE)) return;
 
             AccessibilityNodeInfo recapturedRoot = service.getRootInActiveWindow();
             String recapturedPkg = recapturedRoot != null && recapturedRoot.getPackageName() != null
@@ -140,6 +142,7 @@ public final class TaskStateRepository {
 
             UiTreeSnapshot recaptured = UiTreeSnapshot.capture(recapturedRoot);
             String visualFingerprint = VisualFingerprint.fromFile(file);
+            if (!RuntimeOwnerPolicy.isCurrent(service, AgentAccessibilityService.INSTANCE)) return;
             markSafeIfObserved(
                     expectedAnchor,
                     expectedSession,
