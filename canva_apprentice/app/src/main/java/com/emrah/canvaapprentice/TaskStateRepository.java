@@ -28,7 +28,7 @@ public final class TaskStateRepository {
         String persistedSafeHash = prefs.getString(LAST_SAFE_HASH, "");
         String persistedSafeAnchor = prefs.getString(LAST_SAFE_ANCHOR, "");
         String trustedSafeHash = SafeSnapshotPolicy.mayRestoreCheckpoint(
-                designAnchor,persistedSafeAnchor,persistedSafeHash)
+                mode,designAnchor,persistedSafeAnchor,persistedSafeHash)
                 ? persistedSafeHash : "";
 
         return new TaskState(
@@ -118,9 +118,14 @@ public final class TaskStateRepository {
     }
 
     public synchronized void pauseForHuman(String reason) {
+        // HUMAN_TAKEOVER revokes all runtime continuity authority immediately. Clearing the durable
+        // pair as well as rotating the teacher session prevents any reader from observing a stale
+        // checkpoint while the user is authenticating, dismissing dialogs, or navigating Canva.
         prefs.edit()
                 .putString("mode", TaskState.Mode.HUMAN_TAKEOVER.name())
                 .putString("human_reason", reason == null ? "" : reason)
+                .putString(LAST_SAFE_HASH, "")
+                .putString(LAST_SAFE_ANCHOR, "")
                 .putString(SESSION_ID, newSessionId())
                 .apply();
     }
@@ -141,9 +146,13 @@ public final class TaskStateRepository {
     }
 
     public synchronized void stop() {
+        // STOPPED is a hard revocation boundary. Do not leave a design-scoped runtime checkpoint
+        // resident for future readers/processes; a later task must prove continuity from scratch.
         prefs.edit()
                 .putString("mode", TaskState.Mode.STOPPED.name())
                 .putString("human_reason", "")
+                .putString(LAST_SAFE_HASH, "")
+                .putString(LAST_SAFE_ANCHOR, "")
                 .putString(SESSION_ID, newSessionId())
                 .apply();
     }
