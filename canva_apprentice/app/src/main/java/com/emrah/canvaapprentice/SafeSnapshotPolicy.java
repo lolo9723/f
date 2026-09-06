@@ -5,6 +5,8 @@ package com.emrah.canvaapprentice;
  * A bound design must never learn Canva home/projects or an unidentified editor as "safe".
  */
 public final class SafeSnapshotPolicy {
+    private static final int VISUAL_FINGERPRINT_HEX_LENGTH = 16 * 16;
+
     private SafeSnapshotPolicy() {}
 
     /**
@@ -39,8 +41,9 @@ public final class SafeSnapshotPolicy {
     /**
      * Final admission guard for an asynchronous screenshot-backed checkpoint. The screenshot result
      * must still belong to the same teacher session, exact bound design and unchanged structural
-     * observation that requested it. A non-empty visual fingerprint proves that a real screenshot
-     * was captured; callers still decide visual similarity separately where needed.
+     * observation that requested it. The visual fingerprint must be the complete 16x16 hexadecimal
+     * fingerprint emitted by VisualFingerprint.fromFile; arbitrary non-empty strings are not visual
+     * evidence and must never recreate continuity authority.
      *
      * This guard exists specifically for resume/process-restore races: a screenshot callback that
      * arrives after DEVAM ET rotates the teacher session, after a design rebind, or after the Canva
@@ -67,7 +70,7 @@ public final class SafeSnapshotPolicy {
         if (expectedAnchor.isEmpty() || !currentAnchor.equals(expectedAnchor)) return false;
         if (currentSession.isEmpty() || expectedSession.isEmpty() || !currentSession.equals(expectedSession)) return false;
         if (before.isEmpty() || after.isEmpty() || !before.equals(after)) return false;
-        return !visual.isEmpty();
+        return isWellFormedVisualFingerprint(visual);
     }
 
     /**
@@ -111,6 +114,14 @@ public final class SafeSnapshotPolicy {
         String hash = normalize(snapshotHash);
         if (current.isEmpty() || owner.isEmpty() || hash.isEmpty()) return false;
         return current.equals(owner);
+    }
+
+    private static boolean isWellFormedVisualFingerprint(String value) {
+        if (value == null || value.length() != VISUAL_FINGERPRINT_HEX_LENGTH) return false;
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.digit(value.charAt(i), 16) < 0) return false;
+        }
+        return true;
     }
 
     private static String normalize(String value) {
