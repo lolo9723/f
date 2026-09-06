@@ -57,4 +57,32 @@ public final class SafeSnapshotPolicyTest {
         assertTrue(SafeSnapshotPolicy.mayPersistCheckpoint(
                 TaskState.Mode.RUNNING,"Annual Report","fp-1"));
     }
+
+    @Test public void restoredCheckpointMustBelongToExactCurrentDesign() {
+        assertTrue(SafeSnapshotPolicy.mayRestoreCheckpoint(
+                "Annual Report","Annual Report","fp-1"));
+        assertFalse(SafeSnapshotPolicy.mayRestoreCheckpoint(
+                "Annual Report","Quarterly Report","fp-1"));
+    }
+
+    @Test public void legacyCheckpointWithoutOwnerMustFailClosed() {
+        assertFalse(SafeSnapshotPolicy.mayRestoreCheckpoint(
+                "Annual Report","","fp-1"));
+        assertFalse(SafeSnapshotPolicy.mayRestoreCheckpoint(
+                "Annual Report",null,"fp-1"));
+    }
+
+    @Test public void restoredCheckpointRequiresNonEmptyCurrentAnchorAndHash() {
+        assertFalse(SafeSnapshotPolicy.mayRestoreCheckpoint(
+                "","Annual Report","fp-1"));
+        assertFalse(SafeSnapshotPolicy.mayRestoreCheckpoint(
+                "Annual Report","Annual Report",""));
+    }
+
+    @Test public void restoreComparisonNormalizesOuterWhitespaceOnly() {
+        assertTrue(SafeSnapshotPolicy.mayRestoreCheckpoint(
+                "  Annual Report  ","Annual Report"," fp-1 "));
+        assertFalse(SafeSnapshotPolicy.mayRestoreCheckpoint(
+                "Annual  Report","Annual Report","fp-1"));
+    }
 }

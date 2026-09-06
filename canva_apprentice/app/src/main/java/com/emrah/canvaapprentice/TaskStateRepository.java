@@ -7,6 +7,8 @@ import java.util.UUID;
 public final class TaskStateRepository {
     private static final String PREFS = "agent_state_v2";
     private static final String SESSION_ID = "teacher_session_id";
+    private static final String LAST_SAFE_HASH = "last_safe_hash";
+    private static final String LAST_SAFE_ANCHOR = "last_safe_anchor";
     private static boolean processContinuityInitialized = false;
     private final SharedPreferences prefs;
 
@@ -22,11 +24,18 @@ public final class TaskStateRepository {
         try { mode = TaskState.Mode.valueOf(modeRaw); }
         catch (Exception ignored) { mode = TaskState.Mode.IDLE; }
 
+        String designAnchor = prefs.getString("design_anchor", "");
+        String persistedSafeHash = prefs.getString(LAST_SAFE_HASH, "");
+        String persistedSafeAnchor = prefs.getString(LAST_SAFE_ANCHOR, "");
+        String trustedSafeHash = SafeSnapshotPolicy.mayRestoreCheckpoint(
+                designAnchor,persistedSafeAnchor,persistedSafeHash)
+                ? persistedSafeHash : "";
+
         return new TaskState(
                 prefs.getString("goal", ""),
                 prefs.getString("design_fingerprint", ""),
-                prefs.getString("design_anchor", ""),
-                prefs.getString("last_safe_hash", ""),
+                designAnchor,
+                trustedSafeHash,
                 prefs.getString("human_reason", ""),
                 mode,
                 prefs.getBoolean("allow_new_design", false),
@@ -50,7 +59,8 @@ public final class TaskStateRepository {
 
         if (!RuntimeRestoreContinuityPolicy.mustInvalidate(mode)) return;
         prefs.edit()
-                .putString("last_safe_hash", "")
+                .putString(LAST_SAFE_HASH, "")
+                .putString(LAST_SAFE_ANCHOR, "")
                 .putString(SESSION_ID, newSessionId())
                 .apply();
     }
@@ -70,7 +80,8 @@ public final class TaskStateRepository {
                 .putBoolean("allow_new_design", allowNewDesign)
                 .putString("design_fingerprint", currentFingerprint == null ? "" : currentFingerprint)
                 .putString("design_anchor", "")
-                .putString("last_safe_hash", "")
+                .putString(LAST_SAFE_HASH, "")
+                .putString(LAST_SAFE_ANCHOR, "")
                 .putString("human_reason", "")
                 .putString("mode", TaskState.Mode.RUNNING.name())
                 .putString(SESSION_ID, newSessionId())
@@ -83,11 +94,12 @@ public final class TaskStateRepository {
         String a = anchor.trim();
         if (a.isEmpty()) return;
         // Any checkpoint learned before binding had no proof that it belonged to this design.
-        // Clear it atomically with the bind so pre-bind/home/unknown fingerprints can never
-        // become post-bind continuity evidence.
+        // Clear both the hash and its owner atomically with the bind so pre-bind/home/unknown or
+        // previously-bound fingerprints can never become post-bind continuity evidence.
         prefs.edit()
                 .putString("design_anchor", a)
-                .putString("last_safe_hash", "")
+                .putString(LAST_SAFE_HASH, "")
+                .putString(LAST_SAFE_ANCHOR, "")
                 .apply();
     }
 
@@ -97,8 +109,10 @@ public final class TaskStateRepository {
         // call-site bug must never be able to recreate continuity while paused/stopped, before an
         // exact design is bound, or with an unusable fingerprint.
         if (!SafeSnapshotPolicy.mayPersistCheckpoint(state.mode, state.designAnchor, hash)) return;
+        String owner = state.designAnchor.trim();
         prefs.edit()
-                .putString("last_safe_hash", hash.trim())
+                .putString(LAST_SAFE_HASH, hash.trim())
+                .putString(LAST_SAFE_ANCHOR, owner)
                 .putInt("step", state.step + 1)
                 .apply();
     }
@@ -120,7 +134,8 @@ public final class TaskStateRepository {
         prefs.edit()
                 .putString("mode", TaskState.Mode.RUNNING.name())
                 .putString("human_reason", "")
-                .putString("last_safe_hash", "")
+                .putString(LAST_SAFE_HASH, "")
+                .putString(LAST_SAFE_ANCHOR, "")
                 .putString(SESSION_ID, newSessionId())
                 .apply();
     }

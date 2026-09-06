@@ -39,4 +39,20 @@ public final class SafeSnapshotPolicy {
         if (boundAnchor == null || boundAnchor.trim().isEmpty()) return false;
         return snapshotHash != null && !snapshotHash.trim().isEmpty();
     }
+
+    /**
+     * Durable checkpoints are design-scoped evidence. A hash without the exact anchor that owned
+     * it must fail closed (including legacy/migrated records where checkpointAnchor is absent).
+     * This prevents an old editor fingerprint from authorizing continuity after a design rebind or
+     * a future call-site bug that forgets to clear the hash.
+     */
+    public static boolean mayRestoreCheckpoint(String currentBoundAnchor,
+                                               String checkpointAnchor,
+                                               String snapshotHash) {
+        String current = currentBoundAnchor == null ? "" : currentBoundAnchor.trim();
+        String owner = checkpointAnchor == null ? "" : checkpointAnchor.trim();
+        String hash = snapshotHash == null ? "" : snapshotHash.trim();
+        if (current.isEmpty() || owner.isEmpty() || hash.isEmpty()) return false;
+        return current.equals(owner);
+    }
 }
