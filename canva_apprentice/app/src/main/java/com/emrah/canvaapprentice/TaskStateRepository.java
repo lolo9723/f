@@ -117,6 +117,48 @@ public final class TaskStateRepository {
                 .apply();
     }
 
+    /**
+     * Atomically validates and persists a screenshot-backed continuity checkpoint.
+     *
+     * The caller supplies the exact design/session/structural observation that initiated the
+     * screenshot plus the recaptured structural facts and visual fingerprint. All current runtime
+     * state is re-read while holding this repository monitor, and the safe hash is written before
+     * releasing it. This closes the policy-check -> markSafe TOCTOU window where DEVAM ET, a design
+     * rebind, HUMAN_TAKEOVER or STOP could otherwise change authority between validation and write.
+     */
+    public synchronized boolean markSafeIfObserved(String expectedBoundAnchor,
+                                                   String expectedTeacherSessionId,
+                                                   String structuralFingerprint,
+                                                   String recapturedFingerprint,
+                                                   boolean recapturedAnchorVisible,
+                                                   boolean recapturedCanvaHomeVisible,
+                                                   String visualFingerprint) {
+        TaskState state = load();
+        String currentSessionId = currentTeacherSessionId();
+        if (!SafeSnapshotPolicy.mayCommitObservedCheckpoint(
+                state.mode,
+                state.designAnchor,
+                expectedBoundAnchor,
+                currentSessionId,
+                expectedTeacherSessionId,
+                structuralFingerprint,
+                recapturedFingerprint,
+                recapturedAnchorVisible,
+                recapturedCanvaHomeVisible,
+                visualFingerprint)) {
+            return false;
+        }
+
+        String owner = state.designAnchor.trim();
+        String hash = recapturedFingerprint.trim();
+        prefs.edit()
+                .putString(LAST_SAFE_HASH, hash)
+                .putString(LAST_SAFE_ANCHOR, owner)
+                .putInt("step", state.step + 1)
+                .apply();
+        return true;
+    }
+
     public synchronized void pauseForHuman(String reason) {
         // HUMAN_TAKEOVER revokes all runtime continuity authority immediately. Clearing the durable
         // pair as well as rotating the teacher session prevents any reader from observing a stale
