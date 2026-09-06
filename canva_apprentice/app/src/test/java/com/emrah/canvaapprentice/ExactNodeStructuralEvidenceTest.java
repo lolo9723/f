@@ -1,5 +1,6 @@
 package com.emrah.canvaapprentice;
 
+import android.graphics.Rect;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -47,5 +48,13 @@ public class ExactNodeStructuralEvidenceTest {
 
         assertTrue(prompt.contains("index|class|text|description|bounds|flags"));
         assertTrue(prompt.contains("copy index, label, class, bounds, and flags from the SAME row"));
+    }
+
+    @Test public void exactNodeBoundsMustHavePositiveArea() {
+        assertTrue(ActionExecutor.exactNodeBoundsUsable(new Rect(24, 180, 260, 236)));
+        assertFalse(ActionExecutor.exactNodeBoundsUsable(new Rect(24, 180, 24, 236)));
+        assertFalse(ActionExecutor.exactNodeBoundsUsable(new Rect(24, 180, 260, 180)));
+        assertFalse(ActionExecutor.exactNodeBoundsUsable(new Rect(260, 236, 24, 180)));
+        assertFalse(ActionExecutor.exactNodeBoundsUsable(null));
     }
 }
