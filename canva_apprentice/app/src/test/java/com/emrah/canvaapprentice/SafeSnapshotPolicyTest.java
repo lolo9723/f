@@ -29,4 +29,32 @@ public final class SafeSnapshotPolicyTest {
     @Test public void boundDesignVisibleInsideEditorMayRefreshSafeCheckpoint() {
         assertTrue(SafeSnapshotPolicy.shouldMarkSafe("Annual Report", true, false));
     }
+
+    @Test public void repositoryCheckpointRequiresRunningMode() {
+        assertFalse(SafeSnapshotPolicy.mayPersistCheckpoint(
+                TaskState.Mode.HUMAN_TAKEOVER,"Annual Report","fp-1"));
+        assertFalse(SafeSnapshotPolicy.mayPersistCheckpoint(
+                TaskState.Mode.STOPPED,"Annual Report","fp-1"));
+        assertFalse(SafeSnapshotPolicy.mayPersistCheckpoint(
+                TaskState.Mode.IDLE,"Annual Report","fp-1"));
+    }
+
+    @Test public void repositoryCheckpointRequiresBoundDesign() {
+        assertFalse(SafeSnapshotPolicy.mayPersistCheckpoint(
+                TaskState.Mode.RUNNING,"","fp-1"));
+        assertFalse(SafeSnapshotPolicy.mayPersistCheckpoint(
+                TaskState.Mode.RUNNING,"   ","fp-1"));
+    }
+
+    @Test public void repositoryCheckpointRequiresUsableFingerprint() {
+        assertFalse(SafeSnapshotPolicy.mayPersistCheckpoint(
+                TaskState.Mode.RUNNING,"Annual Report",""));
+        assertFalse(SafeSnapshotPolicy.mayPersistCheckpoint(
+                TaskState.Mode.RUNNING,"Annual Report","   "));
+    }
+
+    @Test public void repositoryCheckpointAcceptsOnlyRunningBoundNonEmptyState() {
+        assertTrue(SafeSnapshotPolicy.mayPersistCheckpoint(
+                TaskState.Mode.RUNNING,"Annual Report","fp-1"));
+    }
 }
