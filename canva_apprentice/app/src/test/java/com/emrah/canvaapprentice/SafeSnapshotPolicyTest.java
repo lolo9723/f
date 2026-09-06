@@ -143,6 +143,22 @@ public final class SafeSnapshotPolicyTest {
                 "Annual Report","Quarterly Report","fp-1"));
     }
 
+    @Test public void runtimeRestoreRequiresRunningModeEvenWithMatchingDesignEvidence() {
+        assertTrue(SafeSnapshotPolicy.mayRestoreCheckpoint(
+                TaskState.Mode.RUNNING,"Annual Report","Annual Report","fp-1"));
+        assertFalse(SafeSnapshotPolicy.mayRestoreCheckpoint(
+                TaskState.Mode.HUMAN_TAKEOVER,"Annual Report","Annual Report","fp-1"));
+        assertFalse(SafeSnapshotPolicy.mayRestoreCheckpoint(
+                TaskState.Mode.STOPPED,"Annual Report","Annual Report","fp-1"));
+        assertFalse(SafeSnapshotPolicy.mayRestoreCheckpoint(
+                TaskState.Mode.IDLE,"Annual Report","Annual Report","fp-1"));
+    }
+
+    @Test public void runtimeRestoreRejectsNullMode() {
+        assertFalse(SafeSnapshotPolicy.mayRestoreCheckpoint(
+                null,"Annual Report","Annual Report","fp-1"));
+    }
+
     @Test public void legacyCheckpointWithoutOwnerMustFailClosed() {
         assertFalse(SafeSnapshotPolicy.mayRestoreCheckpoint(
                 "Annual Report","","fp-1"));
