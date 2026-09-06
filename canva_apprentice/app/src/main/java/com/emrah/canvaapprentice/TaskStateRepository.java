@@ -7,6 +7,7 @@ import java.util.UUID;
 public final class TaskStateRepository {
     private static final String PREFS = "agent_state_v2";
     private static final String SESSION_ID = "teacher_session_id";
+    private static boolean processContinuityInitialized = false;
     private final SharedPreferences prefs;
 
     public TaskStateRepository(Context context) {
@@ -14,6 +15,8 @@ public final class TaskStateRepository {
     }
 
     public synchronized TaskState load() {
+        invalidatePersistedRuntimeContinuityOnFirstLoad();
+
         String modeRaw = prefs.getString("mode", TaskState.Mode.IDLE.name());
         TaskState.Mode mode;
         try { mode = TaskState.Mode.valueOf(modeRaw); }
@@ -29,6 +32,27 @@ public final class TaskStateRepository {
                 prefs.getBoolean("allow_new_design", false),
                 prefs.getInt("step", 0)
         );
+    }
+
+    private void invalidatePersistedRuntimeContinuityOnFirstLoad() {
+        // last_safe_hash and the teacher session are runtime provenance, not durable proof. Android
+        // may recreate the process/service while Canva has moved, so a checkpoint from the previous
+        // process must never authorize design continuity or learned-memory replay in the new one.
+        // The static guard makes this a once-per-process invalidation even if another component
+        // constructs the repository before the accessibility service.
+        if (processContinuityInitialized) return;
+        processContinuityInitialized = true;
+
+        String modeRaw = prefs.getString("mode", TaskState.Mode.IDLE.name());
+        TaskState.Mode mode;
+        try { mode = TaskState.Mode.valueOf(modeRaw); }
+        catch (Exception ignored) { mode = TaskState.Mode.IDLE; }
+
+        if (!RuntimeRestoreContinuityPolicy.mustInvalidate(mode)) return;
+        prefs.edit()
+                .putString("last_safe_hash", "")
+                .putString(SESSION_ID, newSessionId())
+                .apply();
     }
 
     public synchronized String currentTeacherSessionId() {
