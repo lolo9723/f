@@ -158,6 +158,16 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
         if (beforeFp == null || beforeFp.isEmpty()) return "none";
         String goalKey = goalKey(goal);
         TaskState state = new TaskStateRepository(appContext).load();
+
+        // DEVAM ET / process restoration invalidates continuity provenance by clearing the safe
+        // checkpoint. Do not let old learned navigation influence the teacher until the current
+        // Canva surface has independently become the new safe checkpoint. For a bound design,
+        // SafeSnapshotPolicy can only establish that checkpoint while the exact anchor is visible.
+        if (!MemoryReplayContinuityPolicy.mayRead(
+                state.mode, state.lastSafeSnapshotHash, beforeFp)) {
+            return "withheld: current Canva/design continuity has not been re-proven for memory replay";
+        }
+
         String designKey = transitionScopeKey(state.designAnchor);
         SQLiteDatabase db = getReadableDatabase();
         Cursor c = db.rawQuery(
