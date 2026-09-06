@@ -125,7 +125,10 @@ public final class ActionExecutor {
     }
 
     static boolean exactNodeBoundsUsable(Rect rect) {
-        return rect != null && rect.width() > 0 && rect.height() > 0;
+        // Compare raw edges instead of calling Rect.width()/height(). This is both
+        // semantically exact for positive-area admission and keeps this safety guard
+        // executable in local JVM tests, where android.jar methods are stubs.
+        return rect != null && rect.right > rect.left && rect.bottom > rect.top;
     }
 
     static boolean boundsNear(Rect a, Rect b, int tolerancePx) {
