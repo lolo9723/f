@@ -18,11 +18,10 @@ public final class ScreenshotProvider extends ContentProvider {
     private static final String LEGACY_CAPTURE_FILE = "canva_agent_last.png";
 
     /**
-     * Creates an immutable, capture-specific snapshot of the shared diagnostics file before
-     * granting ChatGPT read access. takeScreenshot callbacks run on the service main executor,
-     * so the fingerprint calculation immediately preceding this call and this copy cannot be
-     * interleaved by another screenshot callback from the same runtime. A later/stale callback
-     * may overwrite the diagnostics file, but it cannot mutate the URI already shared.
+     * Promotes the shared diagnostics capture into an immutable, capture-specific file before
+     * granting ChatGPT read access. Prefer an atomic rename so the legacy mutable path stops
+     * existing immediately. Copy+fsync+delete is only a fallback for filesystems where rename
+     * cannot be completed. Old capture-specific evidence is cleaned conservatively.
      */
     public static Uri uri() {
         AgentAccessibilityService service = AgentAccessibilityService.INSTANCE;
@@ -30,13 +29,21 @@ public final class ScreenshotProvider extends ContentProvider {
         if (service == null) {
             return Uri.parse("content://" + AUTHORITY + "/" + captureName);
         }
-        File source = new File(service.getCacheDir(), LEGACY_CAPTURE_FILE);
-        File target = new File(service.getCacheDir(), captureName);
+        File cacheDir = service.getCacheDir();
+        cleanupExpiredEvidence(cacheDir, System.currentTimeMillis());
+        File source = new File(cacheDir, LEGACY_CAPTURE_FILE);
+        File target = new File(cacheDir, captureName);
         if (source.exists() && source.isFile()) {
-            try {
-                copyFile(source, target);
-            } catch (IOException ignored) {
-                target.delete();
+            boolean promoted = source.renameTo(target);
+            if (!promoted) {
+                try {
+                    copyFile(source, target);
+                    if (!source.delete()) {
+                        target.delete();
+                    }
+                } catch (IOException ignored) {
+                    target.delete();
+                }
             }
         }
         return uriFor(target);
@@ -56,6 +63,17 @@ public final class ScreenshotProvider extends ContentProvider {
             int read;
             while ((read = in.read(buffer)) != -1) out.write(buffer, 0, read);
             out.getFD().sync();
+        }
+    }
+
+    private static void cleanupExpiredEvidence(File cacheDir, long nowMs) {
+        File[] files = cacheDir == null ? null : cacheDir.listFiles();
+        if (files == null) return;
+        for (File file : files) {
+            if (file == null || !file.isFile()) continue;
+            if (ScreenshotFilePolicy.shouldDeleteExpiredCapture(file.getName(), file.lastModified(), nowMs)) {
+                file.delete();
+            }
         }
     }
 
