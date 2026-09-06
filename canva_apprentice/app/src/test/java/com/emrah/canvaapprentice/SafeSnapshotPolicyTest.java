@@ -42,6 +42,72 @@ public final class SafeSnapshotPolicyTest {
         assertFalse(SafeSnapshotPolicy.shouldMarkSafe("Annual Report", false, false, true));
     }
 
+    @Test public void observedCheckpointAcceptsOnlySameSessionDesignAndObservation() {
+        assertTrue(SafeSnapshotPolicy.mayCommitObservedCheckpoint(
+                TaskState.Mode.RUNNING,
+                "Annual Report","Annual Report",
+                "session-1","session-1",
+                "tree-fp","tree-fp","visual-fp"));
+    }
+
+    @Test public void observedCheckpointRejectsResumeSessionRotation() {
+        assertFalse(SafeSnapshotPolicy.mayCommitObservedCheckpoint(
+                TaskState.Mode.RUNNING,
+                "Annual Report","Annual Report",
+                "session-2","session-1",
+                "tree-fp","tree-fp","visual-fp"));
+    }
+
+    @Test public void observedCheckpointRejectsDesignRebind() {
+        assertFalse(SafeSnapshotPolicy.mayCommitObservedCheckpoint(
+                TaskState.Mode.RUNNING,
+                "Quarterly Report","Annual Report",
+                "session-1","session-1",
+                "tree-fp","tree-fp","visual-fp"));
+    }
+
+    @Test public void observedCheckpointRejectsStructuralDriftDuringScreenshot() {
+        assertFalse(SafeSnapshotPolicy.mayCommitObservedCheckpoint(
+                TaskState.Mode.RUNNING,
+                "Annual Report","Annual Report",
+                "session-1","session-1",
+                "tree-before","tree-after","visual-fp"));
+    }
+
+    @Test public void observedCheckpointRejectsMissingVisualFingerprint() {
+        assertFalse(SafeSnapshotPolicy.mayCommitObservedCheckpoint(
+                TaskState.Mode.RUNNING,
+                "Annual Report","Annual Report",
+                "session-1","session-1",
+                "tree-fp","tree-fp",""));
+    }
+
+    @Test public void observedCheckpointRejectsPausedOrStoppedRuntime() {
+        assertFalse(SafeSnapshotPolicy.mayCommitObservedCheckpoint(
+                TaskState.Mode.HUMAN_TAKEOVER,
+                "Annual Report","Annual Report",
+                "session-1","session-1",
+                "tree-fp","tree-fp","visual-fp"));
+        assertFalse(SafeSnapshotPolicy.mayCommitObservedCheckpoint(
+                TaskState.Mode.STOPPED,
+                "Annual Report","Annual Report",
+                "session-1","session-1",
+                "tree-fp","tree-fp","visual-fp"));
+    }
+
+    @Test public void observedCheckpointNormalizesOuterWhitespaceButNotIdentity() {
+        assertTrue(SafeSnapshotPolicy.mayCommitObservedCheckpoint(
+                TaskState.Mode.RUNNING,
+                "  Annual Report  ","Annual Report",
+                " session-1 ","session-1",
+                " tree-fp ","tree-fp"," visual-fp "));
+        assertFalse(SafeSnapshotPolicy.mayCommitObservedCheckpoint(
+                TaskState.Mode.RUNNING,
+                "Annual  Report","Annual Report",
+                "session-1","session-1",
+                "tree-fp","tree-fp","visual-fp"));
+    }
+
     @Test public void repositoryCheckpointRequiresRunningMode() {
         assertFalse(SafeSnapshotPolicy.mayPersistCheckpoint(
                 TaskState.Mode.HUMAN_TAKEOVER,"Annual Report","fp-1"));

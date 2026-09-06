@@ -37,6 +37,40 @@ public final class SafeSnapshotPolicy {
     }
 
     /**
+     * Final admission guard for an asynchronous screenshot-backed checkpoint. The screenshot result
+     * must still belong to the same teacher session, exact bound design and unchanged structural
+     * observation that requested it. A non-empty visual fingerprint proves that a real screenshot
+     * was captured; callers still decide visual similarity separately where needed.
+     *
+     * This guard exists specifically for resume/process-restore races: a screenshot callback that
+     * arrives after DEVAM ET rotates the teacher session, after a design rebind, or after the Canva
+     * UI tree changes must never recreate continuity authority from stale pixels.
+     */
+    public static boolean mayCommitObservedCheckpoint(TaskState.Mode mode,
+                                                      String currentBoundAnchor,
+                                                      String expectedBoundAnchor,
+                                                      String currentTeacherSessionId,
+                                                      String expectedTeacherSessionId,
+                                                      String structuralFingerprint,
+                                                      String recapturedFingerprint,
+                                                      String visualFingerprint) {
+        if (!mayPersistCheckpoint(mode, currentBoundAnchor, structuralFingerprint)) return false;
+
+        String currentAnchor = normalize(currentBoundAnchor);
+        String expectedAnchor = normalize(expectedBoundAnchor);
+        String currentSession = normalize(currentTeacherSessionId);
+        String expectedSession = normalize(expectedTeacherSessionId);
+        String before = normalize(structuralFingerprint);
+        String after = normalize(recapturedFingerprint);
+        String visual = normalize(visualFingerprint);
+
+        if (expectedAnchor.isEmpty() || !currentAnchor.equals(expectedAnchor)) return false;
+        if (currentSession.isEmpty() || expectedSession.isEmpty() || !currentSession.equals(expectedSession)) return false;
+        if (before.isEmpty() || after.isEmpty() || !before.equals(after)) return false;
+        return !visual.isEmpty();
+    }
+
+    /**
      * Repository-side fail-closed guard. UI-layer checks are advisory; a stale/asynchronous caller
      * must not be able to recreate runtime continuity after HUMAN_TAKEOVER/STOP, before design
      * binding, or with an empty fingerprint. Keeping this check at the persistence boundary makes
@@ -59,10 +93,14 @@ public final class SafeSnapshotPolicy {
     public static boolean mayRestoreCheckpoint(String currentBoundAnchor,
                                                String checkpointAnchor,
                                                String snapshotHash) {
-        String current = currentBoundAnchor == null ? "" : currentBoundAnchor.trim();
-        String owner = checkpointAnchor == null ? "" : checkpointAnchor.trim();
-        String hash = snapshotHash == null ? "" : snapshotHash.trim();
+        String current = normalize(currentBoundAnchor);
+        String owner = normalize(checkpointAnchor);
+        String hash = normalize(snapshotHash);
         if (current.isEmpty() || owner.isEmpty() || hash.isEmpty()) return false;
         return current.equals(owner);
+    }
+
+    private static String normalize(String value) {
+        return value == null ? "" : value.trim();
     }
 }
