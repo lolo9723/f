@@ -2,6 +2,7 @@ package com.emrah.canvaapprentice;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.view.accessibility.AccessibilityNodeInfo;
 import java.util.UUID;
 
 public final class TaskStateRepository {
@@ -44,11 +45,6 @@ public final class TaskStateRepository {
     }
 
     private void invalidatePersistedRuntimeContinuityOnFirstLoad() {
-        // last_safe_hash and the teacher session are runtime provenance, not durable proof. Android
-        // may recreate the process/service while Canva has moved, so a checkpoint from the previous
-        // process must never authorize design continuity or learned-memory replay in the new one.
-        // The static guard makes this a once-per-process invalidation even if another component
-        // constructs the repository before the accessibility service.
         if (processContinuityInitialized) return;
         processContinuityInitialized = true;
 
@@ -93,9 +89,6 @@ public final class TaskStateRepository {
         if (anchor == null) return;
         String a = anchor.trim();
         if (a.isEmpty()) return;
-        // Any checkpoint learned before binding had no proof that it belonged to this design.
-        // Clear both the hash and its owner atomically with the bind so pre-bind/home/unknown or
-        // previously-bound fingerprints can never become post-bind continuity evidence.
         prefs.edit()
                 .putString("design_anchor", a)
                 .putString(LAST_SAFE_HASH, "")
@@ -104,28 +97,61 @@ public final class TaskStateRepository {
     }
 
     /**
-     * Legacy structural-only checkpoint persistence is permanently disabled.
+     * Compatibility entry point used by the production Canva cycle.
      *
-     * A structural fingerprint can be produced while stale anchor text is duplicated in Canva UI,
-     * after shell/navigation changes, or without pixel evidence from the exact observation. Keeping
-     * this compatibility method as a hard no-op prevents any overlooked or future caller from
-     * bypassing the screenshot-backed admission boundary. Only markSafeIfObserved(...) may create
-     * continuity authority.
+     * This method no longer persists structural-only evidence. Instead it starts a screenshot-backed
+     * admission attempt tied to the exact current teacher session and bound design. The structural
+     * fingerprint supplied by the cycle must still match the live Canva tree before capture, and the
+     * tree is recaptured after the screenshot. Only markSafeIfObserved(...) is allowed to persist.
      */
     @Deprecated
-    public synchronized void markSafe(String hash) {
-        // Fail closed by design. Do not persist LAST_SAFE_HASH/LAST_SAFE_ANCHOR here.
+    public void markSafe(String hash) {
+        final String expectedHash = hash == null ? "" : hash.trim();
+        if (expectedHash.isEmpty()) return;
+
+        final TaskState state;
+        final String expectedAnchor;
+        final String expectedSession;
+        synchronized (this) {
+            state = load();
+            if (state.mode != TaskState.Mode.RUNNING || state.designAnchor.isEmpty()) return;
+            expectedAnchor = state.designAnchor.trim();
+            expectedSession = currentTeacherSessionId();
+        }
+
+        final AgentAccessibilityService service = AgentAccessibilityService.INSTANCE;
+        if (service == null) return;
+        AccessibilityNodeInfo beforeRoot = service.getRootInActiveWindow();
+        String beforePkg = beforeRoot != null && beforeRoot.getPackageName() != null
+                ? beforeRoot.getPackageName().toString() : "";
+        if (!AgentConstants.CANVA_PACKAGE.equals(beforePkg)) return;
+
+        UiTreeSnapshot before = UiTreeSnapshot.capture(beforeRoot);
+        if (!expectedHash.equals(before.stableFingerprint())) return;
+        if (!before.containsText(expectedAnchor) || before.looksLikeCanvaHome()) return;
+
+        service.captureScreenshotForDiagnostics(file -> {
+            if (file == null) return;
+
+            AccessibilityNodeInfo recapturedRoot = service.getRootInActiveWindow();
+            String recapturedPkg = recapturedRoot != null && recapturedRoot.getPackageName() != null
+                    ? recapturedRoot.getPackageName().toString() : "";
+            if (!AgentConstants.CANVA_PACKAGE.equals(recapturedPkg)) return;
+
+            UiTreeSnapshot recaptured = UiTreeSnapshot.capture(recapturedRoot);
+            String visualFingerprint = VisualFingerprint.fromFile(file);
+            markSafeIfObserved(
+                    expectedAnchor,
+                    expectedSession,
+                    expectedHash,
+                    recaptured.stableFingerprint(),
+                    recaptured.containsText(expectedAnchor),
+                    recaptured.looksLikeCanvaHome(),
+                    visualFingerprint
+            );
+        });
     }
 
-    /**
-     * Atomically validates and persists a screenshot-backed continuity checkpoint.
-     *
-     * The caller supplies the exact design/session/structural observation that initiated the
-     * screenshot plus the recaptured structural facts and visual fingerprint. All current runtime
-     * state is re-read while holding this repository monitor, and the safe hash is written before
-     * releasing it. This closes the policy-check -> markSafe TOCTOU window where DEVAM ET, a design
-     * rebind, HUMAN_TAKEOVER or STOP could otherwise change authority between validation and write.
-     */
     public synchronized boolean markSafeIfObserved(String expectedBoundAnchor,
                                                    String expectedTeacherSessionId,
                                                    String structuralFingerprint,
@@ -160,9 +186,6 @@ public final class TaskStateRepository {
     }
 
     public synchronized void pauseForHuman(String reason) {
-        // HUMAN_TAKEOVER revokes all runtime continuity authority immediately. Clearing the durable
-        // pair as well as rotating the teacher session prevents any reader from observing a stale
-        // checkpoint while the user is authenticating, dismissing dialogs, or navigating Canva.
         prefs.edit()
                 .putString("mode", TaskState.Mode.HUMAN_TAKEOVER.name())
                 .putString("human_reason", reason == null ? "" : reason)
@@ -173,11 +196,6 @@ public final class TaskStateRepository {
     }
 
     public synchronized void resume() {
-        // Human takeover can legitimately navigate, dismiss dialogs, authenticate, or even
-        // momentarily leave/re-enter the bound design. A checkpoint captured before takeover is
-        // therefore stale provenance and must never authorize post-resume design continuity.
-        // Preserve the bound design anchor, but force the runtime to establish a fresh safe
-        // checkpoint from the current Canva editor before relying on snapshot continuity again.
         prefs.edit()
                 .putString("mode", TaskState.Mode.RUNNING.name())
                 .putString("human_reason", "")
@@ -188,8 +206,6 @@ public final class TaskStateRepository {
     }
 
     public synchronized void stop() {
-        // STOPPED is a hard revocation boundary. Do not leave a design-scoped runtime checkpoint
-        // resident for future readers/processes; a later task must prove continuity from scratch.
         prefs.edit()
                 .putString("mode", TaskState.Mode.STOPPED.name())
                 .putString("human_reason", "")
