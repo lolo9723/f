@@ -72,40 +72,47 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
 
     public synchronized void record(boolean success, String goal, String beforeFp,
                                     AgentAction action, String afterFp) {
-        if (!LearningMemoryLeasePolicy.canRecord(action)) return;
         // Learn navigation structure, not user-authored content.
+        if (action == null) return;
         if (action.type != AgentAction.Type.CLICK_TEXT && action.type != AgentAction.Type.BACK) return;
         if (beforeFp == null || beforeFp.isEmpty()) return;
 
-        TaskState liveState = new TaskStateRepository(appContext).load();
-        if (liveState.mode != TaskState.Mode.RUNNING) return;
-        String goalKey = goalKey(goal);
-        String designKey = transitionScopeKey(liveState.designAnchor);
-        String target = sanitizeTarget(action.target);
-        String after = afterFp == null ? "" : afterFp;
-        SQLiteDatabase db = getWritableDatabase();
+        LearningMemoryLeasePolicy.withCurrentLease(action, false, () -> {
+            // Scope selection and persistence intentionally happen while the exact teacher
+            // execution lease is held. A newer teacher request (including a BIND_DESIGN chain)
+            // cannot rotate the lease between the ownership check and this live design read,
+            // eliminating cross-design memory contamination from a check-then-act race.
+            TaskState liveState = new TaskStateRepository(appContext).load();
+            if (liveState.mode != TaskState.Mode.RUNNING) return false;
+            String goalKey = goalKey(goal);
+            String designKey = transitionScopeKey(liveState.designAnchor);
+            String target = sanitizeTarget(action.target);
+            String after = afterFp == null ? "" : afterFp;
+            SQLiteDatabase db = getWritableDatabase();
 
-        db.beginTransaction();
-        try {
-            db.execSQL(
-                    "INSERT OR IGNORE INTO experiences(goal_key,design_key,before_fp,action_type,target,after_fp,success_count,failure_count,last_at) " +
-                            "VALUES(?,?,?,?,?,?,0,0,?)",
-                    new Object[]{goalKey,designKey,beforeFp,action.type.name(),target,after,System.currentTimeMillis()}
-            );
-            db.execSQL(
-                    "UPDATE experiences SET success_count=success_count+?, failure_count=failure_count+?, last_at=? " +
-                            "WHERE goal_key=? AND design_key=? AND before_fp=? AND action_type=? AND target=? AND after_fp=?",
-                    new Object[]{success ? 1 : 0, success ? 0 : 1, System.currentTimeMillis(),
-                            goalKey,designKey,beforeFp,action.type.name(),target,after}
-            );
-            db.execSQL(
-                    "DELETE FROM experiences WHERE id NOT IN " +
-                            "(SELECT id FROM experiences ORDER BY last_at DESC LIMIT " + MAX_ROWS + ")"
-            );
-            db.setTransactionSuccessful();
-        } finally {
-            db.endTransaction();
-        }
+            db.beginTransaction();
+            try {
+                db.execSQL(
+                        "INSERT OR IGNORE INTO experiences(goal_key,design_key,before_fp,action_type,target,after_fp,success_count,failure_count,last_at) " +
+                                "VALUES(?,?,?,?,?,?,0,0,?)",
+                        new Object[]{goalKey,designKey,beforeFp,action.type.name(),target,after,System.currentTimeMillis()}
+                );
+                db.execSQL(
+                        "UPDATE experiences SET success_count=success_count+?, failure_count=failure_count+?, last_at=? " +
+                                "WHERE goal_key=? AND design_key=? AND before_fp=? AND action_type=? AND target=? AND after_fp=?",
+                        new Object[]{success ? 1 : 0, success ? 0 : 1, System.currentTimeMillis(),
+                                goalKey,designKey,beforeFp,action.type.name(),target,after}
+                );
+                db.execSQL(
+                        "DELETE FROM experiences WHERE id NOT IN " +
+                                "(SELECT id FROM experiences ORDER BY last_at DESC LIMIT " + MAX_ROWS + ")"
+                );
+                db.setTransactionSuccessful();
+                return true;
+            } finally {
+                db.endTransaction();
+            }
+        });
     }
 
     /**
