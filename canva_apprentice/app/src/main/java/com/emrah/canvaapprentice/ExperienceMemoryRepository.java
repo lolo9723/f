@@ -84,7 +84,7 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
             // eliminating cross-design memory contamination from a check-then-act race.
             TaskState liveState = new TaskStateRepository(appContext).load();
             if (liveState.mode != TaskState.Mode.RUNNING) return false;
-            String goalKey = goalKey(goal);
+            String goalKey = goalScopeKey(goal);
             String designKey = transitionScopeKey(liveState.designAnchor);
             String target = sanitizeTarget(action.target);
             String after = afterFp == null ? "" : afterFp;
@@ -134,7 +134,7 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
             throw new IllegalStateException("verified completion requires bound design");
         }
 
-        String key = goalKey(state.goal);
+        String key = goalScopeKey(state.goal);
         String designKey = completionScopeKey(state.designAnchor);
         long now = System.currentTimeMillis();
         SQLiteDatabase db = getWritableDatabase();
@@ -156,7 +156,7 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
 
     public synchronized String summary(String goal, String beforeFp) {
         if (beforeFp == null || beforeFp.isEmpty()) return "none";
-        String goalKey = goalKey(goal);
+        String goalKey = goalScopeKey(goal);
         TaskState state = new TaskStateRepository(appContext).load();
 
         // DEVAM ET / process restoration invalidates continuity provenance by clearing the safe
@@ -171,23 +171,21 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
         String designKey = transitionScopeKey(state.designAnchor);
         SQLiteDatabase db = getReadableDatabase();
         Cursor c = db.rawQuery(
-                "SELECT goal_key,action_type,target,after_fp,success_count,failure_count " +
-                        "FROM experiences WHERE design_key=? AND before_fp=? " +
-                        "ORDER BY CASE WHEN goal_key=? THEN 0 ELSE 1 END, " +
-                        "(success_count-failure_count) DESC, last_at DESC LIMIT 5",
-                new String[]{designKey,beforeFp,goalKey}
+                "SELECT action_type,target,after_fp,success_count,failure_count " +
+                        "FROM experiences WHERE goal_key=? AND design_key=? AND before_fp=? " +
+                        "ORDER BY (success_count-failure_count) DESC, last_at DESC LIMIT 5",
+                new String[]{goalKey,designKey,beforeFp}
         );
         StringBuilder out = new StringBuilder();
         try {
             while (c.moveToNext()) {
-                boolean exact = goalKey.equals(c.getString(0));
-                String type = c.getString(1);
-                String target = c.getString(2);
-                String after = c.getString(3);
-                int successes = c.getInt(4);
-                int failures = c.getInt(5);
+                String type = c.getString(0);
+                String target = c.getString(1);
+                String after = c.getString(2);
+                int successes = c.getInt(3);
+                int failures = c.getInt(4);
                 double trust = (successes + 1.0) / (successes + failures + 2.0);
-                out.append("exactGoal=").append(exact)
+                out.append("exactGoal=true")
                         .append(" exactDesign=true")
                         .append(" action=").append(type)
                         .append(" target=").append(target)
@@ -242,7 +240,7 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
         return sha256(normalized);
     }
 
-    private static String goalKey(String goal) {
+    static String goalScopeKey(String goal) {
         String n = normalize(goal);
         return sha256(n);
     }
