@@ -1,6 +1,5 @@
 package com.emrah.canvaapprentice;
 
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -15,8 +14,12 @@ public final class RuntimeRestoreContinuityPolicyTest {
         assertTrue(RuntimeRestoreContinuityPolicy.mustInvalidate(TaskState.Mode.HUMAN_TAKEOVER));
     }
 
-    @Test public void idleAndStoppedStateCannotAuthorizeRuntimeContinuityAnyway() {
-        assertFalse(RuntimeRestoreContinuityPolicy.mustInvalidate(TaskState.Mode.IDLE));
-        assertFalse(RuntimeRestoreContinuityPolicy.mustInvalidate(TaskState.Mode.STOPPED));
+    @Test public void idleAndStoppedRestoreStillInvalidatePersistedContinuity() {
+        assertTrue(RuntimeRestoreContinuityPolicy.mustInvalidate(TaskState.Mode.IDLE));
+        assertTrue(RuntimeRestoreContinuityPolicy.mustInvalidate(TaskState.Mode.STOPPED));
+    }
+
+    @Test public void unknownRestoreModeFailsClosed() {
+        assertTrue(RuntimeRestoreContinuityPolicy.mustInvalidate(null));
     }
 }
