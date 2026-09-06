@@ -25,4 +25,18 @@ public final class SafeSnapshotPolicy {
         // last-safe continuity checkpoint. Unknown/transient editor states remain untrusted.
         return anchorVisible;
     }
+
+    /**
+     * Repository-side fail-closed guard. UI-layer checks are advisory; a stale/asynchronous caller
+     * must not be able to recreate runtime continuity after HUMAN_TAKEOVER/STOP, before design
+     * binding, or with an empty fingerprint. Keeping this check at the persistence boundary makes
+     * last_safe_hash safe even if a future call site forgets the UI policy.
+     */
+    public static boolean mayPersistCheckpoint(TaskState.Mode mode,
+                                               String boundAnchor,
+                                               String snapshotHash) {
+        if (mode != TaskState.Mode.RUNNING) return false;
+        if (boundAnchor == null || boundAnchor.trim().isEmpty()) return false;
+        return snapshotHash != null && !snapshotHash.trim().isEmpty();
+    }
 }
