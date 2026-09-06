@@ -11,8 +11,9 @@ import java.util.Locale;
 
 public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
     private static final String DB = "canva_apprentice_memory.db";
-    private static final int VERSION = 3;
+    private static final int VERSION = 4;
     private static final int MAX_ROWS = 500;
+    private static final String UNBOUND_DESIGN_SCOPE = "__unbound_design__";
     private final Context appContext;
 
     public ExperienceMemoryRepository(Context context) {
@@ -22,19 +23,7 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
     }
 
     @Override public void onCreate(SQLiteDatabase db) {
-        db.execSQL("CREATE TABLE experiences (" +
-                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
-                "goal_key TEXT NOT NULL," +
-                "before_fp TEXT NOT NULL," +
-                "action_type TEXT NOT NULL," +
-                "target TEXT NOT NULL," +
-                "after_fp TEXT NOT NULL," +
-                "success_count INTEGER NOT NULL DEFAULT 0," +
-                "failure_count INTEGER NOT NULL DEFAULT 0," +
-                "last_at INTEGER NOT NULL," +
-                "UNIQUE(goal_key,before_fp,action_type,target,after_fp))");
-        db.execSQL("CREATE INDEX idx_exp_before ON experiences(before_fp)");
-        db.execSQL("CREATE INDEX idx_exp_goal_before ON experiences(goal_key,before_fp)");
+        createExperiencesTable(db);
         createVerifiedCompletionsTable(db);
     }
 
@@ -46,6 +35,30 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
             db.execSQL("DROP TABLE IF EXISTS verified_completions");
             createVerifiedCompletionsTable(db);
         }
+        if (oldVersion < 4) {
+            // v3 transition rows had no design identity. A visually similar editor state from
+            // design A must never teach navigation inside design B, so legacy rows are unsafe to
+            // migrate heuristically. Drop only transition memory and relearn it under exact scope.
+            db.execSQL("DROP TABLE IF EXISTS experiences");
+            createExperiencesTable(db);
+        }
+    }
+
+    private static void createExperiencesTable(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS experiences (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "goal_key TEXT NOT NULL," +
+                "design_key TEXT NOT NULL," +
+                "before_fp TEXT NOT NULL," +
+                "action_type TEXT NOT NULL," +
+                "target TEXT NOT NULL," +
+                "after_fp TEXT NOT NULL," +
+                "success_count INTEGER NOT NULL DEFAULT 0," +
+                "failure_count INTEGER NOT NULL DEFAULT 0," +
+                "last_at INTEGER NOT NULL," +
+                "UNIQUE(goal_key,design_key,before_fp,action_type,target,after_fp))");
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_exp_design_before ON experiences(design_key,before_fp)");
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_exp_goal_design_before ON experiences(goal_key,design_key,before_fp)");
     }
 
     private static void createVerifiedCompletionsTable(SQLiteDatabase db) {
@@ -64,7 +77,10 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
         if (action.type != AgentAction.Type.CLICK_TEXT && action.type != AgentAction.Type.BACK) return;
         if (beforeFp == null || beforeFp.isEmpty()) return;
 
+        TaskState liveState = new TaskStateRepository(appContext).load();
+        if (liveState.mode != TaskState.Mode.RUNNING) return;
         String goalKey = goalKey(goal);
+        String designKey = transitionScopeKey(liveState.designAnchor);
         String target = sanitizeTarget(action.target);
         String after = afterFp == null ? "" : afterFp;
         SQLiteDatabase db = getWritableDatabase();
@@ -72,15 +88,15 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
         db.beginTransaction();
         try {
             db.execSQL(
-                    "INSERT OR IGNORE INTO experiences(goal_key,before_fp,action_type,target,after_fp,success_count,failure_count,last_at) " +
-                            "VALUES(?,?,?,?,?,0,0,?)",
-                    new Object[]{goalKey,beforeFp,action.type.name(),target,after,System.currentTimeMillis()}
+                    "INSERT OR IGNORE INTO experiences(goal_key,design_key,before_fp,action_type,target,after_fp,success_count,failure_count,last_at) " +
+                            "VALUES(?,?,?,?,?,?,0,0,?)",
+                    new Object[]{goalKey,designKey,beforeFp,action.type.name(),target,after,System.currentTimeMillis()}
             );
             db.execSQL(
                     "UPDATE experiences SET success_count=success_count+?, failure_count=failure_count+?, last_at=? " +
-                            "WHERE goal_key=? AND before_fp=? AND action_type=? AND target=? AND after_fp=?",
+                            "WHERE goal_key=? AND design_key=? AND before_fp=? AND action_type=? AND target=? AND after_fp=?",
                     new Object[]{success ? 1 : 0, success ? 0 : 1, System.currentTimeMillis(),
-                            goalKey,beforeFp,action.type.name(),target,after}
+                            goalKey,designKey,beforeFp,action.type.name(),target,after}
             );
             db.execSQL(
                     "DELETE FROM experiences WHERE id NOT IN " +
@@ -134,13 +150,15 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
     public synchronized String summary(String goal, String beforeFp) {
         if (beforeFp == null || beforeFp.isEmpty()) return "none";
         String goalKey = goalKey(goal);
+        TaskState state = new TaskStateRepository(appContext).load();
+        String designKey = transitionScopeKey(state.designAnchor);
         SQLiteDatabase db = getReadableDatabase();
         Cursor c = db.rawQuery(
                 "SELECT goal_key,action_type,target,after_fp,success_count,failure_count " +
-                        "FROM experiences WHERE before_fp=? " +
+                        "FROM experiences WHERE design_key=? AND before_fp=? " +
                         "ORDER BY CASE WHEN goal_key=? THEN 0 ELSE 1 END, " +
                         "(success_count-failure_count) DESC, last_at DESC LIMIT 5",
-                new String[]{beforeFp,goalKey}
+                new String[]{designKey,beforeFp,goalKey}
         );
         StringBuilder out = new StringBuilder();
         try {
@@ -153,6 +171,7 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
                 int failures = c.getInt(5);
                 double trust = (successes + 1.0) / (successes + failures + 2.0);
                 out.append("exactGoal=").append(exact)
+                        .append(" exactDesign=true")
                         .append(" action=").append(type)
                         .append(" target=").append(target)
                         .append(" successes=").append(successes)
@@ -165,7 +184,6 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
             c.close();
         }
 
-        TaskState state = new TaskStateRepository(appContext).load();
         if (state.designAnchor != null && !state.designAnchor.trim().isEmpty()) {
             int verifiedCompletions = verifiedCompletionCount(
                     goalKey, completionScopeKey(state.designAnchor));
@@ -192,6 +210,11 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
         );
         try { return c.moveToFirst() ? c.getInt(0) : 0; }
         finally { c.close(); }
+    }
+
+    static String transitionScopeKey(String designAnchor) {
+        String normalized = normalize(designAnchor);
+        return normalized.isEmpty() ? UNBOUND_DESIGN_SCOPE : sha256(normalized);
     }
 
     static String completionScopeKey(String designAnchor) {
