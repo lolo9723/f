@@ -17,6 +17,7 @@ public class ScreenshotFilePolicyTest {
         assertFalse(ScreenshotFilePolicy.isCaptureFileName("../canva_agent_0123456789abcdef0123456789abcdef.png"));
         assertFalse(ScreenshotFilePolicy.isCaptureFileName("canva_agent_0123456789abcdef0123456789abcdeg.png"));
         assertFalse(ScreenshotFilePolicy.isCaptureFileName("canva_agent_0123456789abcdef0123456789abcdef.jpg"));
+        assertFalse(ScreenshotFilePolicy.isCaptureFileName("canva_agent_0123456789ABCDEF0123456789ABCDEF.png"));
         assertFalse(ScreenshotFilePolicy.isCaptureFileName(""));
         assertFalse(ScreenshotFilePolicy.isCaptureFileName(null));
     }
