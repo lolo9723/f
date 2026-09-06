@@ -39,15 +39,11 @@ public final class SafeSnapshotPolicy {
     }
 
     /**
-     * Final admission guard for an asynchronous screenshot-backed checkpoint. The screenshot result
-     * must still belong to the same teacher session, exact bound design and unchanged structural
-     * observation that requested it. The visual fingerprint must be the complete 16x16 hexadecimal
-     * fingerprint emitted by VisualFingerprint.fromFile; arbitrary non-empty strings are not visual
-     * evidence and must never recreate continuity authority.
-     *
-     * This guard exists specifically for resume/process-restore races: a screenshot callback that
-     * arrives after DEVAM ET rotates the teacher session, after a design rebind, or after the Canva
-     * UI tree changes must never recreate continuity authority from stale pixels.
+     * Compatibility overload kept fail-closed. Same-session + same-tree + a visual hash are not
+     * sufficient by themselves: the recaptured observation must also prove that the exact bound
+     * design anchor is visible and that Canva home/projects is not the observed surface. Keeping the
+     * old signature compilable but permanently false prevents an overlooked caller from regaining
+     * checkpoint authority without these structural facts.
      */
     public static boolean mayCommitObservedCheckpoint(TaskState.Mode mode,
                                                       String currentBoundAnchor,
@@ -56,6 +52,32 @@ public final class SafeSnapshotPolicy {
                                                       String expectedTeacherSessionId,
                                                       String structuralFingerprint,
                                                       String recapturedFingerprint,
+                                                      String visualFingerprint) {
+        return false;
+    }
+
+    /**
+     * Final admission guard for an asynchronous screenshot-backed checkpoint. The screenshot result
+     * must still belong to the same teacher session, exact bound design and unchanged structural
+     * observation that requested it. The recaptured structural observation must visibly identify the
+     * bound design and must not be Canva home/projects. The visual fingerprint must be the complete
+     * 16x16 hexadecimal fingerprint emitted by VisualFingerprint.fromFile; arbitrary non-empty
+     * strings are not visual evidence and must never recreate continuity authority.
+     *
+     * This guard exists specifically for resume/process-restore races: a screenshot callback that
+     * arrives after DEVAM ET rotates the teacher session, after a design rebind, after navigation to
+     * Canva home, after the anchor disappears, or after the Canva UI tree changes must never recreate
+     * continuity authority from stale pixels.
+     */
+    public static boolean mayCommitObservedCheckpoint(TaskState.Mode mode,
+                                                      String currentBoundAnchor,
+                                                      String expectedBoundAnchor,
+                                                      String currentTeacherSessionId,
+                                                      String expectedTeacherSessionId,
+                                                      String structuralFingerprint,
+                                                      String recapturedFingerprint,
+                                                      boolean recapturedAnchorVisible,
+                                                      boolean recapturedCanvaHomeVisible,
                                                       String visualFingerprint) {
         if (!mayPersistCheckpoint(mode, currentBoundAnchor, structuralFingerprint)) return false;
 
@@ -70,6 +92,7 @@ public final class SafeSnapshotPolicy {
         if (expectedAnchor.isEmpty() || !currentAnchor.equals(expectedAnchor)) return false;
         if (currentSession.isEmpty() || expectedSession.isEmpty() || !currentSession.equals(expectedSession)) return false;
         if (before.isEmpty() || after.isEmpty() || !before.equals(after)) return false;
+        if (!recapturedAnchorVisible || recapturedCanvaHomeVisible) return false;
         return isWellFormedVisualFingerprint(visual);
     }
 
