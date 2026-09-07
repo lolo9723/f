@@ -98,6 +98,7 @@ public final class TaskStateRepository {
 
         TaskState current = load();
         if (current.mode != TaskState.Mode.RUNNING) return;
+        if (!DesignAnchorPersistencePolicy.preservesBoundIdentity(current.designAnchor, a)) return;
         final String observedTeacherSessionId = currentTeacherSessionId();
 
         AgentAccessibilityService service = AgentAccessibilityService.INSTANCE;
@@ -118,6 +119,7 @@ public final class TaskStateRepository {
         if (!RuntimeOwnerPolicy.isCurrent(service, AgentAccessibilityService.INSTANCE)) return;
         TaskState rechecked = load();
         String currentTeacherSessionId = currentTeacherSessionId();
+        if (!DesignAnchorPersistencePolicy.preservesBoundIdentity(rechecked.designAnchor, a)) return;
         if (!DesignAnchorPersistencePolicy.mayCommit(
                 rechecked.mode, observedTeacherSessionId, currentTeacherSessionId, a)) return;
 
