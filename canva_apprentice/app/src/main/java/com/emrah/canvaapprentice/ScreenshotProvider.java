@@ -68,10 +68,15 @@ public final class ScreenshotProvider extends ContentProvider {
         return c;
     }
 
+    /**
+     * Re-check ownership every time the provider is accessed, not only when the URI is created.
+     * If a new teacher request rotates or invalidates the execution lease after sharing, the old
+     * URI immediately becomes unreadable. This closes the URI-created-then-lease-rotated race.
+     */
     private boolean isAllowed(Uri uri) {
         if (uri == null || !AUTHORITY.equals(uri.getAuthority())) return false;
         if (uri.getPathSegments().size() != 1) return false;
-        return ScreenshotFilePolicy.isCaptureFileName(uri.getLastPathSegment());
+        return ScreenshotFilePolicy.isCaptureFileForCurrentLease(uri.getLastPathSegment());
     }
 
     @Override public Uri insert(Uri uri, ContentValues values) { throw new UnsupportedOperationException(); }
