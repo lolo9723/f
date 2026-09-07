@@ -13,7 +13,9 @@ import java.util.function.BooleanSupplier;
  * Verified-success learning must use the same proof boundary as STOP. Production's
  * three-argument overload therefore requires the memory hook installed by
  * ExperienceMemoryRepository. If the hook is missing or verified-success persistence
- * throws, STOP is not committed and the task remains fail-closed.
+ * fails, STOP is not committed and the task remains fail-closed. Runtime failures in
+ * either mutation are contained so final-QA persistence cannot crash the accessibility
+ * service and accidentally strand runtime ownership in an unknown state.
  */
 public final class FinalDoneCommitGuard {
     private FinalDoneCommitGuard() {}
@@ -36,11 +38,19 @@ public final class FinalDoneCommitGuard {
                                           Runnable verifiedSuccessMutation,
                                           Runnable stopMutation) {
         if (sessionStillCurrent == null || verifiedSuccessMutation == null || stopMutation == null) return false;
-        return TeacherExecutionLease.withGlobalCurrent(executionLeaseToken, false, () -> {
-            if (!sessionStillCurrent.getAsBoolean()) return false;
-            verifiedSuccessMutation.run();
-            stopMutation.run();
-            return true;
-        });
+        try {
+            return TeacherExecutionLease.withGlobalCurrent(executionLeaseToken, false, () -> {
+                if (!sessionStillCurrent.getAsBoolean()) return false;
+                verifiedSuccessMutation.run();
+                stopMutation.run();
+                return true;
+            });
+        } catch (RuntimeException | Error failure) {
+            // Final completion is safety-critical. A persistence/runtime failure must not
+            // escape into AccessibilityService and crash the agent. Returning false keeps
+            // the caller on the fail-closed path; STOP is never attempted when verified
+            // success persistence itself fails.
+            return false;
+        }
     }
 }

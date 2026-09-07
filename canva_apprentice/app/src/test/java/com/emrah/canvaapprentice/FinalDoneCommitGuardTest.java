@@ -113,23 +113,29 @@ public final class FinalDoneCommitGuardTest {
         assertFalse(stopped.get());
     }
 
-    @Test public void failedVerifiedSuccessPersistencePreventsStop() {
+    @Test public void failedVerifiedSuccessPersistenceFailsClosedWithoutCrashOrStop() {
         String token = TeacherExecutionLease.beginGlobal();
         AtomicBoolean stopped = new AtomicBoolean(false);
-        boolean threw = false;
 
-        try {
-            FinalDoneCommitGuard.commitIfCurrent(
-                    token,
-                    () -> true,
-                    () -> { throw new IllegalStateException("memory write failed"); },
-                    () -> stopped.set(true)
-            );
-        } catch (IllegalStateException expected) {
-            threw = true;
-        }
-
-        assertTrue(threw);
+        assertFalse(FinalDoneCommitGuard.commitIfCurrent(
+                token,
+                () -> true,
+                () -> { throw new IllegalStateException("memory write failed"); },
+                () -> stopped.set(true)
+        ));
         assertFalse(stopped.get());
+    }
+
+    @Test public void failedStopMutationFailsClosedWithoutCrashingAccessibilityRuntime() {
+        String token = TeacherExecutionLease.beginGlobal();
+        AtomicBoolean learned = new AtomicBoolean(false);
+
+        assertFalse(FinalDoneCommitGuard.commitIfCurrent(
+                token,
+                () -> true,
+                () -> learned.set(true),
+                () -> { throw new IllegalStateException("stop write failed"); }
+        ));
+        assertTrue(learned.get());
     }
 }
