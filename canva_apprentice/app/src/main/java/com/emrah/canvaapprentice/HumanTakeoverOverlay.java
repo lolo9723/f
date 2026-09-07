@@ -23,12 +23,20 @@ public final class HumanTakeoverOverlay {
 
     public void show(String reason, ResumeListener listener) {
         hide();
+        final ResumeOnceGuard resumeGuard = new ResumeOnceGuard();
         LinearLayout box = new LinearLayout(service); box.setOrientation(LinearLayout.HORIZONTAL);
         box.setPadding(20,14,20,14); box.setBackgroundColor(Color.argb(235, 32,32,32));
         TextView text = new TextView(service); text.setTextColor(Color.WHITE); text.setTextSize(14);
         text.setText("Ajan durdu: " + reason + "  ");
         Button resume = new Button(service); resume.setText("DEVAM ET");
-        resume.setOnClickListener(v -> { hide(); listener.onResumeRequested(); });
+        resume.setOnClickListener(v -> {
+            // A fast double tap can enqueue two click callbacks before the overlay is removed.
+            // Resume is a state transition and must be one-shot: only the first callback owns it.
+            if (!resumeGuard.tryConsume()) return;
+            resume.setEnabled(false);
+            hide();
+            listener.onResumeRequested();
+        });
         box.addView(text, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         box.addView(resume);
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
