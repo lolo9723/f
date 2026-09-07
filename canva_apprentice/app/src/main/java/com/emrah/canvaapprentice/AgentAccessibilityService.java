@@ -37,6 +37,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
         overlay=new HumanTakeoverOverlay(this);
         teacher=new TeacherBridge(this);
         memory=new ExperienceMemoryRepository(this);
+        ScreenshotProvider.cleanupExpiredEvidence(getCacheDir(), System.currentTimeMillis());
 
         TaskState restored=repo.load();
         if(restored.mode==TaskState.Mode.HUMAN_TAKEOVER){
@@ -229,9 +230,6 @@ public final class AgentAccessibilityService extends AccessibilityService {
                 onStaleTeacherRequestDiscarded();
                 return;
             }
-            // The task is now STOPPED under the exact execution lease. A lifecycle-level clear is
-            // safe here and cannot erase evidence belonging to a newer live chain, because a newer
-            // chain could not have acquired the lease before the atomic stop commit completed.
             visualEvidence.clear();
             overlay.hide();
             cycleBusy.set(false);
@@ -449,7 +447,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
                 return;
             }
             String prompt=TeacherProtocol.buildVisualRequest(state,snap,requestId,screenshotReason);
-            teacher.askWithScreenshot(prompt,ScreenshotProvider.uri(),marker,new TeacherBridge.ReplyCallback(){
+            teacher.askWithScreenshot(prompt,ScreenshotProvider.uriFor(file),marker,new TeacherBridge.ReplyCallback(){
                 @Override public void onReply(String reply){
                     if(!isTeacherSessionCurrent(teacherSessionId) || !TeacherExecutionLease.isGlobalCurrent(visualExecutionToken)){
                         onStaleTeacherRequestDiscarded();
@@ -586,12 +584,26 @@ public final class AgentAccessibilityService extends AccessibilityService {
     public void captureScreenshotForDiagnostics(ScreenshotCallback cb){
         takeScreenshot(Display.DEFAULT_DISPLAY,getMainExecutor(),new TakeScreenshotCallback(){
             @Override public void onSuccess(ScreenshotResult result){
-                HardwareBuffer hb=result.getHardwareBuffer(); Bitmap bmp=Bitmap.wrapHardwareBuffer(hb,result.getColorSpace());
+                HardwareBuffer hb=result.getHardwareBuffer();
+                Bitmap bmp=Bitmap.wrapHardwareBuffer(hb,result.getColorSpace());
                 if(bmp==null){hb.close();cb.onDone(null);return;}
-                Bitmap copy=bmp.copy(Bitmap.Config.ARGB_8888,false); hb.close();
-                File f=new File(getCacheDir(),"canva_agent_last.png");
-                try(FileOutputStream os=new FileOutputStream(f)){copy.compress(Bitmap.CompressFormat.PNG,100,os);cb.onDone(f);}
-                catch(Exception e){cb.onDone(null);}
+                Bitmap copy=bmp.copy(Bitmap.Config.ARGB_8888,false);
+                hb.close();
+                if(copy==null){cb.onDone(null);return;}
+                ScreenshotProvider.cleanupExpiredEvidence(getCacheDir(), System.currentTimeMillis());
+                File f=new File(getCacheDir(),ScreenshotFilePolicy.newCaptureFileName());
+                try(FileOutputStream os=new FileOutputStream(f,false)){
+                    boolean encoded=copy.compress(Bitmap.CompressFormat.PNG,100,os);
+                    os.getFD().sync();
+                    if(!encoded || !ScreenshotFilePolicy.isCaptureFileName(f.getName()) || !f.isFile() || f.length()<=0L){
+                        f.delete();
+                        cb.onDone(null);
+                    }else{
+                        cb.onDone(f);
+                    }
+                }
+                catch(Exception e){f.delete();cb.onDone(null);}
+                finally{copy.recycle();}
             }
             @Override public void onFailure(int errorCode){cb.onDone(null);}
         });
