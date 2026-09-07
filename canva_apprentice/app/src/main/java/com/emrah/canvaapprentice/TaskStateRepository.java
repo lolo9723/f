@@ -199,6 +199,8 @@ public final class TaskStateRepository {
     }
 
     public synchronized void resume() {
+        TaskState current = load();
+        if (!ResumeTransitionPolicy.mayResume(current.mode)) return;
         prefs.edit()
                 .putString("mode", TaskState.Mode.RUNNING.name())
                 .putString("human_reason", "")
