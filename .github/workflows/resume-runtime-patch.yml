@@ -1,0 +1,172 @@
+name: One-shot Resume Runtime Wiring
+
+on:
+  push:
+    branches: [canva-apprentice-agent]
+    paths:
+      - '.github/workflows/resume-runtime-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wire resume generation guard into runtime
+        shell: python
+        run: |
+          from pathlib import Path
+
+          service = Path('canva_apprentice/app/src/main/java/com/emrah/canvaapprentice/AgentAccessibilityService.java')
+          text = service.read_text()
+
+          replacements = [
+              (
+                  '    private final VisualEvidenceLease visualEvidence = new VisualEvidenceLease();\n',
+                  '    private final VisualEvidenceLease visualEvidence = new VisualEvidenceLease();\n'
+                  '    private final ResumeGenerationGuard resumeGeneration = new ResumeGenerationGuard();\n'
+              ),
+              (
+                  '        }else if(restored.mode==TaskState.Mode.RUNNING){\n'
+                  '            new Handler(Looper.getMainLooper()).postDelayed(() -> resumeOnCanva(0),500);\n'
+                  '        }\n',
+                  '        }else if(restored.mode==TaskState.Mode.RUNNING){\n'
+                  '            final long generation=resumeGeneration.begin();\n'
+                  '            new Handler(Looper.getMainLooper()).postDelayed(() -> resumeOnCanva(generation,0),500);\n'
+                  '        }\n'
+              ),
+              (
+                  '    public void startTask(String goal, boolean allowNewDesign){\n'
+                  '        TeacherExecutionLease.invalidateGlobal();\n',
+                  '    public void startTask(String goal, boolean allowNewDesign){\n'
+                  '        resumeGeneration.invalidate();\n'
+                  '        TeacherExecutionLease.invalidateGlobal();\n'
+              ),
+              (
+                  '    public void stopTask(){\n'
+                  '        TeacherExecutionLease.invalidateGlobal();\n',
+                  '    public void stopTask(){\n'
+                  '        resumeGeneration.invalidate();\n'
+                  '        TeacherExecutionLease.invalidateGlobal();\n'
+              ),
+              (
+                  '    private void pauseForHuman(String reason){\n'
+                  '        TeacherExecutionLease.invalidateGlobal();\n',
+                  '    private void pauseForHuman(String reason){\n'
+                  '        resumeGeneration.invalidate();\n'
+                  '        TeacherExecutionLease.invalidateGlobal();\n'
+              ),
+              (
+                  '    private void showHumanOverlay(String reason){\n'
+                  '        overlay.show(reason,()->{\n'
+                  '            TeacherExecutionLease.invalidateGlobal();\n'
+                  '            visualEvidence.clear();\n'
+                  '            repo.resume();\n'
+                  '            cycleBusy.set(false);\n'
+                  '            consecutiveNoVisualChange=0;\n'
+                  '            consecutiveExecutionFailures=0;\n'
+                  '            resumeOnCanva(0);\n'
+                  '        });\n'
+                  '    }\n',
+                  '    private void showHumanOverlay(String reason){\n'
+                  '        overlay.show(reason,()->{\n'
+                  '            final long generation=resumeGeneration.begin();\n'
+                  '            TeacherExecutionLease.invalidateGlobal();\n'
+                  '            visualEvidence.clear();\n'
+                  '            repo.resume();\n'
+                  '            cycleBusy.set(false);\n'
+                  '            consecutiveNoVisualChange=0;\n'
+                  '            consecutiveExecutionFailures=0;\n'
+                  '            resumeOnCanva(generation,0);\n'
+                  '        });\n'
+                  '    }\n'
+              ),
+              (
+                  '    private void resumeOnCanva(int attempt){\n'
+                  '        TaskState state=repo.load();\n'
+                  '        if(state.mode!=TaskState.Mode.RUNNING) return;\n\n'
+                  '        AccessibilityNodeInfo root=getRootInActiveWindow();\n'
+                  '        String pkg=root!=null&&root.getPackageName()!=null?root.getPackageName().toString():"";\n'
+                  '        if(AgentConstants.CANVA_PACKAGE.equals(pkg)){\n'
+                  '            cycleBusy.set(false);\n'
+                  '            runCanvaCycle("Kullanıcı müdahalesi tamamlandı. Önce mevcut durumu yeniden doğrula ve kaldığın görevden devam et.");\n'
+                  '            return;\n'
+                  '        }\n\n'
+                  '        if(attempt>=12){\n'
+                  '            repo.pauseForHuman("Canva\'ya güvenli biçimde dönülemedi. Canva\'yı açıp DEVAM ET\'e tekrar bas.");\n'
+                  '            showHumanOverlay("Canva\'ya güvenli biçimde dönülemedi. Canva\'yı açıp DEVAM ET\'e tekrar bas.");\n'
+                  '            return;\n'
+                  '        }\n\n'
+                  '        Intent canva=getPackageManager().getLaunchIntentForPackage(AgentConstants.CANVA_PACKAGE);\n'
+                  '        if(canva!=null){\n'
+                  '            canva.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);\n'
+                  '            startActivity(canva);\n'
+                  '        }\n'
+                  '        new Handler(Looper.getMainLooper()).postDelayed(() -> resumeOnCanva(attempt+1),300);\n'
+                  '    }\n',
+                  '    private void resumeOnCanva(long generation, int attempt){\n'
+                  '        if(!resumeGeneration.isCurrent(generation)) return;\n'
+                  '        TaskState state=repo.load();\n'
+                  '        if(state.mode!=TaskState.Mode.RUNNING){\n'
+                  '            resumeGeneration.invalidate();\n'
+                  '            return;\n'
+                  '        }\n\n'
+                  '        AccessibilityNodeInfo root=getRootInActiveWindow();\n'
+                  '        String pkg=root!=null&&root.getPackageName()!=null?root.getPackageName().toString():"";\n'
+                  '        if(AgentConstants.CANVA_PACKAGE.equals(pkg)){\n'
+                  '            resumeGeneration.consumeIfCurrent(generation,()->{\n'
+                  '                if(repo.load().mode!=TaskState.Mode.RUNNING) return;\n'
+                  '                cycleBusy.set(false);\n'
+                  '                runCanvaCycle("Kullanıcı müdahalesi tamamlandı. Önce mevcut durumu yeniden doğrula ve kaldığın görevden devam et.");\n'
+                  '            });\n'
+                  '            return;\n'
+                  '        }\n\n'
+                  '        if(attempt>=12){\n'
+                  '            resumeGeneration.consumeIfCurrent(generation,()->{\n'
+                  '                if(repo.load().mode!=TaskState.Mode.RUNNING) return;\n'
+                  '                pauseForHuman("Canva\'ya güvenli biçimde dönülemedi. Canva\'yı açıp DEVAM ET\'e tekrar bas.");\n'
+                  '            });\n'
+                  '            return;\n'
+                  '        }\n\n'
+                  '        Intent canva=getPackageManager().getLaunchIntentForPackage(AgentConstants.CANVA_PACKAGE);\n'
+                  '        if(canva!=null){\n'
+                  '            canva.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);\n'
+                  '            if(!resumeGeneration.runIfCurrent(generation,()->startActivity(canva))) return;\n'
+                  '        }\n'
+                  '        if(!resumeGeneration.isCurrent(generation)) return;\n'
+                  '        new Handler(Looper.getMainLooper()).postDelayed(() -> resumeOnCanva(generation,attempt+1),300);\n'
+                  '    }\n'
+              ),
+              (
+                  '    @Override public void onDestroy(){\n'
+                  '        TeacherExecutionLease.invalidateGlobal();\n',
+                  '    @Override public void onDestroy(){\n'
+                  '        resumeGeneration.invalidate();\n'
+                  '        TeacherExecutionLease.invalidateGlobal();\n'
+              ),
+          ]
+
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit('Expected source fragment missing; refusing unsafe patch:\n' + old[:180])
+              text = text.replace(old, new, 1)
+
+          if 'resumeOnCanva(0)' in text:
+              raise SystemExit('Legacy unguarded resumeOnCanva call remains')
+          service.write_text(text)
+
+          test = Path('canva_apprentice/app/src/test/java/com/emrah/canvaapprentice/ResumeRuntimeLifecycleTest.java')
+          test.write_text('''package com.emrah.canvaapprentice;\n\nimport static org.junit.Assert.assertEquals;\nimport static org.junit.Assert.assertFalse;\nimport static org.junit.Assert.assertTrue;\n\nimport java.util.concurrent.atomic.AtomicInteger;\nimport org.junit.Test;\n\npublic final class ResumeRuntimeLifecycleTest {\n    @Test public void newDevamEtGenerationKillsQueuedRetryFromOlderResume() {\n        ResumeGenerationGuard guard = new ResumeGenerationGuard();\n        long oldResume = guard.begin();\n        long newResume = guard.begin();\n        AtomicInteger effects = new AtomicInteger();\n\n        assertFalse(guard.runIfCurrent(oldResume, effects::incrementAndGet));\n        assertTrue(guard.runIfCurrent(newResume, effects::incrementAndGet));\n        assertEquals(1, effects.get());\n    }\n\n    @Test public void successfulResumeConsumesGenerationSoQueuedRetryCannotRestartAgent() {\n        ResumeGenerationGuard guard = new ResumeGenerationGuard();\n        long resume = guard.begin();\n        AtomicInteger effects = new AtomicInteger();\n\n        assertTrue(guard.consumeIfCurrent(resume, effects::incrementAndGet));\n        assertFalse(guard.runIfCurrent(resume, effects::incrementAndGet));\n        assertEquals(1, effects.get());\n    }\n\n    @Test public void stopOrDestroyInvalidationKillsQueuedResumeRetry() {\n        ResumeGenerationGuard guard = new ResumeGenerationGuard();\n        long resume = guard.begin();\n        guard.invalidate();\n\n        assertFalse(guard.runIfCurrent(resume, () -> { throw new AssertionError("stale retry acted"); }));\n    }\n}\n''')
+
+          workflow = Path('.github/workflows/resume-runtime-patch.yml')
+          workflow.unlink()
+      - name: Commit runtime safety patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Wire resume generation guard into runtime"
+          git push
