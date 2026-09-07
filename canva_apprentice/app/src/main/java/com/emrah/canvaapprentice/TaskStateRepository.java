@@ -98,6 +98,7 @@ public final class TaskStateRepository {
 
         TaskState current = load();
         if (current.mode != TaskState.Mode.RUNNING) return;
+        final String observedTeacherSessionId = currentTeacherSessionId();
 
         AgentAccessibilityService service = AgentAccessibilityService.INSTANCE;
         if (service == null) return;
@@ -111,11 +112,14 @@ public final class TaskStateRepository {
         boolean homeVisible = live.looksLikeCanvaHome();
         if (!DesignAnchorPolicy.mayBindVisibleEditor(a, exactAnchorVisible, homeVisible)) return;
 
-        // Re-check runtime ownership and mode immediately before persistence. A stale service or a
-        // human-takeover/stop transition must not be able to commit a formerly valid observation.
+        // Re-check runtime ownership, mode, and the teacher session immediately before persistence.
+        // A takeover/stop/resume/session rollover invalidates the observation instead of allowing
+        // stale editor evidence to become durable continuity authority.
         if (!RuntimeOwnerPolicy.isCurrent(service, AgentAccessibilityService.INSTANCE)) return;
         TaskState rechecked = load();
-        if (rechecked.mode != TaskState.Mode.RUNNING) return;
+        String currentTeacherSessionId = currentTeacherSessionId();
+        if (!DesignAnchorPersistencePolicy.mayCommit(
+                rechecked.mode, observedTeacherSessionId, currentTeacherSessionId, a)) return;
 
         prefs.edit()
                 .putString("design_anchor", a)
