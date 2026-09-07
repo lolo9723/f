@@ -14,12 +14,13 @@ public final class ScreenshotProvider extends ContentProvider {
     public static final String AUTHORITY = "com.emrah.canvaapprentice.screenshot";
 
     /**
-     * Exposes only already-created, immutable capture-specific screenshot evidence. Screenshot
-     * creation itself must never pass through a shared mutable staging filename.
+     * Exposes only already-created, immutable capture-specific screenshot evidence owned by the
+     * currently active execution lease. A stale capture from an older teacher/action chain must
+     * never be attachable to a newer visual request even if its filename is otherwise well formed.
      */
     public static Uri uriFor(File file) {
-        if (file == null || !ScreenshotFilePolicy.isCaptureFileName(file.getName())) {
-            throw new IllegalArgumentException("Invalid screenshot evidence file");
+        if (file == null || !ScreenshotFilePolicy.isCaptureFileForCurrentLease(file.getName())) {
+            throw new IllegalArgumentException("Invalid or stale screenshot evidence file");
         }
         return Uri.parse("content://" + AUTHORITY + "/" + file.getName());
     }
