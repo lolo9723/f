@@ -192,16 +192,31 @@ public final class AgentAccessibilityService extends AccessibilityService {
                 state.designAnchor,preAnchorVisible,preAction.looksLikeCanvaHome(),preMatchesLastSafe);
 
         if(action.type==AgentAction.Type.BIND_DESIGN){
-            if(action.confidence<0.98 || !DesignAnchorPolicy.isPlausible(action.target)){
+            boolean exactTargetVisible=preAction.containsText(action.target);
+            boolean mayBind=action.confidence>=0.98
+                    && DesignAnchorPolicy.mayBindVisibleEditor(
+                            action.target,exactTargetVisible,preAction.looksLikeCanvaHome());
+            if(!mayBind || !isActionChainCurrent(action,teacherSessionId)){
                 visualEvidence.clearIfExecutionCurrent(action.executionLeaseToken);
-                pauseForHuman("Tasarım kimliği güvenle bağlanamadı; yanlış tasarıma kilitlenmemek için duruldu.");
+                pauseForHuman("Tasarım kimliği canlı Canva editöründe bağımsız olarak doğrulanamadı; yanlış tasarıma kilitlenmemek için duruldu.");
                 cycleBusy.set(false);
                 return;
             }
             repo.bindDesignAnchor(action.target);
+            TaskState bound=repo.load();
+            if(!isActionChainCurrent(action,teacherSessionId) || !action.target.equals(bound.designAnchor)){
+                visualEvidence.clearIfExecutionCurrent(action.executionLeaseToken);
+                pauseForHuman("Tasarım kimliği kalıcı duruma güvenle bağlanamadı; ajan devam etmedi.");
+                cycleBusy.set(false);
+                return;
+            }
             visualEvidence.clearIfExecutionCurrent(action.executionLeaseToken);
             cycleBusy.set(false);
-            runCanvaCycle("Design anchor güvenle bağlandı: '"+action.target+"'. Bundan sonra bu mevcut tasarımda kal.");
+            runCanvaCycleIfActionCurrent(
+                    action,
+                    teacherSessionId,
+                    "Design anchor canlı editör kanıtıyla güvenle bağlandı: '"+action.target+"'. Bundan sonra bu mevcut tasarımda kal."
+            );
             return;
         }
 
