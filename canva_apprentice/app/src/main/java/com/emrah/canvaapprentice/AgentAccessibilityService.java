@@ -45,7 +45,10 @@ public final class AgentAccessibilityService extends AccessibilityService {
             showHumanOverlay(restored.humanReason.isEmpty()?"Kullanıcı işlemi gerekiyor.":restored.humanReason);
         }else if(restored.mode==TaskState.Mode.RUNNING){
             final long generation=resumeGeneration.begin();
-            new Handler(Looper.getMainLooper()).postDelayed(() -> resumeOnCanva(generation,0),500);
+            final String resumeSessionId=repo.currentTeacherSessionId();
+            final String resumeDesignAnchor=restored.designAnchor;
+            new Handler(Looper.getMainLooper()).postDelayed(
+                    () -> resumeOnCanva(generation,resumeSessionId,resumeDesignAnchor,0),500);
         }
     }
 
@@ -521,14 +524,21 @@ public final class AgentAccessibilityService extends AccessibilityService {
 
     private void showHumanOverlay(String reason){
         overlay.show(reason,()->{
-            final long generation=resumeGeneration.begin();
             TeacherExecutionLease.invalidateGlobal();
             visualEvidence.clear();
             repo.resume();
+            TaskState resumed=repo.load();
+            if(resumed.mode!=TaskState.Mode.RUNNING){
+                resumeGeneration.invalidate();
+                return;
+            }
+            final long generation=resumeGeneration.begin();
+            final String resumeSessionId=repo.currentTeacherSessionId();
+            final String resumeDesignAnchor=resumed.designAnchor;
             cycleBusy.set(false);
             consecutiveNoVisualChange=0;
             consecutiveExecutionFailures=0;
-            resumeOnCanva(generation,0);
+            resumeOnCanva(generation,resumeSessionId,resumeDesignAnchor,0);
         });
     }
 
@@ -561,19 +571,24 @@ public final class AgentAccessibilityService extends AccessibilityService {
         runCanvaCycle(note);
     }
 
-    private void resumeOnCanva(long generation, int attempt){
-        if(!resumeGeneration.isCurrent(generation)) return;
-        TaskState state=repo.load();
-        if(state.mode!=TaskState.Mode.RUNNING){
-            resumeGeneration.invalidate();
-            return;
-        }
+    private boolean isResumeContextCurrent(long generation, String expectedSessionId, String expectedDesignAnchor){
+        if(!resumeGeneration.isCurrent(generation) || repo==null) return false;
+        TaskState current=repo.load();
+        return ResumeContextPolicy.isCurrent(
+                current.mode,current.designAnchor,repo.currentTeacherSessionId(),
+                expectedDesignAnchor,expectedSessionId);
+    }
 
+    private void resumeOnCanva(long generation, String expectedSessionId, String expectedDesignAnchor, int attempt){
+        if(!isResumeContextCurrent(generation,expectedSessionId,expectedDesignAnchor)) return;
         AccessibilityNodeInfo root=getRootInActiveWindow();
         String pkg=root!=null&&root.getPackageName()!=null?root.getPackageName().toString():"";
         if(AgentConstants.CANVA_PACKAGE.equals(pkg)){
+            if(!isResumeContextCurrent(generation,expectedSessionId,expectedDesignAnchor)) return;
             resumeGeneration.consumeIfCurrent(generation,()->{
-                if(repo.load().mode!=TaskState.Mode.RUNNING) return;
+                TaskState current=repo.load();
+                if(!ResumeContextPolicy.isCurrent(current.mode,current.designAnchor,repo.currentTeacherSessionId(),
+                        expectedDesignAnchor,expectedSessionId)) return;
                 cycleBusy.set(false);
                 runCanvaCycle("Kullanıcı müdahalesi tamamlandı. Önce mevcut durumu yeniden doğrula ve kaldığın görevden devam et.");
             });
@@ -581,8 +596,11 @@ public final class AgentAccessibilityService extends AccessibilityService {
         }
 
         if(attempt>=12){
+            if(!isResumeContextCurrent(generation,expectedSessionId,expectedDesignAnchor)) return;
             resumeGeneration.consumeIfCurrent(generation,()->{
-                if(repo.load().mode!=TaskState.Mode.RUNNING) return;
+                TaskState current=repo.load();
+                if(!ResumeContextPolicy.isCurrent(current.mode,current.designAnchor,repo.currentTeacherSessionId(),
+                        expectedDesignAnchor,expectedSessionId)) return;
                 pauseForHuman("Canva'ya güvenli biçimde dönülemedi. Canva'yı açıp DEVAM ET'e tekrar bas.");
             });
             return;
@@ -593,8 +611,9 @@ public final class AgentAccessibilityService extends AccessibilityService {
             canva.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
             if(!resumeGeneration.runIfCurrent(generation,()->startActivity(canva))) return;
         }
-        if(!resumeGeneration.isCurrent(generation)) return;
-        new Handler(Looper.getMainLooper()).postDelayed(() -> resumeOnCanva(generation,attempt+1),300);
+        if(!isResumeContextCurrent(generation,expectedSessionId,expectedDesignAnchor)) return;
+        new Handler(Looper.getMainLooper()).postDelayed(
+                () -> resumeOnCanva(generation,expectedSessionId,expectedDesignAnchor,attempt+1),300);
     }
 
     public void captureScreenshotForDiagnostics(ScreenshotCallback cb){
