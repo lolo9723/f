@@ -84,6 +84,11 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
             // eliminating cross-design memory contamination from a check-then-act race.
             TaskState liveState = new TaskStateRepository(appContext).load();
             if (liveState.mode != TaskState.Mode.RUNNING) return false;
+            // Fail closed while design identity is unbound. A shared "unbound" bucket would let
+            // navigation learned on Canva home/editor chrome before design A is bound influence a
+            // later task targeting design B. The agent may explore only from live teacher evidence
+            // until the exact existing design has been bound and continuity can be proven.
+            if (!mayUseTransitionMemory(liveState.designAnchor)) return false;
             String goalKey = goalScopeKey(goal);
             String designKey = transitionScopeKey(liveState.designAnchor);
             String target = sanitizeTarget(action.target);
@@ -159,6 +164,13 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
         String goalKey = goalScopeKey(goal);
         TaskState state = new TaskStateRepository(appContext).load();
 
+        // Never replay transition memory before the exact existing design is bound. Canva home,
+        // project lists, and editor chrome can share fingerprints across unrelated designs; an
+        // "unbound" memory scope therefore cannot honestly claim exact-design provenance.
+        if (!mayUseTransitionMemory(state.designAnchor)) {
+            return "withheld: exact existing design is not bound; transition memory replay is disabled";
+        }
+
         // DEVAM ET / process restoration invalidates continuity provenance by clearing the safe
         // checkpoint. Do not let old learned navigation influence the teacher until the current
         // Canva surface has independently become the new safe checkpoint. For a bound design,
@@ -225,6 +237,10 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
         );
         try { return c.moveToFirst() ? c.getInt(0) : 0; }
         finally { c.close(); }
+    }
+
+    static boolean mayUseTransitionMemory(String designAnchor) {
+        return designAnchor != null && !designAnchor.trim().isEmpty();
     }
 
     static String transitionScopeKey(String designAnchor) {
