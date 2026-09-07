@@ -31,4 +31,17 @@ public final class DesignAnchorPersistencePolicyTest {
         assertFalse(DesignAnchorPersistencePolicy.mayCommit(
                 TaskState.Mode.RUNNING,"session-a","session-a","   "));
     }
+
+    @Test public void allowsFirstBindAndIdempotentRebind() {
+        assertTrue(DesignAnchorPersistencePolicy.preservesBoundIdentity("", "Existing design"));
+        assertTrue(DesignAnchorPersistencePolicy.preservesBoundIdentity(
+                "Existing design", " Existing design "));
+    }
+
+    @Test public void rejectsRetargetingAlreadyBoundDesign() {
+        assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity(
+                "Existing design", "Different design"));
+        assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity(
+                "Existing design", "   "));
+    }
 }
