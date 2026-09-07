@@ -4,8 +4,10 @@ public final class TeacherProtocol {
     private TeacherProtocol() {}
 
     public static String markerFor(String requestId) {
-        TeacherExecutionLease.beginGlobal();
-        return "CAA1_REPLY_" + requestId + "|";
+        String executionLeaseToken = TeacherExecutionLease.beginGlobal();
+        String marker = "CAA1_REPLY_" + requestId + "|";
+        CheckpointRequestGuard.bind(marker, executionLeaseToken);
+        return marker;
     }
 
     public static String buildRequest(TaskState state, UiTreeSnapshot snapshot, String note, String requestId) {
@@ -86,7 +88,14 @@ public final class TeacherProtocol {
     public static AgentAction parse(String raw, String marker) { return parse(raw, marker, false); }
 
     public static AgentAction parse(String raw, String marker, boolean visualGrounded) {
-        if (raw == null) return new AgentAction(AgentAction.Type.NOOP,"","",0,"empty teacher reply",visualGrounded);
+        CheckpointRequestGuard.RequestLease requestLease = CheckpointRequestGuard.consume(marker);
+        final String executionLeaseToken = requestLease.executionLeaseToken;
+        if (!requestLease.checkpointCurrent) {
+            return action(AgentAction.Type.NOOP,"","",1.0,
+                    "safe checkpoint advanced while teacher request was in flight; refresh from current state",
+                    visualGrounded,executionLeaseToken);
+        }
+        if (raw == null) return action(AgentAction.Type.NOOP,"","",0,"empty teacher reply",visualGrounded,executionLeaseToken);
         String line = null;
         int markerMatches = 0;
         for (String s : raw.split("\\R")) {
@@ -94,46 +103,51 @@ public final class TeacherProtocol {
             if (t.startsWith(marker)) {
                 markerMatches++;
                 if (markerMatches > 1) {
-                    return new AgentAction(AgentAction.Type.NOOP,"","",0,"ambiguous duplicate protocol marker",visualGrounded);
+                    return action(AgentAction.Type.NOOP,"","",0,"ambiguous duplicate protocol marker",visualGrounded,executionLeaseToken);
                 }
                 line = t.substring(marker.length());
             }
         }
-        if (line == null) return new AgentAction(AgentAction.Type.NOOP,"","",0,"unique protocol marker missing",visualGrounded);
+        if (line == null) return action(AgentAction.Type.NOOP,"","",0,"unique protocol marker missing",visualGrounded,executionLeaseToken);
 
         java.util.List<String> p = ProtocolCodec.splitEscaped(line);
         try {
             String cmd = at(p,0);
             switch (cmd) {
-                case "BIND_DESIGN": return new AgentAction(AgentAction.Type.BIND_DESIGN,at(p,1),"",dbl(at(p,2)),at(p,3),visualGrounded);
+                case "BIND_DESIGN": return action(AgentAction.Type.BIND_DESIGN,at(p,1),"",dbl(at(p,2)),at(p,3),visualGrounded,executionLeaseToken);
                 case "CLICK_NODE":
-                    if (p.size() >= 8) return new AgentAction(AgentAction.Type.CLICK_NODE,
-                            NodeTargetCodec.encode(integer(at(p,1)),nodeLabel(at(p,2)),at(p,3),at(p,4),at(p,5)),"",dbl(at(p,6)),at(p,7),visualGrounded);
-                    return new AgentAction(AgentAction.Type.CLICK_NODE,NodeTargetCodec.encode(integer(at(p,1)),at(p,2)),"",dbl(at(p,3)),at(p,4),visualGrounded);
+                    if (p.size() >= 8) return action(AgentAction.Type.CLICK_NODE,
+                            NodeTargetCodec.encode(integer(at(p,1)),nodeLabel(at(p,2)),at(p,3),at(p,4),at(p,5)),"",dbl(at(p,6)),at(p,7),visualGrounded,executionLeaseToken);
+                    return action(AgentAction.Type.CLICK_NODE,NodeTargetCodec.encode(integer(at(p,1)),at(p,2)),"",dbl(at(p,3)),at(p,4),visualGrounded,executionLeaseToken);
                 case "SET_NODE_TEXT":
-                    if (p.size() >= 9) return new AgentAction(AgentAction.Type.SET_NODE_TEXT,
-                            NodeTargetCodec.encode(integer(at(p,1)),nodeLabel(at(p,2)),at(p,3),at(p,4),at(p,5)),at(p,6),dbl(at(p,7)),at(p,8),visualGrounded);
-                    return new AgentAction(AgentAction.Type.SET_NODE_TEXT,NodeTargetCodec.encode(integer(at(p,1)),nodeLabel(at(p,2))),at(p,3),dbl(at(p,4)),at(p,5),visualGrounded);
-                case "CLICK_TEXT": return new AgentAction(AgentAction.Type.CLICK_TEXT,at(p,1),"",dbl(at(p,2)),at(p,3),visualGrounded);
-                case "SET_TEXT": return new AgentAction(AgentAction.Type.SET_TEXT,at(p,1),at(p,2),dbl(at(p,3)),at(p,4),visualGrounded);
-                case "TAP_NORM": return new AgentAction(AgentAction.Type.TAP_NORM,at(p,1),"",dbl(at(p,2)),at(p,3),visualGrounded);
-                case "DRAG_NORM": return new AgentAction(AgentAction.Type.DRAG_NORM,at(p,1),"",dbl(at(p,2)),at(p,3),visualGrounded);
-                case "BACK": return new AgentAction(AgentAction.Type.BACK,"","",dbl(at(p,3).isEmpty()?at(p,2):at(p,3)),at(p,4),visualGrounded);
-                case "SCREENSHOT": return new AgentAction(AgentAction.Type.SCREENSHOT,"","",1.0,at(p,4),visualGrounded);
-                case "HUMAN": return new AgentAction(AgentAction.Type.HUMAN_TAKEOVER,"","",1.0,at(p,4),visualGrounded);
+                    if (p.size() >= 9) return action(AgentAction.Type.SET_NODE_TEXT,
+                            NodeTargetCodec.encode(integer(at(p,1)),nodeLabel(at(p,2)),at(p,3),at(p,4),at(p,5)),at(p,6),dbl(at(p,7)),at(p,8),visualGrounded,executionLeaseToken);
+                    return action(AgentAction.Type.SET_NODE_TEXT,NodeTargetCodec.encode(integer(at(p,1)),nodeLabel(at(p,2))),at(p,3),dbl(at(p,4)),at(p,5),visualGrounded,executionLeaseToken);
+                case "CLICK_TEXT": return action(AgentAction.Type.CLICK_TEXT,at(p,1),"",dbl(at(p,2)),at(p,3),visualGrounded,executionLeaseToken);
+                case "SET_TEXT": return action(AgentAction.Type.SET_TEXT,at(p,1),at(p,2),dbl(at(p,3)),at(p,4),visualGrounded,executionLeaseToken);
+                case "TAP_NORM": return action(AgentAction.Type.TAP_NORM,at(p,1),"",dbl(at(p,2)),at(p,3),visualGrounded,executionLeaseToken);
+                case "DRAG_NORM": return action(AgentAction.Type.DRAG_NORM,at(p,1),"",dbl(at(p,2)),at(p,3),visualGrounded,executionLeaseToken);
+                case "BACK": return action(AgentAction.Type.BACK,"","",dbl(at(p,3).isEmpty()?at(p,2):at(p,3)),at(p,4),visualGrounded,executionLeaseToken);
+                case "SCREENSHOT": return action(AgentAction.Type.SCREENSHOT,"","",1.0,at(p,4),visualGrounded,executionLeaseToken);
+                case "HUMAN": return action(AgentAction.Type.HUMAN_TAKEOVER,"","",1.0,at(p,4),visualGrounded,executionLeaseToken);
                 case "DONE": {
                     double doneConfidence = dbl(at(p,3));
                     if (doneConfidence < 0.995) {
-                        return new AgentAction(AgentAction.Type.NOOP,"","",0,
-                                "final done confidence below safety threshold",visualGrounded);
+                        return action(AgentAction.Type.NOOP,"","",0,
+                                "final done confidence below safety threshold",visualGrounded,executionLeaseToken);
                     }
-                    return new AgentAction(AgentAction.Type.DONE,"","",doneConfidence,at(p,4),visualGrounded);
+                    return action(AgentAction.Type.DONE,"","",doneConfidence,at(p,4),visualGrounded,executionLeaseToken);
                 }
-                default: return new AgentAction(AgentAction.Type.NOOP,"","",1.0,at(p,4),visualGrounded);
+                default: return action(AgentAction.Type.NOOP,"","",1.0,at(p,4),visualGrounded,executionLeaseToken);
             }
         } catch (Exception e) {
-            return new AgentAction(AgentAction.Type.NOOP,"","",0,"teacher protocol parse error",visualGrounded);
+            return action(AgentAction.Type.NOOP,"","",0,"teacher protocol parse error",visualGrounded,executionLeaseToken);
         }
+    }
+
+    private static AgentAction action(AgentAction.Type type, String target, String value, double confidence,
+                                      String reason, boolean visualGrounded, String executionLeaseToken) {
+        return new AgentAction(type,target,value,confidence,reason,visualGrounded,executionLeaseToken);
     }
 
     private static String at(java.util.List<String> p, int i) { return i < p.size() ? p.get(i).trim() : ""; }
