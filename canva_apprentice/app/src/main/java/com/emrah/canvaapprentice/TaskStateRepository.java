@@ -233,6 +233,7 @@ public final class TaskStateRepository {
                 .putString(LAST_SAFE_ANCHOR, owner)
                 .putInt("step", commitState.step + 1)
                 .apply();
+        CheckpointRequestGuard.onCheckpointCommitted();
         return true;
     }
 
