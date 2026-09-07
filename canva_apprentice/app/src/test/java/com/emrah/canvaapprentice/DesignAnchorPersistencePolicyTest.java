@@ -16,6 +16,18 @@ public final class DesignAnchorPersistencePolicyTest {
                 TaskState.Mode.RUNNING,"session-a","session-b","Existing design"));
     }
 
+    @Test public void originatingActionSessionMustMatchObservationAndCommit() {
+        assertTrue(DesignAnchorPersistencePolicy.mayCommit(
+                TaskState.Mode.RUNNING,
+                "session-a","session-a","session-a","Existing design"));
+        assertFalse(DesignAnchorPersistencePolicy.mayCommit(
+                TaskState.Mode.RUNNING,
+                "stale-action","session-a","session-a","Existing design"));
+        assertFalse(DesignAnchorPersistencePolicy.mayCommit(
+                TaskState.Mode.RUNNING,
+                "session-a","session-a","session-b","Existing design"));
+    }
+
     @Test public void rejectsNonRunningMode() {
         assertFalse(DesignAnchorPersistencePolicy.mayCommit(
                 TaskState.Mode.HUMAN_TAKEOVER,"session-a","session-a","Existing design"));
@@ -30,6 +42,8 @@ public final class DesignAnchorPersistencePolicyTest {
                 TaskState.Mode.RUNNING,"session-a","","Existing design"));
         assertFalse(DesignAnchorPersistencePolicy.mayCommit(
                 TaskState.Mode.RUNNING,"session-a","session-a","   "));
+        assertFalse(DesignAnchorPersistencePolicy.mayCommit(
+                TaskState.Mode.RUNNING,"","session-a","session-a","Existing design"));
     }
 
     @Test public void allowsFirstBindAndIdempotentRebind() {
