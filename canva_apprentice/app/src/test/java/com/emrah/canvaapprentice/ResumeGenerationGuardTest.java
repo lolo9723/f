@@ -1,8 +1,10 @@
 package com.emrah.canvaapprentice;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Test;
 
 public final class ResumeGenerationGuardTest {
@@ -31,5 +33,37 @@ public final class ResumeGenerationGuardTest {
         assertFalse(guard.isCurrent(first));
         assertFalse(guard.isCurrent(second));
         assertTrue(guard.isCurrent(third));
+    }
+
+    @Test public void staleGenerationCannotRunGuardedAction() {
+        ResumeGenerationGuard guard = new ResumeGenerationGuard();
+        long stale = guard.begin();
+        long current = guard.begin();
+        AtomicInteger effects = new AtomicInteger();
+
+        assertFalse(guard.runIfCurrent(stale, effects::incrementAndGet));
+        assertEquals(0, effects.get());
+        assertTrue(guard.runIfCurrent(current, effects::incrementAndGet));
+        assertEquals(1, effects.get());
+    }
+
+    @Test public void consumedGenerationCannotCommitTwice() {
+        ResumeGenerationGuard guard = new ResumeGenerationGuard();
+        long generation = guard.begin();
+        AtomicInteger effects = new AtomicInteger();
+
+        assertTrue(guard.consumeIfCurrent(generation, effects::incrementAndGet));
+        assertFalse(guard.consumeIfCurrent(generation, effects::incrementAndGet));
+        assertFalse(guard.runIfCurrent(generation, effects::incrementAndGet));
+        assertEquals(1, effects.get());
+    }
+
+    @Test public void nullActionFailsClosedWithoutConsumingGeneration() {
+        ResumeGenerationGuard guard = new ResumeGenerationGuard();
+        long generation = guard.begin();
+
+        assertFalse(guard.runIfCurrent(generation, null));
+        assertFalse(guard.consumeIfCurrent(generation, null));
+        assertTrue(guard.isCurrent(generation));
     }
 }
