@@ -20,13 +20,15 @@ public class ScreenshotCaptureIsolationRegressionTest {
         assertTrue(service.contains("os.getFD().sync()"));
     }
 
-    @Test public void teacherReceivesExactCapturedFileUri() throws Exception {
+    @Test public void teacherReceivesExactCapturedFileUriAndProviderRechecksLiveLease() throws Exception {
         String service = source("AgentAccessibilityService.java");
         String provider = source("ScreenshotProvider.java");
         assertTrue(service.contains("ScreenshotProvider.uriFor(file)"));
         assertFalse(service.contains("ScreenshotProvider.uri()"));
         assertFalse(provider.contains("canva_agent_last.png"));
         assertFalse(provider.contains("renameTo("));
-        assertTrue(provider.contains("ScreenshotFilePolicy.isCaptureFileName(file.getName())"));
+        assertTrue(provider.contains("ScreenshotFilePolicy.isCaptureFileForCurrentLease(file.getName())"));
+        assertTrue(provider.contains("ScreenshotFilePolicy.isCaptureFileForCurrentLease(uri.getLastPathSegment())"));
+        assertFalse(provider.contains("return ScreenshotFilePolicy.isCaptureFileName(uri.getLastPathSegment())"));
     }
 }
