@@ -1,0 +1,81 @@
+name: Resume Context Continuity Patch V3
+
+on:
+  push:
+    branches: [canva-apprentice-agent]
+    paths:
+      - '.github/workflows/resume-context-continuity-patch-v3.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: canva-apprentice-agent
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install API 36
+        run: yes | sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Patch resume context continuity
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('canva_apprentice/app/src/main/java/com/emrah/canvaapprentice/AgentAccessibilityService.java')
+          s=p.read_text()
+          def once(old,new,label):
+              global s
+              if s.count(old)!=1:
+                  raise SystemExit(label+' match count='+str(s.count(old)))
+              s=s.replace(old,new,1)
+
+          once("        }else if(restored.mode==TaskState.Mode.RUNNING){\n            final long generation=resumeGeneration.begin();\n            new Handler(Looper.getMainLooper()).postDelayed(() -> resumeOnCanva(generation,0),500);\n        }",
+               "        }else if(restored.mode==TaskState.Mode.RUNNING){\n            final long generation=resumeGeneration.begin();\n            final String resumeSessionId=repo.currentTeacherSessionId();\n            final String resumeDesignAnchor=restored.designAnchor;\n            new Handler(Looper.getMainLooper()).postDelayed(\n                    () -> resumeOnCanva(generation,resumeSessionId,resumeDesignAnchor,0),500);\n        }",
+               'restore')
+
+          once("    private void showHumanOverlay(String reason){\n        overlay.show(reason,()->{\n            final long generation=resumeGeneration.begin();\n            TeacherExecutionLease.invalidateGlobal();\n            visualEvidence.clear();\n            repo.resume();\n            cycleBusy.set(false);\n            consecutiveNoVisualChange=0;\n            consecutiveExecutionFailures=0;\n            resumeOnCanva(generation,0);\n        });\n    }",
+               "    private void showHumanOverlay(String reason){\n        overlay.show(reason,()->{\n            TeacherExecutionLease.invalidateGlobal();\n            visualEvidence.clear();\n            repo.resume();\n            TaskState resumed=repo.load();\n            if(resumed.mode!=TaskState.Mode.RUNNING){\n                resumeGeneration.invalidate();\n                return;\n            }\n            final long generation=resumeGeneration.begin();\n            final String resumeSessionId=repo.currentTeacherSessionId();\n            final String resumeDesignAnchor=resumed.designAnchor;\n            cycleBusy.set(false);\n            consecutiveNoVisualChange=0;\n            consecutiveExecutionFailures=0;\n            resumeOnCanva(generation,resumeSessionId,resumeDesignAnchor,0);\n        });\n    }",
+               'overlay')
+
+          once("    private void resumeOnCanva(long generation, int attempt){\n        if(!resumeGeneration.isCurrent(generation)) return;\n        TaskState state=repo.load();\n        if(state.mode!=TaskState.Mode.RUNNING){\n            resumeGeneration.invalidate();\n            return;\n        }\n\n        AccessibilityNodeInfo root=getRootInActiveWindow();",
+               "    private boolean isResumeContextCurrent(long generation, String expectedSessionId, String expectedDesignAnchor){\n        if(!resumeGeneration.isCurrent(generation) || repo==null) return false;\n        TaskState current=repo.load();\n        return ResumeContextPolicy.isCurrent(\n                current.mode,current.designAnchor,repo.currentTeacherSessionId(),\n                expectedDesignAnchor,expectedSessionId);\n    }\n\n    private void resumeOnCanva(long generation, String expectedSessionId, String expectedDesignAnchor, int attempt){\n        if(!isResumeContextCurrent(generation,expectedSessionId,expectedDesignAnchor)) return;\n        AccessibilityNodeInfo root=getRootInActiveWindow();",
+               'resume-header')
+
+          once("        if(AgentConstants.CANVA_PACKAGE.equals(pkg)){\n            resumeGeneration.consumeIfCurrent(generation,()->{\n                if(repo.load().mode!=TaskState.Mode.RUNNING) return;\n                cycleBusy.set(false);\n                runCanvaCycle(\"Kullanıcı müdahalesi tamamlandı. Önce mevcut durumu yeniden doğrula ve kaldığın görevden devam et.\");\n            });\n            return;\n        }",
+               "        if(AgentConstants.CANVA_PACKAGE.equals(pkg)){\n            if(!isResumeContextCurrent(generation,expectedSessionId,expectedDesignAnchor)) return;\n            resumeGeneration.consumeIfCurrent(generation,()->{\n                TaskState current=repo.load();\n                if(!ResumeContextPolicy.isCurrent(current.mode,current.designAnchor,repo.currentTeacherSessionId(),\n                        expectedDesignAnchor,expectedSessionId)) return;\n                cycleBusy.set(false);\n                runCanvaCycle(\"Kullanıcı müdahalesi tamamlandı. Önce mevcut durumu yeniden doğrula ve kaldığın görevden devam et.\");\n            });\n            return;\n        }",
+               'resume-success')
+
+          once("        if(attempt>=12){\n            resumeGeneration.consumeIfCurrent(generation,()->{\n                if(repo.load().mode!=TaskState.Mode.RUNNING) return;\n                pauseForHuman(\"Canva'ya güvenli biçimde dönülemedi. Canva'yı açıp DEVAM ET'e tekrar bas.\");\n            });\n            return;\n        }",
+               "        if(attempt>=12){\n            if(!isResumeContextCurrent(generation,expectedSessionId,expectedDesignAnchor)) return;\n            resumeGeneration.consumeIfCurrent(generation,()->{\n                TaskState current=repo.load();\n                if(!ResumeContextPolicy.isCurrent(current.mode,current.designAnchor,repo.currentTeacherSessionId(),\n                        expectedDesignAnchor,expectedSessionId)) return;\n                pauseForHuman(\"Canva'ya güvenli biçimde dönülemedi. Canva'yı açıp DEVAM ET'e tekrar bas.\");\n            });\n            return;\n        }",
+               'resume-timeout')
+
+          once("        if(!resumeGeneration.isCurrent(generation)) return;\n        new Handler(Looper.getMainLooper()).postDelayed(() -> resumeOnCanva(generation,attempt+1),300);",
+               "        if(!isResumeContextCurrent(generation,expectedSessionId,expectedDesignAnchor)) return;\n        new Handler(Looper.getMainLooper()).postDelayed(\n                () -> resumeOnCanva(generation,expectedSessionId,expectedDesignAnchor,attempt+1),300);",
+               'resume-retry')
+          p.write_text(s)
+
+          Path('canva_apprentice/app/src/main/java/com/emrah/canvaapprentice/ResumeContextPolicy.java').write_text("""package com.emrah.canvaapprentice;\n\n/** Fail-closed ownership check for DEVAM ET / service-restore resume chains. */\nfinal class ResumeContextPolicy {\n    private ResumeContextPolicy() {}\n\n    static boolean isCurrent(TaskState.Mode mode, String currentAnchor, String currentSessionId,\n                             String expectedAnchor, String expectedSessionId) {\n        if (mode != TaskState.Mode.RUNNING) return false;\n        String currentSession=currentSessionId==null?\"\":currentSessionId.trim();\n        String expectedSession=expectedSessionId==null?\"\":expectedSessionId.trim();\n        if(expectedSession.isEmpty() || !expectedSession.equals(currentSession)) return false;\n        String current=currentAnchor==null?\"\":currentAnchor.trim();\n        String expected=expectedAnchor==null?\"\":expectedAnchor.trim();\n        return expected.equals(current);\n    }\n}\n""")
+          Path('canva_apprentice/app/src/test/java/com/emrah/canvaapprentice/ResumeContextPolicyTest.java').write_text("""package com.emrah.canvaapprentice;\n\nimport org.junit.Test;\nimport static org.junit.Assert.*;\n\npublic class ResumeContextPolicyTest {\n    @Test public void sameRunningSessionAndAnchorPass(){\n        assertTrue(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,\"Design A\",\"session-2\",\"Design A\",\"session-2\"));\n        assertTrue(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,\"\",\"session-2\",\"\",\"session-2\"));\n    }\n    @Test public void rotatedSessionFails(){\n        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,\"Design A\",\"session-3\",\"Design A\",\"session-2\"));\n        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,\"Design A\",\"\",\"Design A\",\"session-2\"));\n        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,\"Design A\",\"session-2\",\"Design A\",\"\"));\n    }\n    @Test public void rotatedAnchorFails(){\n        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,\"Design B\",\"session-2\",\"Design A\",\"session-2\"));\n        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,\"Design A\",\"session-2\",\"\",\"session-2\"));\n    }\n    @Test public void nonRunningFails(){\n        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.HUMAN_TAKEOVER,\"Design A\",\"session-2\",\"Design A\",\"session-2\"));\n        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.STOPPED,\"Design A\",\"session-2\",\"Design A\",\"session-2\"));\n        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.IDLE,\"Design A\",\"session-2\",\"Design A\",\"session-2\"));\n    }\n}\n""")
+          PY
+      - name: Remove one-shot workflow
+        run: rm .github/workflows/resume-context-continuity-patch-v3.yml
+      - name: Commit patched source locally
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add canva_apprentice/app/src/main/java/com/emrah/canvaapprentice/AgentAccessibilityService.java canva_apprentice/app/src/main/java/com/emrah/canvaapprentice/ResumeContextPolicy.java canva_apprentice/app/src/test/java/com/emrah/canvaapprentice/ResumeContextPolicyTest.java .github/workflows/resume-context-continuity-patch-v3.yml
+          git commit -m 'Harden resume session and design continuity'
+      - name: Validate exact committed tree
+        working-directory: canva_apprentice
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest assembleDebug --stacktrace
+      - name: Push validated commit
+        run: git push origin HEAD:canva-apprentice-agent
