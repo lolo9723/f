@@ -43,11 +43,35 @@ public final class ScreenshotProvider extends ContentProvider {
     }
 
     @Override public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
-        if (!isAllowed(uri) || !"r".equals(mode)) throw new FileNotFoundException("Not allowed");
-        String fileName = uri.getLastPathSegment();
-        File file = new File(getContext().getCacheDir(), fileName);
-        if (!file.exists() || !file.isFile()) throw new FileNotFoundException("Screenshot missing");
-        return ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY);
+        if (uri == null || !AUTHORITY.equals(uri.getAuthority())
+                || uri.getPathSegments().size() != 1 || !"r".equals(mode)) {
+            throw new FileNotFoundException("Not allowed");
+        }
+
+        final String fileName = uri.getLastPathSegment();
+        final String leaseToken = TeacherExecutionLease.currentGlobalToken();
+        if (!ScreenshotFilePolicy.isCaptureFileForLease(fileName, leaseToken)) {
+            throw new FileNotFoundException("Not allowed");
+        }
+
+        ParcelFileDescriptor descriptor = TeacherExecutionLease.withGlobalCurrentChecked(
+                leaseToken,
+                null,
+                () -> {
+                    // Re-validate the filename while the lease monitor is held. beginGlobal() and
+                    // invalidateGlobal() use the same monitor, so ownership cannot rotate between
+                    // this check and ParcelFileDescriptor.open().
+                    if (!ScreenshotFilePolicy.isCaptureFileForLease(fileName, leaseToken)) {
+                        return null;
+                    }
+                    File file = new File(getContext().getCacheDir(), fileName);
+                    if (!file.exists() || !file.isFile()) {
+                        throw new FileNotFoundException("Screenshot missing");
+                    }
+                    return ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY);
+                });
+        if (descriptor == null) throw new FileNotFoundException("Stale execution lease");
+        return descriptor;
     }
 
     @Override public Cursor query(Uri uri, String[] projection, String selection,
@@ -71,7 +95,8 @@ public final class ScreenshotProvider extends ContentProvider {
     /**
      * Re-check ownership every time the provider is accessed, not only when the URI is created.
      * If a new teacher request rotates or invalidates the execution lease after sharing, the old
-     * URI immediately becomes unreadable. This closes the URI-created-then-lease-rotated race.
+     * URI immediately becomes unreadable. openFile() additionally performs its validation and
+     * descriptor open atomically under the execution-lease monitor.
      */
     private boolean isAllowed(Uri uri) {
         if (uri == null || !AUTHORITY.equals(uri.getAuthority())) return false;
