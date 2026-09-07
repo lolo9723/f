@@ -202,9 +202,9 @@ public final class AgentAccessibilityService extends AccessibilityService {
                 cycleBusy.set(false);
                 return;
             }
-            repo.bindDesignAnchor(action.target);
+            boolean bindCommitted=repo.bindDesignAnchor(action.target,teacherSessionId);
             TaskState bound=repo.load();
-            if(!isActionChainCurrent(action,teacherSessionId) || !action.target.equals(bound.designAnchor)){
+            if(!bindCommitted || !isActionChainCurrent(action,teacherSessionId) || !action.target.equals(bound.designAnchor)){
                 visualEvidence.clearIfExecutionCurrent(action.executionLeaseToken);
                 pauseForHuman("Tasarım kimliği kalıcı duruma güvenle bağlanamadı; ajan devam etmedi.");
                 cycleBusy.set(false);
