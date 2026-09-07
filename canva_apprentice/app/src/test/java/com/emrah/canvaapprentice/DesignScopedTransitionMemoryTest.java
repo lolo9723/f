@@ -1,7 +1,9 @@
 package com.emrah.canvaapprentice;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -21,7 +23,7 @@ public final class DesignScopedTransitionMemoryTest {
         );
     }
 
-    @Test public void unboundNavigationHasDedicatedScope() {
+    @Test public void unboundNavigationHasDedicatedButUnusableScope() {
         assertEquals(
                 ExperienceMemoryRepository.transitionScopeKey(""),
                 ExperienceMemoryRepository.transitionScopeKey("   ")
@@ -30,6 +32,13 @@ public final class DesignScopedTransitionMemoryTest {
                 ExperienceMemoryRepository.transitionScopeKey(""),
                 ExperienceMemoryRepository.transitionScopeKey("Mevcut Tasarım")
         );
+        assertFalse(ExperienceMemoryRepository.mayUseTransitionMemory(null));
+        assertFalse(ExperienceMemoryRepository.mayUseTransitionMemory(""));
+        assertFalse(ExperienceMemoryRepository.mayUseTransitionMemory("   "));
+    }
+
+    @Test public void transitionMemoryRequiresExactBoundDesignIdentity() {
+        assertTrue(ExperienceMemoryRepository.mayUseTransitionMemory("Mevcut Tasarım"));
     }
 
     @Test public void transitionAndCompletionUseSameBoundDesignIdentity() {
