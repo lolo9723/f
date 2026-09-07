@@ -6,7 +6,6 @@ import static org.junit.Assert.*;
 public class ResumeContextPolicyTest {
     @Test public void sameRunningSessionAndAnchorPass(){
         assertTrue(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","session-2","Design A","session-2"));
-        assertTrue(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"","session-2","","session-2"));
     }
     @Test public void rotatedSessionFails(){
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","session-3","Design A","session-2"));
@@ -15,7 +14,12 @@ public class ResumeContextPolicyTest {
     }
     @Test public void rotatedAnchorFails(){
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design B","session-2","Design A","session-2"));
+    }
+    @Test public void missingAnchorFailsClosed(){
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"","session-2","","session-2"));
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","session-2","","session-2"));
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"","session-2","Design A","session-2"));
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"   ","session-2","   ","session-2"));
     }
     @Test public void nonRunningFails(){
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.HUMAN_TAKEOVER,"Design A","session-2","Design A","session-2"));
