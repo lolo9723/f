@@ -8,47 +8,15 @@ import android.net.Uri;
 import android.os.ParcelFileDescriptor;
 import android.provider.OpenableColumns;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
 
 public final class ScreenshotProvider extends ContentProvider {
     public static final String AUTHORITY = "com.emrah.canvaapprentice.screenshot";
-    private static final String LEGACY_CAPTURE_FILE = "canva_agent_last.png";
 
     /**
-     * Promotes the shared diagnostics capture into an immutable, capture-specific file before
-     * granting ChatGPT read access. Prefer an atomic rename so the legacy mutable path stops
-     * existing immediately. Copy+fsync+delete is only a fallback for filesystems where rename
-     * cannot be completed. Old capture-specific evidence is cleaned conservatively.
+     * Exposes only already-created, immutable capture-specific screenshot evidence. Screenshot
+     * creation itself must never pass through a shared mutable staging filename.
      */
-    public static Uri uri() {
-        AgentAccessibilityService service = AgentAccessibilityService.INSTANCE;
-        String captureName = ScreenshotFilePolicy.newCaptureFileName();
-        if (service == null) {
-            return Uri.parse("content://" + AUTHORITY + "/" + captureName);
-        }
-        File cacheDir = service.getCacheDir();
-        cleanupExpiredEvidence(cacheDir, System.currentTimeMillis());
-        File source = new File(cacheDir, LEGACY_CAPTURE_FILE);
-        File target = new File(cacheDir, captureName);
-        if (source.exists() && source.isFile()) {
-            boolean promoted = source.renameTo(target);
-            if (!promoted) {
-                try {
-                    copyFile(source, target);
-                    if (!source.delete()) {
-                        target.delete();
-                    }
-                } catch (IOException ignored) {
-                    target.delete();
-                }
-            }
-        }
-        return uriFor(target);
-    }
-
     public static Uri uriFor(File file) {
         if (file == null || !ScreenshotFilePolicy.isCaptureFileName(file.getName())) {
             throw new IllegalArgumentException("Invalid screenshot evidence file");
@@ -56,17 +24,7 @@ public final class ScreenshotProvider extends ContentProvider {
         return Uri.parse("content://" + AUTHORITY + "/" + file.getName());
     }
 
-    private static void copyFile(File source, File target) throws IOException {
-        try (FileInputStream in = new FileInputStream(source);
-             FileOutputStream out = new FileOutputStream(target, false)) {
-            byte[] buffer = new byte[16 * 1024];
-            int read;
-            while ((read = in.read(buffer)) != -1) out.write(buffer, 0, read);
-            out.getFD().sync();
-        }
-    }
-
-    private static void cleanupExpiredEvidence(File cacheDir, long nowMs) {
+    public static void cleanupExpiredEvidence(File cacheDir, long nowMs) {
         File[] files = cacheDir == null ? null : cacheDir.listFiles();
         if (files == null) return;
         for (File file : files) {
