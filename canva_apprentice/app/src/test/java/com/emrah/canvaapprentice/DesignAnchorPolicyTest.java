@@ -32,4 +32,20 @@ public class DesignAnchorPolicyTest {
     @Test public void rejectsUrlsAsDesignAnchor() {
         assertFalse(DesignAnchorPolicy.isPlausible("https://www.canva.com/design/abc"));
     }
+
+    @Test public void bindingRequiresExactVisibleTitleInsideEditor() {
+        assertTrue(DesignAnchorPolicy.mayBindVisibleEditor("30 Ağustos Fakülte Afişi", true, false));
+    }
+
+    @Test public void bindingRejectsPlausibleButHallucinatedTitle() {
+        assertFalse(DesignAnchorPolicy.mayBindVisibleEditor("30 Ağustos Fakülte Afişi", false, false));
+    }
+
+    @Test public void bindingRejectsProjectCardTitleOnCanvaHome() {
+        assertFalse(DesignAnchorPolicy.mayBindVisibleEditor("30 Ağustos Fakülte Afişi", true, true));
+    }
+
+    @Test public void bindingStillRejectsGenericAnchorEvenWhenVisible() {
+        assertFalse(DesignAnchorPolicy.mayBindVisibleEditor("Projects", true, false));
+    }
 }
