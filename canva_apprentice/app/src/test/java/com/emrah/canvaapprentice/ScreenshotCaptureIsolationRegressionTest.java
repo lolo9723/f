@@ -28,7 +28,25 @@ public class ScreenshotCaptureIsolationRegressionTest {
         assertFalse(provider.contains("canva_agent_last.png"));
         assertFalse(provider.contains("renameTo("));
         assertTrue(provider.contains("ScreenshotFilePolicy.isCaptureFileForCurrentLease(file.getName())"));
-        assertTrue(provider.contains("ScreenshotFilePolicy.isCaptureFileForCurrentLease(uri.getLastPathSegment())"));
+        assertTrue(provider.contains("ScreenshotFilePolicy.isCaptureFileForLease(fileName, leaseToken)"));
         assertFalse(provider.contains("return ScreenshotFilePolicy.isCaptureFileName(uri.getLastPathSegment())"));
+    }
+
+    @Test public void providerMetadataAndFileOpenUseSameAtomicLeaseMonitor() throws Exception {
+        String provider = source("ScreenshotProvider.java");
+        assertTrue(provider.contains("@Override public String getType(Uri uri)"));
+        assertTrue(provider.contains("@Override public Cursor query(Uri uri"));
+        assertTrue(provider.contains("TeacherExecutionLease.withGlobalCurrent("));
+        assertTrue(provider.contains("TeacherExecutionLease.withGlobalCurrentChecked("));
+        assertTrue(provider.contains("if (!ScreenshotFilePolicy.isCaptureFileForLease(fileName, leaseToken)) return null;"));
+        assertFalse(provider.contains("private boolean isAllowed(Uri uri)"));
+        assertTrue(provider.contains("private boolean hasAllowedShape(Uri uri)"));
+    }
+
+    @Test public void staleOrMissingEvidenceDoesNotLeakMetadata() throws Exception {
+        String provider = source("ScreenshotProvider.java");
+        assertTrue(provider.contains("if (!file.exists() || !file.isFile()) return null;"));
+        assertFalse(provider.contains("file.exists() ? file.length() : 0L"));
+        assertTrue(provider.contains("else if (OpenableColumns.SIZE.equals(col)) row.add(file.length());"));
     }
 }

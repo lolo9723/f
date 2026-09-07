@@ -39,12 +39,18 @@ public final class ScreenshotProvider extends ContentProvider {
     @Override public boolean onCreate() { return true; }
 
     @Override public String getType(Uri uri) {
-        return isAllowed(uri) ? "image/png" : null;
+        if (!hasAllowedShape(uri)) return null;
+        final String fileName = uri.getLastPathSegment();
+        final String leaseToken = TeacherExecutionLease.currentGlobalToken();
+        return TeacherExecutionLease.withGlobalCurrent(
+                leaseToken,
+                null,
+                () -> ScreenshotFilePolicy.isCaptureFileForLease(fileName, leaseToken)
+                        ? "image/png" : null);
     }
 
     @Override public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
-        if (uri == null || !AUTHORITY.equals(uri.getAuthority())
-                || uri.getPathSegments().size() != 1 || !"r".equals(mode)) {
+        if (!hasAllowedShape(uri) || !"r".equals(mode)) {
             throw new FileNotFoundException("Not allowed");
         }
 
@@ -76,32 +82,40 @@ public final class ScreenshotProvider extends ContentProvider {
 
     @Override public Cursor query(Uri uri, String[] projection, String selection,
                                   String[] selectionArgs, String sortOrder) {
-        if (!isAllowed(uri)) return null;
-        String fileName = uri.getLastPathSegment();
-        String[] cols = projection == null
-                ? new String[]{OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE}
-                : projection;
-        MatrixCursor c = new MatrixCursor(cols);
-        MatrixCursor.RowBuilder row = c.newRow();
-        File file = new File(getContext().getCacheDir(), fileName);
-        for (String col : cols) {
-            if (OpenableColumns.DISPLAY_NAME.equals(col)) row.add(fileName);
-            else if (OpenableColumns.SIZE.equals(col)) row.add(file.exists() ? file.length() : 0L);
-            else row.add(null);
-        }
-        return c;
+        if (!hasAllowedShape(uri)) return null;
+        final String fileName = uri.getLastPathSegment();
+        final String leaseToken = TeacherExecutionLease.currentGlobalToken();
+        return TeacherExecutionLease.withGlobalCurrent(
+                leaseToken,
+                null,
+                () -> {
+                    // Metadata is evidence too: snapshot name/size only while the same lease monitor
+                    // protects both ownership validation and file inspection. A lease rotation must
+                    // never race between an is-current check and stale screenshot metadata exposure.
+                    if (!ScreenshotFilePolicy.isCaptureFileForLease(fileName, leaseToken)) return null;
+                    File file = new File(getContext().getCacheDir(), fileName);
+                    if (!file.exists() || !file.isFile()) return null;
+                    String[] cols = projection == null
+                            ? new String[]{OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE}
+                            : projection;
+                    MatrixCursor c = new MatrixCursor(cols);
+                    MatrixCursor.RowBuilder row = c.newRow();
+                    for (String col : cols) {
+                        if (OpenableColumns.DISPLAY_NAME.equals(col)) row.add(fileName);
+                        else if (OpenableColumns.SIZE.equals(col)) row.add(file.length());
+                        else row.add(null);
+                    }
+                    return c;
+                });
     }
 
-    /**
-     * Re-check ownership every time the provider is accessed, not only when the URI is created.
-     * If a new teacher request rotates or invalidates the execution lease after sharing, the old
-     * URI immediately becomes unreadable. openFile() additionally performs its validation and
-     * descriptor open atomically under the execution-lease monitor.
-     */
-    private boolean isAllowed(Uri uri) {
-        if (uri == null || !AUTHORITY.equals(uri.getAuthority())) return false;
-        if (uri.getPathSegments().size() != 1) return false;
-        return ScreenshotFilePolicy.isCaptureFileForCurrentLease(uri.getLastPathSegment());
+    /** Structural URI validation only. Lease ownership is deliberately checked inside the exact
+     * execution-lease monitor in getType(), query(), and openFile(); do not weaken this into a
+     * check-then-use helper. */
+    private boolean hasAllowedShape(Uri uri) {
+        return uri != null
+                && AUTHORITY.equals(uri.getAuthority())
+                && uri.getPathSegments().size() == 1;
     }
 
     @Override public Uri insert(Uri uri, ContentValues values) { throw new UnsupportedOperationException(); }
