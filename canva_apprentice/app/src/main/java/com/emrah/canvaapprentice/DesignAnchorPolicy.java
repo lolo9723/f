@@ -36,6 +36,16 @@ public final class DesignAnchorPolicy {
         return true;
     }
 
+    /**
+     * A teacher-suggested design anchor is safe to bind only when the exact normalized title is
+     * independently visible in the current accessibility snapshot and the screen is not Canva
+     * home/projects. This prevents a plausible but hallucinated title (or a project-card title on
+     * home) from becoming persistent design identity before the editor context is established.
+     */
+    public static boolean mayBindVisibleEditor(String anchor, boolean exactAnchorVisible, boolean canvaHomeVisible) {
+        return isPlausible(anchor) && exactAnchorVisible && !canvaHomeVisible;
+    }
+
     private static String normalize(String s) {
         String x = Normalizer.normalize(s, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}","")
