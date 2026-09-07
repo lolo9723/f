@@ -33,8 +33,13 @@ public final class SafeSnapshotPolicyTest {
         assertFalse(SafeSnapshotPolicy.shouldMarkSafe("Annual Report", false, false));
     }
 
-    @Test public void legacyStructuralOnlyAdmissionFailsClosedEvenWhenAnchorVisible() {
-        assertFalse(SafeSnapshotPolicy.shouldMarkSafe("Annual Report", true, false));
+    @Test public void boundVisibleEditorMayStartScreenshotBackedCheckpointAttempt() {
+        assertTrue(SafeSnapshotPolicy.shouldMarkSafe("Annual Report", true, false));
+    }
+
+    @Test public void checkpointAttemptGateNormalizesAnchorWhitespace() {
+        assertTrue(SafeSnapshotPolicy.shouldMarkSafe("  Annual Report  ", true, false));
+        assertFalse(SafeSnapshotPolicy.shouldMarkSafe("   ", true, false));
     }
 
     @Test public void dualEvidenceRequiresFreshVisualProof() {

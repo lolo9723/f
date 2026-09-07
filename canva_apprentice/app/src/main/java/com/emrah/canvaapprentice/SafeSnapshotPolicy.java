@@ -10,15 +10,22 @@ public final class SafeSnapshotPolicy {
     private SafeSnapshotPolicy() {}
 
     /**
-     * Legacy structural-only checkpoint admission is deliberately disabled. Anchor text by itself
-     * can be stale, duplicated, or visible in a shell/navigation surface and therefore cannot prove
-     * that the pixels belong to the exact bound Canva design. Callers must migrate to the explicit
-     * structural + visual overload below before they may persist continuity authority.
+     * Cheap structural gate for deciding whether production should START the screenshot-backed
+     * checkpoint attempt. Returning true here does not persist continuity authority: the repository
+     * must still capture fresh pixels and pass mayCommitObservedCheckpoint(...) from the same
+     * teacher session, exact bound design and unchanged structural observation.
+     *
+     * Keeping this gate structural-only is intentional. The previous always-false implementation
+     * prevented TaskStateRepository.markSafe(...) from ever running, which made the stronger visual
+     * admission path unreachable in production.
      */
     public static boolean shouldMarkSafe(String boundAnchor,
                                          boolean anchorVisible,
                                          boolean canvaHomeVisible) {
-        return false;
+        String anchor = normalize(boundAnchor);
+        if (canvaHomeVisible) return false;
+        if (anchor.isEmpty()) return false;
+        return anchorVisible;
     }
 
     /**
