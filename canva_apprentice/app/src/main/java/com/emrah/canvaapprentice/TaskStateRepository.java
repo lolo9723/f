@@ -19,19 +19,16 @@ public final class TaskStateRepository {
 
     public synchronized TaskState load() {
         invalidatePersistedRuntimeContinuityOnFirstLoad();
-
         String modeRaw = prefs.getString("mode", TaskState.Mode.IDLE.name());
         TaskState.Mode mode;
         try { mode = TaskState.Mode.valueOf(modeRaw); }
         catch (Exception ignored) { mode = TaskState.Mode.IDLE; }
-
         String designAnchor = prefs.getString("design_anchor", "");
         String persistedSafeHash = prefs.getString(LAST_SAFE_HASH, "");
         String persistedSafeAnchor = prefs.getString(LAST_SAFE_ANCHOR, "");
         String trustedSafeHash = SafeSnapshotPolicy.mayRestoreCheckpoint(
                 mode,designAnchor,persistedSafeAnchor,persistedSafeHash)
                 ? persistedSafeHash : "";
-
         return new TaskState(
                 prefs.getString("goal", ""),
                 prefs.getString("design_fingerprint", ""),
@@ -47,12 +44,10 @@ public final class TaskStateRepository {
     private void invalidatePersistedRuntimeContinuityOnFirstLoad() {
         if (processContinuityInitialized) return;
         processContinuityInitialized = true;
-
         String modeRaw = prefs.getString("mode", TaskState.Mode.IDLE.name());
         TaskState.Mode mode;
         try { mode = TaskState.Mode.valueOf(modeRaw); }
         catch (Exception ignored) { mode = TaskState.Mode.IDLE; }
-
         if (!RuntimeRestoreContinuityPolicy.mustInvalidate(mode)) return;
         prefs.edit()
                 .putString(LAST_SAFE_HASH, "")
@@ -85,34 +80,21 @@ public final class TaskStateRepository {
                 .apply();
     }
 
-    /**
-     * Compatibility entry point for callers that do not yet carry the originating teacher session.
-     * New BIND_DESIGN runtime code should call the session-bound overload below.
-     */
     public synchronized void bindDesignAnchor(String anchor) {
         bindDesignAnchor(anchor, currentTeacherSessionId());
     }
 
-    /**
-     * Persist a design identity only when it is independently observable in the live Canva editor
-     * and the BIND_DESIGN action still belongs to the exact teacher session that originated it.
-     * The teacher's title alone is never sufficient authority for continuity state.
-     */
     public synchronized boolean bindDesignAnchor(String anchor, String actionTeacherSessionId) {
         if (anchor == null) return false;
         String a = anchor.trim();
         if (a.isEmpty()) return false;
-
         TaskState current = load();
         if (current.mode != TaskState.Mode.RUNNING) return false;
         if (!DesignAnchorPersistencePolicy.preservesBoundIdentity(current.designAnchor, a)) return false;
         final String observedTeacherSessionId = currentTeacherSessionId();
         if (!DesignAnchorPersistencePolicy.mayCommit(
-                current.mode,
-                actionTeacherSessionId,
-                observedTeacherSessionId,
-                observedTeacherSessionId,
-                a)) return false;
+                current.mode, actionTeacherSessionId, observedTeacherSessionId,
+                observedTeacherSessionId, a)) return false;
 
         AgentAccessibilityService service = AgentAccessibilityService.INSTANCE;
         if (service == null) return false;
@@ -120,25 +102,18 @@ public final class TaskStateRepository {
         String pkg = root != null && root.getPackageName() != null
                 ? root.getPackageName().toString() : "";
         if (!AgentConstants.CANVA_PACKAGE.equals(pkg)) return false;
-
         UiTreeSnapshot live = UiTreeSnapshot.capture(root);
         boolean exactAnchorVisible = live.containsText(a);
         boolean homeVisible = live.looksLikeCanvaHome();
         if (!DesignAnchorPolicy.mayBindVisibleEditor(a, exactAnchorVisible, homeVisible)) return false;
 
-        // Re-check runtime ownership, mode, and every session identity immediately before persistence.
-        // A takeover/stop/resume/session rollover invalidates the observation instead of allowing
-        // stale editor evidence to become durable continuity authority.
         if (!RuntimeOwnerPolicy.isCurrent(service, AgentAccessibilityService.INSTANCE)) return false;
         TaskState rechecked = load();
         String currentTeacherSessionId = currentTeacherSessionId();
         if (!DesignAnchorPersistencePolicy.preservesBoundIdentity(rechecked.designAnchor, a)) return false;
         if (!DesignAnchorPersistencePolicy.mayCommit(
-                rechecked.mode,
-                actionTeacherSessionId,
-                observedTeacherSessionId,
-                currentTeacherSessionId,
-                a)) return false;
+                rechecked.mode, actionTeacherSessionId, observedTeacherSessionId,
+                currentTeacherSessionId, a)) return false;
 
         prefs.edit()
                 .putString("design_anchor", a)
@@ -148,20 +123,10 @@ public final class TaskStateRepository {
         return true;
     }
 
-    /**
-     * Compatibility entry point used by the production Canva cycle.
-     *
-     * This method no longer persists structural-only evidence. Instead it starts a screenshot-backed
-     * admission attempt tied to the exact current teacher session, bound design, and service runtime.
-     * The structural fingerprint supplied by the cycle must still match the live Canva tree before
-     * capture, and the tree is recaptured after the screenshot. Only markSafeIfObserved(...) may
-     * persist continuity authority.
-     */
     @Deprecated
     public void markSafe(String hash) {
         final String expectedHash = hash == null ? "" : hash.trim();
         if (expectedHash.isEmpty()) return;
-
         final TaskState state;
         final String expectedAnchor;
         final String expectedSession;
@@ -178,7 +143,6 @@ public final class TaskStateRepository {
         String beforePkg = beforeRoot != null && beforeRoot.getPackageName() != null
                 ? beforeRoot.getPackageName().toString() : "";
         if (!AgentConstants.CANVA_PACKAGE.equals(beforePkg)) return;
-
         UiTreeSnapshot before = UiTreeSnapshot.capture(beforeRoot);
         if (!expectedHash.equals(before.stableFingerprint())) return;
         if (!before.containsText(expectedAnchor) || before.looksLikeCanvaHome()) return;
@@ -186,12 +150,10 @@ public final class TaskStateRepository {
         service.captureScreenshotForDiagnostics(file -> {
             if (file == null) return;
             if (!RuntimeOwnerPolicy.isCurrent(service, AgentAccessibilityService.INSTANCE)) return;
-
             AccessibilityNodeInfo recapturedRoot = service.getRootInActiveWindow();
             String recapturedPkg = recapturedRoot != null && recapturedRoot.getPackageName() != null
                     ? recapturedRoot.getPackageName().toString() : "";
             if (!AgentConstants.CANVA_PACKAGE.equals(recapturedPkg)) return;
-
             UiTreeSnapshot recaptured = UiTreeSnapshot.capture(recapturedRoot);
             String visualFingerprint = VisualFingerprint.fromFile(file);
             if (!RuntimeOwnerPolicy.isCurrent(service, AgentAccessibilityService.INSTANCE)) return;
@@ -230,12 +192,46 @@ public final class TaskStateRepository {
             return false;
         }
 
-        String owner = state.designAnchor.trim();
+        // Persistence-boundary TOCTOU guard: the UI may change after screenshot recapture but before
+        // this synchronized commit begins. Re-observe the live Canva tree immediately before writing
+        // continuity authority. Old pixels/tree evidence must never be able to overwrite a newer UI.
+        AgentAccessibilityService service = AgentAccessibilityService.INSTANCE;
+        if (service == null || !RuntimeOwnerPolicy.isCurrent(service, AgentAccessibilityService.INSTANCE)) return false;
+        AccessibilityNodeInfo liveRoot = service.getRootInActiveWindow();
+        String livePkg = liveRoot != null && liveRoot.getPackageName() != null
+                ? liveRoot.getPackageName().toString() : "";
+        if (!AgentConstants.CANVA_PACKAGE.equals(livePkg)) return false;
+        UiTreeSnapshot live = UiTreeSnapshot.capture(liveRoot);
+        if (!SafeSnapshotPolicy.commitBoundaryStillMatches(
+                recapturedFingerprint,
+                live.stableFingerprint(),
+                live.containsText(expectedBoundAnchor),
+                live.looksLikeCanvaHome())) {
+            return false;
+        }
+
+        TaskState commitState = load();
+        String commitSessionId = currentTeacherSessionId();
+        if (!SafeSnapshotPolicy.mayCommitObservedCheckpoint(
+                commitState.mode,
+                commitState.designAnchor,
+                expectedBoundAnchor,
+                commitSessionId,
+                expectedTeacherSessionId,
+                structuralFingerprint,
+                recapturedFingerprint,
+                recapturedAnchorVisible,
+                recapturedCanvaHomeVisible,
+                visualFingerprint)) {
+            return false;
+        }
+
+        String owner = commitState.designAnchor.trim();
         String hash = recapturedFingerprint.trim();
         prefs.edit()
                 .putString(LAST_SAFE_HASH, hash)
                 .putString(LAST_SAFE_ANCHOR, owner)
-                .putInt("step", state.step + 1)
+                .putInt("step", commitState.step + 1)
                 .apply();
         return true;
     }
