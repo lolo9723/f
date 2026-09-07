@@ -36,4 +36,14 @@ public final class ResumeRuntimeLifecycleTest {
 
         assertFalse(guard.runIfCurrent(resume, () -> { throw new AssertionError("stale retry acted"); }));
     }
+
+    @Test public void timeoutConsumePreventsAnyLaterRetryFromActing() {
+        ResumeGenerationGuard guard = new ResumeGenerationGuard();
+        long resume = guard.begin();
+        AtomicInteger humanTakeovers = new AtomicInteger();
+
+        assertTrue(guard.consumeIfCurrent(resume, humanTakeovers::incrementAndGet));
+        assertFalse(guard.runIfCurrent(resume, () -> { throw new AssertionError("retry acted after timeout"); }));
+        assertEquals(1, humanTakeovers.get());
+    }
 }
