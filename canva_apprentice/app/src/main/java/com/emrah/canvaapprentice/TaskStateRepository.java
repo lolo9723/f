@@ -85,10 +85,38 @@ public final class TaskStateRepository {
                 .apply();
     }
 
+    /**
+     * Persist a design identity only when it is independently observable in the live Canva editor.
+     * The teacher's title alone is never sufficient authority for continuity state. Keeping this
+     * guard at the persistence boundary makes BIND_DESIGN fail closed even if an upstream caller
+     * accidentally regresses to plausibility-only validation.
+     */
     public synchronized void bindDesignAnchor(String anchor) {
         if (anchor == null) return;
         String a = anchor.trim();
         if (a.isEmpty()) return;
+
+        TaskState current = load();
+        if (current.mode != TaskState.Mode.RUNNING) return;
+
+        AgentAccessibilityService service = AgentAccessibilityService.INSTANCE;
+        if (service == null) return;
+        AccessibilityNodeInfo root = service.getRootInActiveWindow();
+        String pkg = root != null && root.getPackageName() != null
+                ? root.getPackageName().toString() : "";
+        if (!AgentConstants.CANVA_PACKAGE.equals(pkg)) return;
+
+        UiTreeSnapshot live = UiTreeSnapshot.capture(root);
+        boolean exactAnchorVisible = live.containsText(a);
+        boolean homeVisible = live.looksLikeCanvaHome();
+        if (!DesignAnchorPolicy.mayBindVisibleEditor(a, exactAnchorVisible, homeVisible)) return;
+
+        // Re-check runtime ownership and mode immediately before persistence. A stale service or a
+        // human-takeover/stop transition must not be able to commit a formerly valid observation.
+        if (!RuntimeOwnerPolicy.isCurrent(service, AgentAccessibilityService.INSTANCE)) return;
+        TaskState rechecked = load();
+        if (rechecked.mode != TaskState.Mode.RUNNING) return;
+
         prefs.edit()
                 .putString("design_anchor", a)
                 .putString(LAST_SAFE_HASH, "")
