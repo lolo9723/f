@@ -12,6 +12,7 @@ final class ResumeContextPolicy {
         if(expectedSession.isEmpty() || !expectedSession.equals(currentSession)) return false;
         String current=currentAnchor==null?"":currentAnchor.trim();
         String expected=expectedAnchor==null?"":expectedAnchor.trim();
+        if(expected.isEmpty() || current.isEmpty()) return false;
         return expected.equals(current);
     }
 }
