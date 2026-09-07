@@ -19,4 +19,16 @@ public final class DesignAnchorPersistencePolicy {
         if (observed.isEmpty() || current.isEmpty() || target.isEmpty()) return false;
         return observed.equals(current);
     }
+
+    /**
+     * Once a design identity has been bound, persistence must never silently retarget the task to a
+     * different design. Re-binding the exact same normalized anchor is harmless/idempotent; changing
+     * it requires a new explicit task rather than teacher authority alone.
+     */
+    public static boolean preservesBoundIdentity(String existingAnchor, String targetAnchor) {
+        String existing = existingAnchor == null ? "" : existingAnchor.trim();
+        String target = targetAnchor == null ? "" : targetAnchor.trim();
+        if (target.isEmpty()) return false;
+        return existing.isEmpty() || existing.equals(target);
+    }
 }
