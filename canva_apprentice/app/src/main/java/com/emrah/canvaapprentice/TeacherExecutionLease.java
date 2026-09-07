@@ -54,6 +54,26 @@ public final class TeacherExecutionLease {
         }
     }
 
+    @FunctionalInterface
+    public interface CheckedSupplier<T, E extends Exception> {
+        T get() throws E;
+    }
+
+    /**
+     * Checked-exception variant used for security-sensitive I/O. Validation and the
+     * protected operation execute under the exact same lease monitor, so a newer
+     * teacher request cannot rotate ownership between the check and the I/O open.
+     */
+    public static <T, E extends Exception> T withGlobalCurrentChecked(
+            String expectedToken,
+            T staleValue,
+            CheckedSupplier<T, E> operation) throws E {
+        synchronized (GLOBAL) {
+            if (!GLOBAL.isCurrent(expectedToken)) return staleValue;
+            return operation.get();
+        }
+    }
+
     public static String beginGlobal() { return GLOBAL.begin(); }
     public static void invalidateGlobal() { GLOBAL.invalidate(); }
     public static String currentGlobalToken() { return GLOBAL.currentToken(); }
