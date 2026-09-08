@@ -140,4 +140,31 @@ public class VisualEvidenceLeaseTest {
         assertEquals("same-hash", lease.consumeIfExecutionCurrent(token));
         assertEquals("", lease.consumeIfExecutionCurrent(token));
     }
+
+    @Test public void executionContextRequiresExactCanvaPackageTreeAndDesignIdentity() {
+        assertTrue(VisualEvidenceLease.executionContextMatches(
+                AgentConstants.CANVA_PACKAGE,AgentConstants.CANVA_PACKAGE,
+                "fp-1","fp-1","Design A","Design A"));
+        assertFalse(VisualEvidenceLease.executionContextMatches(
+                AgentConstants.CANVA_PACKAGE,"com.other.app",
+                "fp-1","fp-1","Design A","Design A"));
+        assertFalse(VisualEvidenceLease.executionContextMatches(
+                AgentConstants.CANVA_PACKAGE,AgentConstants.CANVA_PACKAGE,
+                "fp-1","fp-2","Design A","Design A"));
+        assertFalse(VisualEvidenceLease.executionContextMatches(
+                AgentConstants.CANVA_PACKAGE,AgentConstants.CANVA_PACKAGE,
+                "fp-1","fp-1","Design A","Design B"));
+    }
+
+    @Test public void executionContextRejectsEmptyOrMalformedStructuralIdentity() {
+        assertFalse(VisualEvidenceLease.executionContextMatches(
+                AgentConstants.CANVA_PACKAGE,AgentConstants.CANVA_PACKAGE,
+                "","","Design A","Design A"));
+        assertFalse(VisualEvidenceLease.executionContextMatches(
+                null,AgentConstants.CANVA_PACKAGE,
+                "fp-1","fp-1","Design A","Design A"));
+        assertFalse(VisualEvidenceLease.executionContextMatches(
+                AgentConstants.CANVA_PACKAGE,AgentConstants.CANVA_PACKAGE,
+                "fp-1","fp-1",null,"Design A"));
+    }
 }
