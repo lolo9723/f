@@ -166,9 +166,20 @@ public final class ActionExecutor {
     private boolean clickByTextOrDescription(AccessibilityNodeInfo root, String target) {
         AccessibilityNodeInfo match = bestMatch(root, target, false);
         if (match == null) return false;
-        AccessibilityNodeInfo clickable = match;
-        while (clickable != null && !clickable.isClickable()) clickable = clickable.getParent();
-        return clickable != null && clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        // Plain CLICK_TEXT is only a fallback when exact-node structural evidence is unavailable.
+        // Do not turn that weaker text proof into an implicit different target by climbing to a
+        // clickable ancestor. The exact uniquely labelled node must itself own click capability.
+        if (!plainTextDirectClickAllowed(true, match.isVisibleToUser(), match.isEnabled(), match.isClickable())) {
+            return false;
+        }
+        return match.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+    }
+
+    static boolean plainTextDirectClickAllowed(boolean uniqueExactMatch,
+                                               boolean visible,
+                                               boolean enabled,
+                                               boolean clickable) {
+        return uniqueExactMatch && visible && enabled && clickable;
     }
 
     private boolean setText(AccessibilityNodeInfo root, String target, String value) {
