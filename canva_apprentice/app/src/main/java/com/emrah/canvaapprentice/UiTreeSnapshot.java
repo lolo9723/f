@@ -45,7 +45,13 @@ public final class UiTreeSnapshot {
             String x = normalize(n.text + " " + n.description);
             if (x.contains("captcha") || x.contains("password") || x.contains("sifre") ||
                     x.contains("verification code") || x.contains("dogrulama kodu") ||
-                    x.contains("two-factor") || x.contains("2fa")) return true;
+                    x.contains("two-factor") || x.contains("2fa") ||
+                    x.contains("one-time code") || x.contains("one time code") ||
+                    x.contains("one-time password") || x.contains("one time password") ||
+                    x.contains("otp") || x.contains("passcode") ||
+                    x.contains("security code") || x.contains("guvenlik kodu") ||
+                    x.contains("authenticator code") || x.contains("authenticator app") ||
+                    x.contains("tek kullanimlik kod") || x.contains("tek kullanimlik sifre")) return true;
         }
         return false;
     }
