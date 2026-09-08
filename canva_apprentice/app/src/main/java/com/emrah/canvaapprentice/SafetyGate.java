@@ -43,6 +43,17 @@ public final class SafetyGate {
             return Decision.block("Eski öğretmen eylemi geçersiz execution lease nedeniyle engellendi.");
         }
 
+        // Screenshot-grounded mutations must never execute before exact design identity has
+        // been bound. The visual teacher may inspect an unbound editor only to establish the
+        // identity (BIND_DESIGN is handled before SafetyGate by AgentAccessibilityService).
+        // Keeping this invariant here as well makes the last-mile executor fail closed even if
+        // the visual-distance callback is later refactored or accidentally bypassed.
+        if (action.visualGrounded && action.executionLeaseToken != null
+                && !action.executionLeaseToken.isEmpty()
+                && (state.designAnchor == null || state.designAnchor.trim().isEmpty())) {
+            return Decision.block("Görüntülü mutasyon için mevcut tasarım kimliği henüz bağlı değil.");
+        }
+
         // Last-mile visual evidence gate. Screenshot-grounded mutations are allowed to
         // reach ActionExecutor only while production still has the runtime-bound evidence
         // context that authorized them and package/tree/design identity remains current.
