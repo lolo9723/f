@@ -30,6 +30,16 @@ public final class VisualFingerprint {
     }
 
     public static double distance(String a, String b) {
+        return distanceForExecutionContext(a, b, VisualEvidenceLease.isRuntimeDesignContextCurrent());
+    }
+
+    /**
+     * Fail closed at the asynchronous visual-execution boundary. Even identical
+     * screenshots cannot authorize a grounded action after the persisted Canva
+     * design identity has rolled over.
+     */
+    static double distanceForExecutionContext(String a, String b, boolean designContextCurrent) {
+        if (!designContextCurrent) return 1.0;
         if (a == null || b == null || a.length() != b.length() || a.isEmpty()) return 1.0;
         long sum = 0;
         for (int i = 0; i < a.length(); i++) {
