@@ -43,6 +43,22 @@ public final class SafetyGate {
             return Decision.block("Eski öğretmen eylemi geçersiz execution lease nedeniyle engellendi.");
         }
 
+        // Last-mile visual evidence gate. Screenshot-grounded mutations are allowed to
+        // reach ActionExecutor only while production still has the runtime-bound evidence
+        // context that authorized them and package/tree/design identity remains current.
+        // BIND_DESIGN/DONE/NOOP are handled before SafetyGate, so this does not prevent
+        // visual inspection from establishing an initial exact design anchor.
+        if (action.visualGrounded && !action.executionLeaseToken.isEmpty()) {
+            boolean serviceActive = AgentAccessibilityService.INSTANCE != null;
+            boolean visualRuntimeCurrent = VisualEvidenceLease.visualRuntimeEvidenceMayExecute(
+                    serviceActive,
+                    VisualEvidenceLease.hasRuntimeExpectedContext(),
+                    VisualEvidenceLease.isRuntimeDesignContextCurrent());
+            if (!visualRuntimeCurrent) {
+                return Decision.block("Görüntülü eylemin canlı Canva visual-evidence bağlamı artık geçerli değil.");
+            }
+        }
+
         // Exact-node means the exact evidenced row must itself own the capability that
         // will be invoked. In particular, do not accept a non-clickable text child and
         // later climb to an unverified clickable ancestor: that turns exact-node proof

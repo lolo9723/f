@@ -96,6 +96,23 @@ public final class VisualEvidenceLease {
         return !serviceActive || contextPresent;
     }
 
+    /**
+     * Last-mile execution policy for teacher-produced visual mutations. In production,
+     * a screenshot-grounded action may reach the executor only while a runtime-bound
+     * visual evidence context still exists and still matches live Canva. JVM tests run
+     * without an AccessibilityService, so they remain isolated from Android runtime state.
+     */
+    static boolean visualRuntimeEvidenceMayExecute(
+            boolean serviceActive,
+            boolean evidenceContextPresent,
+            boolean evidenceContextCurrent) {
+        return !serviceActive || (evidenceContextPresent && evidenceContextCurrent);
+    }
+
+    static boolean hasRuntimeExpectedContext() {
+        return runtimeExpectedContext != null;
+    }
+
     synchronized String readIfOwnedBy(String executionToken) {
         if (!isOwnedBy(executionToken)) return "";
         if (ownerDesignContextCaptured && !ownerDesignAnchor.equals(currentRuntimeDesignAnchor())) return "";

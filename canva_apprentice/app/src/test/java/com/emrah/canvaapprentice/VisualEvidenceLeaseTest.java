@@ -147,6 +147,14 @@ public class VisualEvidenceLeaseTest {
         assertTrue(VisualEvidenceLease.mayBindRuntimeEvidence(false, false));
     }
 
+    @Test public void productionVisualMutationRequiresPresentAndCurrentRuntimeEvidence() {
+        assertFalse(VisualEvidenceLease.visualRuntimeEvidenceMayExecute(true, false, true));
+        assertFalse(VisualEvidenceLease.visualRuntimeEvidenceMayExecute(true, true, false));
+        assertFalse(VisualEvidenceLease.visualRuntimeEvidenceMayExecute(true, false, false));
+        assertTrue(VisualEvidenceLease.visualRuntimeEvidenceMayExecute(true, true, true));
+        assertTrue(VisualEvidenceLease.visualRuntimeEvidenceMayExecute(false, false, false));
+    }
+
     @Test public void executionContextRequiresExactCanvaPackageTreeAndDesignIdentity() {
         assertTrue(VisualEvidenceLease.executionContextMatches(
                 AgentConstants.CANVA_PACKAGE,AgentConstants.CANVA_PACKAGE,
