@@ -6,30 +6,31 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 public final class TeacherConfidenceRangeTest {
-    private static final String MARKER = "CAA1_REPLY_test|";
-
     @Test public void aboveOneClickConfidenceFailsClosedToZero() {
+        String marker = TeacherProtocol.markerFor("confidence-click-high");
         AgentAction action = TeacherProtocol.parse(
-                MARKER + "CLICK_TEXT|Share|1.01|bad confidence",
-                MARKER
+                marker + "CLICK_TEXT|Share|1.01|bad confidence",
+                marker
         );
         assertEquals(AgentAction.Type.CLICK_TEXT, action.type);
         assertEquals(0.0, action.confidence, 0.0);
     }
 
     @Test public void negativeConfidenceFailsClosedToZero() {
+        String marker = TeacherProtocol.markerFor("confidence-set-negative");
         AgentAction action = TeacherProtocol.parse(
-                MARKER + "SET_TEXT|Title|Hello|-0.01|bad confidence",
-                MARKER
+                marker + "SET_TEXT|Title|Hello|-0.01|bad confidence",
+                marker
         );
         assertEquals(AgentAction.Type.SET_TEXT, action.type);
         assertEquals(0.0, action.confidence, 0.0);
     }
 
     @Test public void aboveOneDoneCannotBypassFinalQaThreshold() {
+        String marker = TeacherProtocol.markerFor("confidence-done-high");
         AgentAction action = TeacherProtocol.parse(
-                MARKER + "DONE|||1.01|looks done",
-                MARKER,
+                marker + "DONE|||1.01|looks done",
+                marker,
                 true
         );
         assertEquals(AgentAction.Type.NOOP, action.type);
@@ -38,9 +39,10 @@ public final class TeacherConfidenceRangeTest {
     }
 
     @Test public void validUnitIntervalConfidenceIsPreserved() {
+        String marker = TeacherProtocol.markerFor("confidence-click-valid");
         AgentAction action = TeacherProtocol.parse(
-                MARKER + "CLICK_TEXT|Share|0.99|valid",
-                MARKER
+                marker + "CLICK_TEXT|Share|0.99|valid",
+                marker
         );
         assertEquals(AgentAction.Type.CLICK_TEXT, action.type);
         assertEquals(0.99, action.confidence, 0.0);
