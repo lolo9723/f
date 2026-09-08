@@ -1,6 +1,7 @@
 package com.emrah.canvaapprentice;
 
-import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -10,7 +11,8 @@ import java.util.Map;
  * treated as if it belonged to the newer task step/continuity authority.
  */
 public final class CheckpointRequestGuard {
-    private static final Map<String, RequestLease> REQUESTS = new HashMap<>();
+    private static final int MAX_PENDING_REQUESTS = 128;
+    private static final Map<String, RequestLease> REQUESTS = new LinkedHashMap<>();
     private static long checkpointGeneration = 0L;
 
     private CheckpointRequestGuard() {}
@@ -18,11 +20,16 @@ public final class CheckpointRequestGuard {
     public static synchronized void bind(String marker, String executionLeaseToken) {
         String m = normalize(marker);
         if (m.isEmpty()) return;
+
+        // A marker should be unique, but if a caller accidentally reuses one, refresh its
+        // insertion position rather than leaving it eligible for eviction as an old request.
+        REQUESTS.remove(m);
         REQUESTS.put(m, new RequestLease(
                 checkpointGeneration,
                 normalize(executionLeaseToken),
                 true
         ));
+        evictOldestPendingRequests();
     }
 
     public static synchronized RequestLease consume(String marker) {
@@ -40,15 +47,28 @@ public final class CheckpointRequestGuard {
 
     public static synchronized void onCheckpointCommitted() {
         checkpointGeneration++;
-        // Requests are intentionally retained until their reply is parsed so the parser
-        // can recover using the ORIGINAL execution lease rather than accidentally adopting
-        // a newer request's lease. Bound memory is naturally drained on parse; additionally
-        // cap pathological abandoned-request accumulation fail-closed.
-        if (REQUESTS.size() > 128) REQUESTS.clear();
+        // Keep recorded requests until their replies arrive so stale replies retain their
+        // ORIGINAL execution lease and cannot borrow a fresh post-checkpoint lease. Capacity
+        // control happens on bind and evicts only the oldest abandoned requests; never clear
+        // the entire table because that can invalidate a fresh in-flight request merely due
+        // to unrelated historical churn.
+    }
+
+    private static void evictOldestPendingRequests() {
+        while (REQUESTS.size() > MAX_PENDING_REQUESTS) {
+            Iterator<String> oldest = REQUESTS.keySet().iterator();
+            if (!oldest.hasNext()) return;
+            oldest.next();
+            oldest.remove();
+        }
     }
 
     static synchronized long currentGenerationForTest() {
         return checkpointGeneration;
+    }
+
+    static synchronized int pendingRequestCountForTest() {
+        return REQUESTS.size();
     }
 
     static synchronized void resetForTest() {
