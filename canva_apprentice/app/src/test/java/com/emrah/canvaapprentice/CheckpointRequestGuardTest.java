@@ -71,4 +71,34 @@ public final class CheckpointRequestGuardTest {
         assertFalse(duplicate.checkpointCurrent);
         assertEquals("", duplicate.executionLeaseToken);
     }
+
+    @Test public void heavyAbandonedRequestChurnEvictsOnlyOldestAndKeepsFreshLease() {
+        for (int i = 0; i < 129; i++) {
+            CheckpointRequestGuard.bind("CAA1_REPLY_req" + i + "|", "lease-" + i);
+        }
+
+        assertEquals(128, CheckpointRequestGuard.pendingRequestCountForTest());
+
+        CheckpointRequestGuard.RequestLease oldest = CheckpointRequestGuard.consume("CAA1_REPLY_req0|");
+        assertFalse(oldest.checkpointCurrent);
+        assertEquals("", oldest.executionLeaseToken);
+
+        CheckpointRequestGuard.RequestLease freshest = CheckpointRequestGuard.consume("CAA1_REPLY_req128|");
+        assertTrue(freshest.checkpointCurrent);
+        assertEquals("lease-128", freshest.executionLeaseToken);
+    }
+
+    @Test public void checkpointCommitUnderFullCapacityDoesNotEraseFreshInflightRequest() {
+        for (int i = 0; i < 128; i++) {
+            CheckpointRequestGuard.bind("CAA1_REPLY_old" + i + "|", "lease-old-" + i);
+        }
+        CheckpointRequestGuard.onCheckpointCommitted();
+        CheckpointRequestGuard.bind("CAA1_REPLY_fresh|", "lease-fresh");
+
+        assertEquals(128, CheckpointRequestGuard.pendingRequestCountForTest());
+        CheckpointRequestGuard.RequestLease fresh = CheckpointRequestGuard.consume("CAA1_REPLY_fresh|");
+        assertTrue(fresh.checkpointCurrent);
+        assertEquals("lease-fresh", fresh.executionLeaseToken);
+        assertEquals(1L, fresh.checkpointGeneration);
+    }
 }
