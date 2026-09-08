@@ -107,4 +107,85 @@ public final class VisualRequestContextGuardTest {
                 true,
                 false));
     }
+
+    @Test public void executionAcceptsOnlySameDesignSameTreeAndLowVisualDrift() {
+        assertTrue(VisualRequestContextGuard.matchesExecution(
+                AgentConstants.CANVA_PACKAGE,
+                AgentConstants.CANVA_PACKAGE,
+                "fp-1",
+                "fp-1",
+                "Design A",
+                "Design A",
+                true,
+                false,
+                0.0020,
+                0.0100));
+    }
+
+    @Test public void executionRejectsAnchorRolloverEvenWhenPixelsAndTreeLookStable() {
+        assertFalse(VisualRequestContextGuard.matchesExecution(
+                AgentConstants.CANVA_PACKAGE,
+                AgentConstants.CANVA_PACKAGE,
+                "fp-1",
+                "fp-1",
+                "Design A",
+                "Design B",
+                true,
+                false,
+                0.0000,
+                0.0100));
+    }
+
+    @Test public void executionRejectsTreeChangeEvenWhenPixelDriftIsTiny() {
+        assertFalse(VisualRequestContextGuard.matchesExecution(
+                AgentConstants.CANVA_PACKAGE,
+                AgentConstants.CANVA_PACKAGE,
+                "fp-before",
+                "fp-after",
+                "Design A",
+                "Design A",
+                true,
+                false,
+                0.0001,
+                0.0100));
+    }
+
+    @Test public void executionRejectsVisualDriftAtOrAboveBoundary() {
+        assertFalse(VisualRequestContextGuard.matchesExecution(
+                AgentConstants.CANVA_PACKAGE,
+                AgentConstants.CANVA_PACKAGE,
+                "fp-1",
+                "fp-1",
+                "Design A",
+                "Design A",
+                true,
+                false,
+                0.0100,
+                0.0100));
+    }
+
+    @Test public void executionRejectsMalformedVisualDistanceFailClosed() {
+        assertFalse(VisualRequestContextGuard.matchesExecution(
+                AgentConstants.CANVA_PACKAGE,
+                AgentConstants.CANVA_PACKAGE,
+                "fp-1",
+                "fp-1",
+                "Design A",
+                "Design A",
+                true,
+                false,
+                Double.NaN,
+                0.0100));
+        assertFalse(VisualRequestContextGuard.matchesExecution(
+                AgentConstants.CANVA_PACKAGE,
+                AgentConstants.CANVA_PACKAGE,
+                "fp-1",
+                "fp-1",
+                "Design A",
+                "Design A",
+                true,
+                false,
+                -0.0010,
+                0.0100));
+    }
 }
