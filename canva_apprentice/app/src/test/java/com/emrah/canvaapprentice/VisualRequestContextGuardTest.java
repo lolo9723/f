@@ -60,4 +60,40 @@ public final class VisualRequestContextGuardTest {
                 false,
                 false));
     }
+
+    @Test public void rejectsDesignAnchorRolloverDuringScreenshotCapture() {
+        assertFalse(VisualRequestContextGuard.matches(
+                AgentConstants.CANVA_PACKAGE,
+                AgentConstants.CANVA_PACKAGE,
+                "fp-1",
+                "fp-1",
+                "Design A",
+                "Design B",
+                true,
+                false));
+    }
+
+    @Test public void acceptsBoundDesignOnlyWhenAnchorIdentityAlsoRemainsExact() {
+        assertTrue(VisualRequestContextGuard.matches(
+                AgentConstants.CANVA_PACKAGE,
+                AgentConstants.CANVA_PACKAGE,
+                "fp-1",
+                "fp-1",
+                " Design A ",
+                "Design A",
+                true,
+                false));
+    }
+
+    @Test public void rejectsNullCurrentAnchorFailClosed() {
+        assertFalse(VisualRequestContextGuard.matches(
+                AgentConstants.CANVA_PACKAGE,
+                AgentConstants.CANVA_PACKAGE,
+                "fp-1",
+                "fp-1",
+                "Design A",
+                null,
+                true,
+                false));
+    }
 }
