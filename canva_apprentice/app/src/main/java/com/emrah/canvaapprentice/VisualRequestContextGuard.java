@@ -122,6 +122,11 @@ public final class VisualRequestContextGuard {
      * bound-anchor-visible and not-home requirements that a raw pixel comparison
      * cannot prove.
      *
+     * The evidence context is checked both before and after the live root/tree/state
+     * read. Without the second check a design rollover in that tiny TOCTOU window
+     * could make the newly read context self-consistent and accidentally authorize
+     * an action grounded against the previous design.
+     *
      * With no runtime evidence context this helper is neutral because callers such
      * as post-action visual verification intentionally consume the evidence first.
      * The execution SafetyGate independently rejects a visual mutation that reaches
@@ -142,6 +147,12 @@ public final class VisualRequestContextGuard {
         TaskState state = new TaskStateRepository(service).load();
         String designAnchor = state.designAnchor == null ? "" : state.designAnchor.trim();
         boolean anchorVisible = !designAnchor.isEmpty() && snapshot.containsText(designAnchor);
+
+        // Revalidate after all asynchronous/live reads. A rollover between the first
+        // lease check and these reads must never be authorized by comparing the new
+        // context to itself below.
+        if (!VisualEvidenceLease.isRuntimeDesignContextCurrent()) return false;
+
         return currentExecutionAllows(
                 visualDrift,
                 maxVisualDrift,
