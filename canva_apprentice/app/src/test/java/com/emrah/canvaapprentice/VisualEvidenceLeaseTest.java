@@ -141,6 +141,12 @@ public class VisualEvidenceLeaseTest {
         assertEquals("", lease.consumeIfExecutionCurrent(token));
     }
 
+    @Test public void productionBindingRequiresLiveRuntimeContext() {
+        assertFalse(VisualEvidenceLease.mayBindRuntimeEvidence(true, false));
+        assertTrue(VisualEvidenceLease.mayBindRuntimeEvidence(true, true));
+        assertTrue(VisualEvidenceLease.mayBindRuntimeEvidence(false, false));
+    }
+
     @Test public void executionContextRequiresExactCanvaPackageTreeAndDesignIdentity() {
         assertTrue(VisualEvidenceLease.executionContextMatches(
                 AgentConstants.CANVA_PACKAGE,AgentConstants.CANVA_PACKAGE,
