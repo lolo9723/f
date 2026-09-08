@@ -177,7 +177,6 @@ public final class AgentAccessibilityService extends AccessibilityService {
         }
         String active=""; AccessibilityNodeInfo root=getRootInActiveWindow();
         if(root!=null&&root.getPackageName()!=null) active=root.getPackageName().toString();
-
         if(!AgentConstants.CANVA_PACKAGE.equals(active)){
             pauseForHuman("Eylem öncesi aktif uygulama Canva olarak doğrulanamadı; işlem iptal edildi.");
             cycleBusy.set(false);
@@ -446,6 +445,9 @@ public final class AgentAccessibilityService extends AccessibilityService {
 
         UiTreeSnapshot snap=UiTreeSnapshot.capture(root);
         TaskState state=repo.load();
+        final String expectedPackage=pkg;
+        final String expectedFingerprint=snap.stableFingerprint();
+        final String expectedDesignAnchor=state.designAnchor;
         final String teacherSessionId=repo.currentTeacherSessionId();
         final String requestId=UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         final String marker=TeacherProtocol.markerFor(requestId);
@@ -461,8 +463,38 @@ public final class AgentAccessibilityService extends AccessibilityService {
                 return;
             }
 
+            AccessibilityNodeInfo liveRoot=getRootInActiveWindow();
+            String livePackage=liveRoot!=null&&liveRoot.getPackageName()!=null
+                    ?liveRoot.getPackageName().toString():"";
+            UiTreeSnapshot liveSnap=liveRoot==null?null:UiTreeSnapshot.capture(liveRoot);
+            TaskState liveState=repo.load();
+            boolean liveAnchorVisible=liveSnap!=null && !liveState.designAnchor.isEmpty()
+                    && liveSnap.containsText(liveState.designAnchor);
+            boolean visualContextCurrent=liveSnap!=null && VisualRequestContextGuard.matches(
+                    expectedPackage,
+                    livePackage,
+                    expectedFingerprint,
+                    liveSnap.stableFingerprint(),
+                    expectedDesignAnchor,
+                    liveState.designAnchor,
+                    liveAnchorVisible,
+                    liveSnap.looksLikeCanvaHome());
+            if(!visualContextCurrent){
+                file.delete();
+                cycleBusy.set(false);
+                runCanvaCycle("Ekran görüntüsü alınırken Canva UI/tasarım bağlamı değişti. Eski screenshot ve UI-tree öğretmene gönderilmedi; canlı ekranı baştan değerlendir.");
+                return;
+            }
+            if(liveSnap.containsSensitiveInput()){
+                file.delete();
+                pauseForHuman("Ekran görüntüsü sırasında şifre / doğrulama alanı belirdi. Görsel öğretmene aktarılmadı; gerekli işlemi sen tamamla.");
+                cycleBusy.set(false);
+                return;
+            }
+
             String visualHash=VisualFingerprint.fromFile(file);
             if(!visualEvidence.bindIfExecutionCurrent(visualExecutionToken,visualHash)){
+                file.delete();
                 onStaleTeacherRequestDiscarded();
                 return;
             }
