@@ -35,6 +35,10 @@ public final class VisualRequestContextGuard {
      * and tree identity, it requires the persisted design anchor itself to be
      * unchanged across capture. This prevents an old screenshot/tree pair from
      * being accepted after a task takeover, resume, or design-anchor rollover.
+     *
+     * An unbound request is also forbidden on Canva home/projects. A visual
+     * teacher must never receive authority to guess which existing design to
+     * open from a gallery-like screen before exact design identity is bound.
      */
     public static boolean matches(
             String expectedPackage,
@@ -55,7 +59,7 @@ public final class VisualRequestContextGuard {
         String expectedAnchor = expectedDesignAnchor.trim();
         String currentAnchor = currentDesignAnchor.trim();
         if (!expectedAnchor.equals(currentAnchor)) return false;
-        if (expectedAnchor.isEmpty()) return true;
+        if (expectedAnchor.isEmpty()) return !looksLikeCanvaHome;
         return anchorVisible && !looksLikeCanvaHome;
     }
 }
