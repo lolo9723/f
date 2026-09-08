@@ -122,6 +122,31 @@ public final class VisualRequestContextGuardTest {
                 0.0100));
     }
 
+    @Test public void executionRejectsUnboundEditorEvenWhenEverythingElseMatches() {
+        assertFalse(VisualRequestContextGuard.matchesExecution(
+                AgentConstants.CANVA_PACKAGE,
+                AgentConstants.CANVA_PACKAGE,
+                "fp-1",
+                "fp-1",
+                "",
+                "",
+                false,
+                false,
+                0.0000,
+                0.0100));
+        assertFalse(VisualRequestContextGuard.matchesExecution(
+                AgentConstants.CANVA_PACKAGE,
+                AgentConstants.CANVA_PACKAGE,
+                "fp-1",
+                "fp-1",
+                "   ",
+                "   ",
+                false,
+                false,
+                0.0000,
+                0.0100));
+    }
+
     @Test public void executionRejectsAnchorRolloverEvenWhenPixelsAndTreeLookStable() {
         assertFalse(VisualRequestContextGuard.matchesExecution(
                 AgentConstants.CANVA_PACKAGE,
