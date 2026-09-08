@@ -30,7 +30,9 @@ public final class VisualFingerprint {
     }
 
     public static double distance(String a, String b) {
-        return distanceForExecutionContext(a, b, VisualEvidenceLease.isRuntimeDesignContextCurrent());
+        double distance=distanceForExecutionContext(a,b,VisualEvidenceLease.isRuntimeDesignContextCurrent());
+        if(distance>=1.0) return distance;
+        return VisualRequestContextGuard.currentExecutionAllows(distance,0.0100) ? distance : 1.0;
     }
 
     /**
