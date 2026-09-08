@@ -20,11 +20,13 @@ public final class SensitiveInputDetectionTest {
     @Test public void detectsOtpAndOneTimeCodes() {
         assertTrue(snapshot("Enter OTP", "", false).containsSensitiveInput());
         assertTrue(snapshot("", "One-time code", false).containsSensitiveInput());
+        assertTrue(snapshot("One-time password", "", false).containsSensitiveInput());
         assertTrue(snapshot("Tek kullanımlık kod", "", false).containsSensitiveInput());
     }
 
     @Test public void detectsAuthenticatorPasscodeAndSecurityCode() {
         assertTrue(snapshot("Authenticator code", "", false).containsSensitiveInput());
+        assertTrue(snapshot("", "Authenticator app", false).containsSensitiveInput());
         assertTrue(snapshot("Passcode", "", false).containsSensitiveInput());
         assertTrue(snapshot("Güvenlik kodu", "", false).containsSensitiveInput());
     }
