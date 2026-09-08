@@ -44,6 +44,22 @@ public final class CheckpointRequestGuardTest {
         assertEquals(1L, lease.checkpointGeneration);
     }
 
+    @Test public void staleReplyCannotBorrowFreshPostCheckpointLease() {
+        CheckpointRequestGuard.bind("CAA1_REPLY_old|", "lease-old");
+        CheckpointRequestGuard.onCheckpointCommitted();
+        CheckpointRequestGuard.bind("CAA1_REPLY_fresh|", "lease-fresh");
+
+        CheckpointRequestGuard.RequestLease stale = CheckpointRequestGuard.consume("CAA1_REPLY_old|");
+        assertFalse(stale.checkpointCurrent);
+        assertEquals("lease-old", stale.executionLeaseToken);
+        assertEquals(0L, stale.checkpointGeneration);
+
+        CheckpointRequestGuard.RequestLease fresh = CheckpointRequestGuard.consume("CAA1_REPLY_fresh|");
+        assertTrue(fresh.checkpointCurrent);
+        assertEquals("lease-fresh", fresh.executionLeaseToken);
+        assertEquals(1L, fresh.checkpointGeneration);
+    }
+
     @Test public void unknownOrDuplicateMarkerFailsClosedWithoutBorrowingLease() {
         CheckpointRequestGuard.RequestLease missing = CheckpointRequestGuard.consume("CAA1_REPLY_missing|");
         assertFalse(missing.checkpointCurrent);
