@@ -164,6 +164,20 @@ public final class VisualRequestContextGuardTest {
                 0.0100));
     }
 
+    @Test public void executionRejectsCallerThatAttemptsToRelaxAuditedDriftCeiling() {
+        assertFalse(VisualRequestContextGuard.matchesExecution(
+                AgentConstants.CANVA_PACKAGE,
+                AgentConstants.CANVA_PACKAGE,
+                "fp-1",
+                "fp-1",
+                "Design A",
+                "Design A",
+                true,
+                false,
+                0.0020,
+                0.0200));
+    }
+
     @Test public void executionRejectsMalformedVisualDistanceFailClosed() {
         assertFalse(VisualRequestContextGuard.matchesExecution(
                 AgentConstants.CANVA_PACKAGE,
