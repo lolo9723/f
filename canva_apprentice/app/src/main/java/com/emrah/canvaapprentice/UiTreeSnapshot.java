@@ -51,7 +51,16 @@ public final class UiTreeSnapshot {
                     x.contains("otp") || x.contains("passcode") ||
                     x.contains("security code") || x.contains("guvenlik kodu") ||
                     x.contains("authenticator code") || x.contains("authenticator app") ||
-                    x.contains("tek kullanimlik kod") || x.contains("tek kullanimlik sifre")) return true;
+                    x.contains("tek kullanimlik kod") || x.contains("tek kullanimlik sifre") ||
+                    x.contains("verify it's you") || x.contains("verify it is you") ||
+                    x.contains("verify your identity") || x.contains("confirm your identity") ||
+                    x.contains("enter the code we sent") || x.contains("enter code we sent") ||
+                    x.contains("check your phone for a code") || x.contains("check your email for a code") ||
+                    x.contains("kimligini dogrula") || x.contains("kimliginizi dogrulayin") ||
+                    x.contains("sen oldugunu dogrula") || x.contains("siz oldugunuzu dogrulayin") ||
+                    x.contains("gonderdigimiz kodu gir") || x.contains("gonderilen kodu gir") ||
+                    x.contains("telefonuna gelen kod") || x.contains("telefonunuza gelen kod") ||
+                    x.contains("e-postana gelen kod") || x.contains("e-postaniza gelen kod")) return true;
         }
         return false;
     }
