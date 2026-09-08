@@ -122,10 +122,11 @@ public final class VisualRequestContextGuard {
      * bound-anchor-visible and not-home requirements that a raw pixel comparison
      * cannot prove.
      *
-     * The evidence context is checked both before and after the live root/tree/state
-     * read. Without the second check a design rollover in that tiny TOCTOU window
-     * could make the newly read context self-consistent and accidentally authorize
-     * an action grounded against the previous design.
+     * The evidence context is checked before the live reads, after those reads,
+     * and once more after the pure matchesExecution() decision. The final check
+     * closes the remaining rollover window where the persisted design/package/tree
+     * could change immediately after the second check but before this helper returned
+     * ALLOW to the screenshot callback.
      *
      * With no runtime evidence context this helper is neutral because callers such
      * as post-action visual verification intentionally consume the evidence first.
@@ -153,7 +154,7 @@ public final class VisualRequestContextGuard {
         // context to itself below.
         if (!VisualEvidenceLease.isRuntimeDesignContextCurrent()) return false;
 
-        return currentExecutionAllows(
+        boolean executionMatches = currentExecutionAllows(
                 visualDrift,
                 maxVisualDrift,
                 true,
@@ -163,6 +164,12 @@ public final class VisualRequestContextGuard {
                 designAnchor,
                 anchorVisible,
                 snapshot.looksLikeCanvaHome());
+        if (!executionMatches) return false;
+
+        // Last-moment fail-closed recheck. The pure policy above uses the already-read
+        // live values; if a task/design rollover happens immediately afterwards, that
+        // old snapshot must not be allowed to authorize the pending visual action.
+        return VisualEvidenceLease.isRuntimeDesignContextCurrent();
     }
 
     /** Pure policy form used by regression tests. */
