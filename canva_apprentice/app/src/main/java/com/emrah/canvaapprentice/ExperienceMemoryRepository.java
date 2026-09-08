@@ -38,10 +38,6 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
             createExperiencesTable(db);
         }
         if (oldVersion < 5) {
-            // v4 stored failures in the empty-after row while successful outcomes kept
-            // their own failure_count. That could make a once-successful but repeatedly
-            // failing action look trustworthy forever. Copy the action-level failure
-            // evidence into every successful outcome before new learning continues.
             db.execSQL(
                     "UPDATE experiences SET failure_count = MAX(failure_count, COALESCE((" +
                             "SELECT f.failure_count FROM experiences f " +
@@ -102,9 +98,6 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
             db.beginTransaction();
             try {
                 if (success) {
-                    // A new successful outcome inherits every failure already observed for
-                    // this exact action/target. Otherwise a success learned after ten misses
-                    // would incorrectly start with a clean trust score.
                     db.execSQL(
                             "INSERT OR IGNORE INTO experiences(goal_key,design_key,before_fp,action_type,target,after_fp,success_count,failure_count,last_at) " +
                                     "VALUES(?,?,?,?,?,?,0,COALESCE((SELECT failure_count FROM experiences " +
@@ -118,9 +111,6 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
                             new Object[]{now,goalKey,designKey,beforeFp,action.type.name(),target,after}
                     );
                 } else {
-                    // The empty-after row is the action-level failure ledger. Every failure
-                    // is also copied into all previously successful outcomes for the same exact
-                    // action so their trust falls immediately instead of remaining stale-high.
                     db.execSQL(
                             "INSERT OR IGNORE INTO experiences(goal_key,design_key,before_fp,action_type,target,after_fp,success_count,failure_count,last_at) " +
                                     "VALUES(?,?,?,?,?,'',0,0,?)",
@@ -147,15 +137,9 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
 
     public synchronized void recordVerifiedCompletion() {
         TaskState state = new TaskStateRepository(appContext).load();
-        if (state.mode != TaskState.Mode.RUNNING) {
-            throw new IllegalStateException("verified completion requires RUNNING task");
-        }
-        if (state.goal == null || state.goal.trim().isEmpty()) {
-            throw new IllegalStateException("verified completion requires task goal");
-        }
-        if (state.designAnchor == null || state.designAnchor.trim().isEmpty()) {
-            throw new IllegalStateException("verified completion requires bound design");
-        }
+        if (state.mode != TaskState.Mode.RUNNING) throw new IllegalStateException("verified completion requires RUNNING task");
+        if (state.goal == null || state.goal.trim().isEmpty()) throw new IllegalStateException("verified completion requires task goal");
+        if (state.designAnchor == null || state.designAnchor.trim().isEmpty()) throw new IllegalStateException("verified completion requires bound design");
 
         String key = goalScopeKey(state.goal);
         String designKey = completionScopeKey(state.designAnchor);
@@ -163,41 +147,23 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {
-            db.execSQL(
-                    "INSERT OR IGNORE INTO verified_completions(goal_key,design_key,success_count,last_at) VALUES(?,?,0,?)",
-                    new Object[]{key,designKey,now}
-            );
-            db.execSQL(
-                    "UPDATE verified_completions SET success_count=success_count+1,last_at=? WHERE goal_key=? AND design_key=?",
-                    new Object[]{now,key,designKey}
-            );
+            db.execSQL("INSERT OR IGNORE INTO verified_completions(goal_key,design_key,success_count,last_at) VALUES(?,?,0,?)", new Object[]{key,designKey,now});
+            db.execSQL("UPDATE verified_completions SET success_count=success_count+1,last_at=? WHERE goal_key=? AND design_key=?", new Object[]{now,key,designKey});
             db.setTransactionSuccessful();
-        } finally {
-            db.endTransaction();
-        }
+        } finally { db.endTransaction(); }
     }
 
     public synchronized String summary(String goal, String beforeFp) {
         if (beforeFp == null || beforeFp.isEmpty()) return "none";
         String goalKey = goalScopeKey(goal);
         TaskState state = new TaskStateRepository(appContext).load();
-
-        if (!mayUseTransitionMemory(state.designAnchor)) {
-            return "withheld: exact existing design is not bound; transition memory replay is disabled";
-        }
-        if (!MemoryReplayContinuityPolicy.mayRead(
-                state.mode, state.lastSafeSnapshotHash, beforeFp)) {
-            return "withheld: current Canva/design continuity has not been re-proven for memory replay";
-        }
+        if (!mayUseTransitionMemory(state.designAnchor)) return "withheld: exact existing design is not bound; transition memory replay is disabled";
+        if (!MemoryReplayContinuityPolicy.mayRead(state.mode, state.lastSafeSnapshotHash, beforeFp)) return "withheld: current Canva/design continuity has not been re-proven for memory replay";
 
         String designKey = transitionScopeKey(state.designAnchor);
-        SQLiteDatabase db = getReadableDatabase();
-        Cursor c = db.rawQuery(
-                "SELECT action_type,target,after_fp,success_count,failure_count " +
-                        "FROM experiences WHERE goal_key=? AND design_key=? AND before_fp=? " +
-                        "ORDER BY (success_count-failure_count) DESC, last_at DESC LIMIT 5",
-                new String[]{goalKey,designKey,beforeFp}
-        );
+        Cursor c = getReadableDatabase().rawQuery(
+                "SELECT action_type,target,after_fp,success_count,failure_count FROM experiences WHERE goal_key=? AND design_key=? AND before_fp=? ORDER BY (success_count-failure_count) DESC, last_at DESC LIMIT 5",
+                new String[]{goalKey,designKey,beforeFp});
         StringBuilder out = new StringBuilder();
         try {
             while (c.moveToNext()) {
@@ -206,51 +172,43 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
                 String after = c.getString(2);
                 int successes = c.getInt(3);
                 int failures = c.getInt(4);
+                if (!mayReplayTransition(successes, failures, after)) continue;
                 double trust = transitionTrust(successes, failures);
-                out.append("exactGoal=true")
-                        .append(" exactDesign=true")
-                        .append(" action=").append(type)
-                        .append(" target=").append(target)
-                        .append(" successes=").append(successes)
-                        .append(" failures=").append(failures)
-                        .append(" trust=").append(String.format(Locale.US,"%.2f",trust))
-                        .append(" expectedAfter=").append(shortFp(after))
-                        .append('\n');
+                out.append("exactGoal=true").append(" exactDesign=true").append(" action=").append(type)
+                        .append(" target=").append(target).append(" successes=").append(successes)
+                        .append(" failures=").append(failures).append(" trust=").append(String.format(Locale.US,"%.2f",trust))
+                        .append(" expectedAfter=").append(shortFp(after)).append('\n');
             }
-        } finally {
-            c.close();
-        }
+        } finally { c.close(); }
 
         if (state.designAnchor != null && !state.designAnchor.trim().isEmpty()) {
-            int verifiedCompletions = verifiedCompletionCount(
-                    goalKey, completionScopeKey(state.designAnchor));
-            if (verifiedCompletions > 0) {
-                out.append("verifiedDesignGoalCompletions=").append(verifiedCompletions)
-                        .append(" (final visual QA + exact bound-design proof)\n");
-            }
+            int verifiedCompletions = verifiedCompletionCount(goalKey, completionScopeKey(state.designAnchor));
+            if (verifiedCompletions > 0) out.append("verifiedDesignGoalCompletions=").append(verifiedCompletions).append(" (final visual QA + exact bound-design proof)\n");
         }
         return out.length() == 0 ? "none" : out.toString();
     }
 
     private int verifiedCompletionCount(String goalKey, String designKey) {
-        Cursor c = getReadableDatabase().rawQuery(
-                "SELECT success_count FROM verified_completions WHERE goal_key=? AND design_key=?",
-                new String[]{goalKey,designKey}
-        );
+        Cursor c = getReadableDatabase().rawQuery("SELECT success_count FROM verified_completions WHERE goal_key=? AND design_key=?", new String[]{goalKey,designKey});
         try { return c.moveToFirst() ? c.getInt(0) : 0; }
         finally { c.close(); }
     }
 
     public synchronized int learnedTransitionCount() {
-        Cursor c = getReadableDatabase().rawQuery(
-                "SELECT COUNT(*) FROM experiences WHERE success_count>0", null
-        );
+        Cursor c = getReadableDatabase().rawQuery("SELECT COUNT(*) FROM experiences WHERE success_count>0", null);
         try { return c.moveToFirst() ? c.getInt(0) : 0; }
         finally { c.close(); }
     }
 
     static boolean mayUseTransitionMemory(String designAnchor) {
         return designAnchor != null && !designAnchor.trim().isEmpty();
+    }
+
+    static boolean mayReplayTransition(int successes, int failures, String afterFp) {
+        if (afterFp == null || afterFp.trim().isEmpty()) return false;
+        if (successes <= 0 || failures < 0) return false;
+        if (successes <= failures) return false;
+        return transitionTrust(successes, failures) >= 0.60;
     }
 
     static double transitionTrust(int successes, int failures) {
@@ -265,16 +223,11 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
 
     static String completionScopeKey(String designAnchor) {
         String normalized = normalize(designAnchor);
-        if (normalized.isEmpty()) {
-            throw new IllegalArgumentException("completion scope requires bound design");
-        }
+        if (normalized.isEmpty()) throw new IllegalArgumentException("completion scope requires bound design");
         return sha256(normalized);
     }
 
-    static String goalScopeKey(String goal) {
-        String n = normalize(goal);
-        return sha256(n);
-    }
+    static String goalScopeKey(String goal) { return sha256(normalize(goal)); }
 
     private static String sanitizeTarget(String target) {
         String t = target == null ? "" : target.trim().replace('\n',' ');
@@ -288,20 +241,16 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
     }
 
     private static String normalize(String s) {
-        String x = Normalizer.normalize(s == null ? "" : s, Normalizer.Form.NFD)
-                .replaceAll("\\p{M}","").toLowerCase(Locale.ROOT);
+        String x = Normalizer.normalize(s == null ? "" : s, Normalizer.Form.NFD).replaceAll("\\p{M}","").toLowerCase(Locale.ROOT);
         return x.replace('ı','i').replaceAll("\\s+"," ").trim();
     }
 
     private static String sha256(String s) {
         try {
-            byte[] d = MessageDigest.getInstance("SHA-256")
-                    .digest(s.getBytes(StandardCharsets.UTF_8));
+            byte[] d = MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8));
             StringBuilder b = new StringBuilder();
             for (byte x : d) b.append(String.format(Locale.US,"%02x",x));
             return b.toString();
-        } catch (Exception e) {
-            return Integer.toHexString(s.hashCode());
-        }
+        } catch (Exception e) { return Integer.toHexString(s.hashCode()); }
     }
 }
