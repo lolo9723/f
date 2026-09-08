@@ -1,5 +1,7 @@
 package com.emrah.canvaapprentice;
 
+import android.view.accessibility.AccessibilityNodeInfo;
+
 /**
  * Fail-closed guard that binds a screenshot-backed teacher request to the exact
  * structural Canva state that existed immediately before capture.
@@ -110,5 +112,71 @@ public final class VisualRequestContextGuard {
                 currentDesignAnchor,
                 anchorVisible,
                 looksLikeCanvaHome);
+    }
+
+    /**
+     * Production bridge for the existing second-screenshot execution boundary.
+     * VisualEvidenceLease first proves that package/tree/design identity still
+     * equals the context captured for the teacher. We then re-read the live Canva
+     * editor and route the final decision through matchesExecution(), adding the
+     * bound-anchor-visible and not-home requirements that a raw pixel comparison
+     * cannot prove.
+     *
+     * With no runtime evidence context this helper is neutral because callers such
+     * as post-action visual verification intentionally consume the evidence first.
+     * The execution SafetyGate independently rejects a visual mutation that reaches
+     * it without live evidence, so this does not create a context-free execution path.
+     */
+    static boolean currentExecutionAllows(double visualDrift, double maxVisualDrift) {
+        if (!VisualEvidenceLease.hasRuntimeExpectedContext()) return true;
+        if (!VisualEvidenceLease.isRuntimeDesignContextCurrent()) return false;
+
+        AgentAccessibilityService service = AgentAccessibilityService.INSTANCE;
+        if (service == null) return false;
+        AccessibilityNodeInfo root = service.getRootInActiveWindow();
+        String packageName = root != null && root.getPackageName() != null
+                ? root.getPackageName().toString() : "";
+        if (!AgentConstants.CANVA_PACKAGE.equals(packageName) || root == null) return false;
+
+        UiTreeSnapshot snapshot = UiTreeSnapshot.capture(root);
+        TaskState state = new TaskStateRepository(service).load();
+        String designAnchor = state.designAnchor == null ? "" : state.designAnchor.trim();
+        boolean anchorVisible = !designAnchor.isEmpty() && snapshot.containsText(designAnchor);
+        return currentExecutionAllows(
+                visualDrift,
+                maxVisualDrift,
+                true,
+                true,
+                packageName,
+                snapshot.stableFingerprint(),
+                designAnchor,
+                anchorVisible,
+                snapshot.looksLikeCanvaHome());
+    }
+
+    /** Pure policy form used by regression tests. */
+    static boolean currentExecutionAllows(
+            double visualDrift,
+            double maxVisualDrift,
+            boolean evidenceContextPresent,
+            boolean evidenceContextCurrent,
+            String packageName,
+            String fingerprint,
+            String designAnchor,
+            boolean anchorVisible,
+            boolean looksLikeCanvaHome) {
+        if (!evidenceContextPresent) return true;
+        if (!evidenceContextCurrent) return false;
+        return matchesExecution(
+                packageName,
+                packageName,
+                fingerprint,
+                fingerprint,
+                designAnchor,
+                designAnchor,
+                anchorVisible,
+                looksLikeCanvaHome,
+                visualDrift,
+                maxVisualDrift);
     }
 }
