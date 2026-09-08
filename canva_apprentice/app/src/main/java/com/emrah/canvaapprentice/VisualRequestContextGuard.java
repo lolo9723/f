@@ -62,4 +62,39 @@ public final class VisualRequestContextGuard {
         if (expectedAnchor.isEmpty()) return !looksLikeCanvaHome;
         return anchorVisible && !looksLikeCanvaHome;
     }
+
+    /**
+     * Execution-boundary form for screenshot-grounded actions. A visual action
+     * may execute only if the live Canva package, structural fingerprint and
+     * persisted design identity still match the state that was grounded for the
+     * teacher, and the second screenshot remains within the permitted drift.
+     *
+     * This method intentionally fails closed for NaN/infinite/negative drift or
+     * invalid thresholds so a malformed visual comparison cannot authorize an
+     * otherwise stale coordinate action.
+     */
+    public static boolean matchesExecution(
+            String expectedPackage,
+            String currentPackage,
+            String expectedFingerprint,
+            String currentFingerprint,
+            String expectedDesignAnchor,
+            String currentDesignAnchor,
+            boolean anchorVisible,
+            boolean looksLikeCanvaHome,
+            double visualDrift,
+            double maxVisualDrift) {
+        if (!Double.isFinite(visualDrift) || !Double.isFinite(maxVisualDrift)
+                || visualDrift < 0.0 || maxVisualDrift <= 0.0) return false;
+        if (visualDrift >= maxVisualDrift) return false;
+        return matches(
+                expectedPackage,
+                currentPackage,
+                expectedFingerprint,
+                currentFingerprint,
+                expectedDesignAnchor,
+                currentDesignAnchor,
+                anchorVisible,
+                looksLikeCanvaHome);
+    }
 }
