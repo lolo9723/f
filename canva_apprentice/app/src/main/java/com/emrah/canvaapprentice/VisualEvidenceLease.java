@@ -54,12 +54,17 @@ public final class VisualEvidenceLease {
      * In production, the live Canva package, structural fingerprint and persisted
      * design identity are captured at the same evidence boundary. Any rollover during
      * the later execution screenshot invalidates the evidence even when pixels happen
-     * to remain visually similar.
+     * to remain visually similar. If the accessibility service is live but that exact
+     * Canva runtime context cannot be captured, binding fails closed rather than
+     * creating context-free visual evidence.
      */
     public synchronized boolean bindIfExecutionCurrent(String executionToken, String hash) {
         if (hash == null || hash.isEmpty()) return false;
         return TeacherExecutionLease.withGlobalCurrent(executionToken, false, () -> {
             RuntimeContext currentContext = currentRuntimeContext();
+            boolean serviceActive = AgentAccessibilityService.INSTANCE != null;
+            if (!mayBindRuntimeEvidence(serviceActive, currentContext != null)) return false;
+
             String currentDesignAnchor = currentContext == null ? null : currentContext.designAnchor;
             boolean capturedDesignContext = currentDesignAnchor != null;
             if (isOwnedBy(executionToken)) {
@@ -67,10 +72,10 @@ public final class VisualEvidenceLease {
                 if (ownerDesignContextCaptured != capturedDesignContext) return false;
                 if (capturedDesignContext && !ownerDesignAnchor.equals(currentDesignAnchor)) return false;
                 RuntimeContext expected = runtimeExpectedContext;
-                return expected == null || executionContextMatches(
+                return expected == null || (currentContext != null && executionContextMatches(
                         expected.packageName,currentContext.packageName,
                         expected.fingerprint,currentContext.fingerprint,
-                        expected.designAnchor,currentContext.designAnchor);
+                        expected.designAnchor,currentContext.designAnchor));
             }
             ownerExecutionToken = executionToken;
             visualHash = hash;
@@ -81,9 +86,20 @@ public final class VisualEvidenceLease {
         });
     }
 
+    /**
+     * Production must never mint screenshot evidence while the service is active but
+     * the live Canva context disappeared between validation and lease binding. JVM unit
+     * tests intentionally have no AccessibilityService instance, so legacy lease tests
+     * remain usable without weakening the production rule.
+     */
+    static boolean mayBindRuntimeEvidence(boolean serviceActive, boolean contextPresent) {
+        return !serviceActive || contextPresent;
+    }
+
     synchronized String readIfOwnedBy(String executionToken) {
         if (!isOwnedBy(executionToken)) return "";
         if (ownerDesignContextCaptured && !ownerDesignAnchor.equals(currentRuntimeDesignAnchor())) return "";
+        if (runtimeExpectedContext != null && !isRuntimeDesignContextCurrent()) return "";
         return visualHash;
     }
 
@@ -105,6 +121,7 @@ public final class VisualEvidenceLease {
         return TeacherExecutionLease.withGlobalCurrent(executionToken, "", () -> {
             if (!isOwnedBy(executionToken)) return "";
             if (ownerDesignContextCaptured && !ownerDesignAnchor.equals(currentRuntimeDesignAnchor())) return "";
+            if (runtimeExpectedContext != null && !isRuntimeDesignContextCurrent()) return "";
             String consumed = visualHash;
             clear();
             return consumed;
