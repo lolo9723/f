@@ -71,6 +71,12 @@ public final class VisualRequestContextGuard {
      * persisted design identity still match the state that was grounded for the
      * teacher, and the second screenshot remains within the permitted drift.
      *
+     * Unlike a visual inspection request, execution requires a non-empty bound
+     * design identity. The teacher may inspect an unbound editor to identify the
+     * exact existing design, but it must BIND_DESIGN before any screenshot-
+     * grounded mutation can be authorized. This prevents visually plausible
+     * edits from being applied to an unknown or accidentally opened design.
+     *
      * The caller-provided threshold is itself capped at the audited production
      * ceiling. This prevents a future call site from accidentally weakening the
      * visual safety boundary by passing a larger tolerance.
@@ -94,6 +100,7 @@ public final class VisualRequestContextGuard {
                 || visualDrift < 0.0 || maxVisualDrift <= 0.0
                 || maxVisualDrift > HARD_MAX_EXECUTION_DRIFT) return false;
         if (visualDrift >= maxVisualDrift) return false;
+        if (expectedDesignAnchor == null || expectedDesignAnchor.trim().isEmpty()) return false;
         return matches(
                 expectedPackage,
                 currentPackage,
