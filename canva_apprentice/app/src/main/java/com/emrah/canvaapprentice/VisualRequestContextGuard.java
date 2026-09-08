@@ -5,6 +5,8 @@ package com.emrah.canvaapprentice;
  * structural Canva state that existed immediately before capture.
  */
 public final class VisualRequestContextGuard {
+    private static final double HARD_MAX_EXECUTION_DRIFT = 0.0100;
+
     private VisualRequestContextGuard() {}
 
     /**
@@ -69,6 +71,10 @@ public final class VisualRequestContextGuard {
      * persisted design identity still match the state that was grounded for the
      * teacher, and the second screenshot remains within the permitted drift.
      *
+     * The caller-provided threshold is itself capped at the audited production
+     * ceiling. This prevents a future call site from accidentally weakening the
+     * visual safety boundary by passing a larger tolerance.
+     *
      * This method intentionally fails closed for NaN/infinite/negative drift or
      * invalid thresholds so a malformed visual comparison cannot authorize an
      * otherwise stale coordinate action.
@@ -85,7 +91,8 @@ public final class VisualRequestContextGuard {
             double visualDrift,
             double maxVisualDrift) {
         if (!Double.isFinite(visualDrift) || !Double.isFinite(maxVisualDrift)
-                || visualDrift < 0.0 || maxVisualDrift <= 0.0) return false;
+                || visualDrift < 0.0 || maxVisualDrift <= 0.0
+                || maxVisualDrift > HARD_MAX_EXECUTION_DRIFT) return false;
         if (visualDrift >= maxVisualDrift) return false;
         return matches(
                 expectedPackage,
