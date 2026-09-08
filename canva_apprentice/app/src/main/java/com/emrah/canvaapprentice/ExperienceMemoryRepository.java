@@ -11,7 +11,7 @@ import java.util.Locale;
 
 public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
     private static final String DB = "canva_apprentice_memory.db";
-    private static final int VERSION = 4;
+    private static final int VERSION = 5;
     private static final int MAX_ROWS = 500;
     private static final String UNBOUND_DESIGN_SCOPE = "__unbound_design__";
     private final Context appContext;
@@ -30,17 +30,28 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         if (oldVersion < 2) createVerifiedCompletionsTable(db);
         if (oldVersion < 3) {
-            // v2 completion rows were goal-scoped only. Reusing them after adding design scope
-            // could falsely teach a success from design A to design B, so discard them fail-closed.
             db.execSQL("DROP TABLE IF EXISTS verified_completions");
             createVerifiedCompletionsTable(db);
         }
         if (oldVersion < 4) {
-            // v3 transition rows had no design identity. A visually similar editor state from
-            // design A must never teach navigation inside design B, so legacy rows are unsafe to
-            // migrate heuristically. Drop only transition memory and relearn it under exact scope.
             db.execSQL("DROP TABLE IF EXISTS experiences");
             createExperiencesTable(db);
+        }
+        if (oldVersion < 5) {
+            // v4 stored failures in the empty-after row while successful outcomes kept
+            // their own failure_count. That could make a once-successful but repeatedly
+            // failing action look trustworthy forever. Copy the action-level failure
+            // evidence into every successful outcome before new learning continues.
+            db.execSQL(
+                    "UPDATE experiences SET failure_count = MAX(failure_count, COALESCE((" +
+                            "SELECT f.failure_count FROM experiences f " +
+                            "WHERE f.goal_key=experiences.goal_key " +
+                            "AND f.design_key=experiences.design_key " +
+                            "AND f.before_fp=experiences.before_fp " +
+                            "AND f.action_type=experiences.action_type " +
+                            "AND f.target=experiences.target AND f.after_fp=''" +
+                            "),0)) WHERE after_fp<>''"
+            );
         }
     }
 
@@ -72,42 +83,56 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
 
     public synchronized void record(boolean success, String goal, String beforeFp,
                                     AgentAction action, String afterFp) {
-        // Learn navigation structure, not user-authored content.
         if (action == null) return;
         if (action.type != AgentAction.Type.CLICK_TEXT && action.type != AgentAction.Type.BACK) return;
         if (beforeFp == null || beforeFp.isEmpty()) return;
 
         LearningMemoryLeasePolicy.withCurrentLease(action, false, () -> {
-            // Scope selection and persistence intentionally happen while the exact teacher
-            // execution lease is held. A newer teacher request (including a BIND_DESIGN chain)
-            // cannot rotate the lease between the ownership check and this live design read,
-            // eliminating cross-design memory contamination from a check-then-act race.
             TaskState liveState = new TaskStateRepository(appContext).load();
             if (liveState.mode != TaskState.Mode.RUNNING) return false;
-            // Fail closed while design identity is unbound. A shared "unbound" bucket would let
-            // navigation learned on Canva home/editor chrome before design A is bound influence a
-            // later task targeting design B. The agent may explore only from live teacher evidence
-            // until the exact existing design has been bound and continuity can be proven.
             if (!mayUseTransitionMemory(liveState.designAnchor)) return false;
+
             String goalKey = goalScopeKey(goal);
             String designKey = transitionScopeKey(liveState.designAnchor);
             String target = sanitizeTarget(action.target);
-            String after = afterFp == null ? "" : afterFp;
+            String after = success && afterFp != null ? afterFp : "";
+            long now = System.currentTimeMillis();
             SQLiteDatabase db = getWritableDatabase();
 
             db.beginTransaction();
             try {
-                db.execSQL(
-                        "INSERT OR IGNORE INTO experiences(goal_key,design_key,before_fp,action_type,target,after_fp,success_count,failure_count,last_at) " +
-                                "VALUES(?,?,?,?,?,?,0,0,?)",
-                        new Object[]{goalKey,designKey,beforeFp,action.type.name(),target,after,System.currentTimeMillis()}
-                );
-                db.execSQL(
-                        "UPDATE experiences SET success_count=success_count+?, failure_count=failure_count+?, last_at=? " +
-                                "WHERE goal_key=? AND design_key=? AND before_fp=? AND action_type=? AND target=? AND after_fp=?",
-                        new Object[]{success ? 1 : 0, success ? 0 : 1, System.currentTimeMillis(),
-                                goalKey,designKey,beforeFp,action.type.name(),target,after}
-                );
+                if (success) {
+                    // A new successful outcome inherits every failure already observed for
+                    // this exact action/target. Otherwise a success learned after ten misses
+                    // would incorrectly start with a clean trust score.
+                    db.execSQL(
+                            "INSERT OR IGNORE INTO experiences(goal_key,design_key,before_fp,action_type,target,after_fp,success_count,failure_count,last_at) " +
+                                    "VALUES(?,?,?,?,?,?,0,COALESCE((SELECT failure_count FROM experiences " +
+                                    "WHERE goal_key=? AND design_key=? AND before_fp=? AND action_type=? AND target=? AND after_fp=''),0),?)",
+                            new Object[]{goalKey,designKey,beforeFp,action.type.name(),target,after,
+                                    goalKey,designKey,beforeFp,action.type.name(),target,now}
+                    );
+                    db.execSQL(
+                            "UPDATE experiences SET success_count=success_count+1,last_at=? " +
+                                    "WHERE goal_key=? AND design_key=? AND before_fp=? AND action_type=? AND target=? AND after_fp=?",
+                            new Object[]{now,goalKey,designKey,beforeFp,action.type.name(),target,after}
+                    );
+                } else {
+                    // The empty-after row is the action-level failure ledger. Every failure
+                    // is also copied into all previously successful outcomes for the same exact
+                    // action so their trust falls immediately instead of remaining stale-high.
+                    db.execSQL(
+                            "INSERT OR IGNORE INTO experiences(goal_key,design_key,before_fp,action_type,target,after_fp,success_count,failure_count,last_at) " +
+                                    "VALUES(?,?,?,?,?,'',0,0,?)",
+                            new Object[]{goalKey,designKey,beforeFp,action.type.name(),target,now}
+                    );
+                    db.execSQL(
+                            "UPDATE experiences SET failure_count=failure_count+1,last_at=? " +
+                                    "WHERE goal_key=? AND design_key=? AND before_fp=? AND action_type=? AND target=?",
+                            new Object[]{now,goalKey,designKey,beforeFp,action.type.name(),target}
+                    );
+                }
+
                 db.execSQL(
                         "DELETE FROM experiences WHERE id NOT IN " +
                                 "(SELECT id FROM experiences ORDER BY last_at DESC LIMIT " + MAX_ROWS + ")"
@@ -120,13 +145,6 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
         });
     }
 
-    /**
-     * Persists only a final success that is already executing inside FinalDoneCommitGuard's
-     * exact execution-lease and current-teacher-session boundary. The current task must still
-     * be RUNNING and must have a bound design anchor; otherwise persistence fails and STOP is
-     * prevented by the guard. Completion memory is additionally scoped to that exact design
-     * anchor so the same goal on another Canva design cannot inherit a false success prior.
-     */
     public synchronized void recordVerifiedCompletion() {
         TaskState state = new TaskStateRepository(appContext).load();
         if (state.mode != TaskState.Mode.RUNNING) {
@@ -164,17 +182,9 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
         String goalKey = goalScopeKey(goal);
         TaskState state = new TaskStateRepository(appContext).load();
 
-        // Never replay transition memory before the exact existing design is bound. Canva home,
-        // project lists, and editor chrome can share fingerprints across unrelated designs; an
-        // "unbound" memory scope therefore cannot honestly claim exact-design provenance.
         if (!mayUseTransitionMemory(state.designAnchor)) {
             return "withheld: exact existing design is not bound; transition memory replay is disabled";
         }
-
-        // DEVAM ET / process restoration invalidates continuity provenance by clearing the safe
-        // checkpoint. Do not let old learned navigation influence the teacher until the current
-        // Canva surface has independently become the new safe checkpoint. For a bound design,
-        // SafeSnapshotPolicy can only establish that checkpoint while the exact anchor is visible.
         if (!MemoryReplayContinuityPolicy.mayRead(
                 state.mode, state.lastSafeSnapshotHash, beforeFp)) {
             return "withheld: current Canva/design continuity has not been re-proven for memory replay";
@@ -196,7 +206,7 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
                 String after = c.getString(2);
                 int successes = c.getInt(3);
                 int failures = c.getInt(4);
-                double trust = (successes + 1.0) / (successes + failures + 2.0);
+                double trust = transitionTrust(successes, failures);
                 out.append("exactGoal=true")
                         .append(" exactDesign=true")
                         .append(" action=").append(type)
@@ -241,6 +251,11 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
 
     static boolean mayUseTransitionMemory(String designAnchor) {
         return designAnchor != null && !designAnchor.trim().isEmpty();
+    }
+
+    static double transitionTrust(int successes, int failures) {
+        if (successes < 0 || failures < 0) return 0.0;
+        return (successes + 1.0) / (successes + failures + 2.0);
     }
 
     static String transitionScopeKey(String designAnchor) {
