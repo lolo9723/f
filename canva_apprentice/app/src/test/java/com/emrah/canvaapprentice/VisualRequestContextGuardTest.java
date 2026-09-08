@@ -227,4 +227,28 @@ public final class VisualRequestContextGuardTest {
                 -0.0010,
                 0.0100));
     }
+
+    @Test public void productionBridgeRejectsStaleEvidenceBeforePixelAuthorization() {
+        assertFalse(VisualRequestContextGuard.currentExecutionAllows(
+                0.0000,0.0100,true,false,
+                AgentConstants.CANVA_PACKAGE,"fp-1","Design A",true,false));
+    }
+
+    @Test public void productionBridgeRequiresVisibleBoundDesignAndNonHomeEditor() {
+        assertFalse(VisualRequestContextGuard.currentExecutionAllows(
+                0.0000,0.0100,true,true,
+                AgentConstants.CANVA_PACKAGE,"fp-1","Design A",false,false));
+        assertFalse(VisualRequestContextGuard.currentExecutionAllows(
+                0.0000,0.0100,true,true,
+                AgentConstants.CANVA_PACKAGE,"fp-1","Design A",true,true));
+        assertTrue(VisualRequestContextGuard.currentExecutionAllows(
+                0.0000,0.0100,true,true,
+                AgentConstants.CANVA_PACKAGE,"fp-1","Design A",true,false));
+    }
+
+    @Test public void productionBridgeIsNeutralAfterEvidenceWasIntentionallyConsumed() {
+        assertTrue(VisualRequestContextGuard.currentExecutionAllows(
+                0.5000,0.0100,false,false,
+                "","","",false,true));
+    }
 }
