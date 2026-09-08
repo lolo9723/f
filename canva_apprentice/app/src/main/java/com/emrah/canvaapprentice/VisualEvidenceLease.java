@@ -1,5 +1,7 @@
 package com.emrah.canvaapprentice;
 
+import android.view.accessibility.AccessibilityNodeInfo;
+
 /**
  * Single-owner holder for visual-before evidence used by screenshot-grounded actions.
  * Evidence is bound to the exact teacher execution lease that captured it. A stale
@@ -12,9 +14,21 @@ public final class VisualEvidenceLease {
     private boolean ownerDesignContextCaptured = false;
 
     // The production service has one VisualEvidenceLease. This static mirror lets the
-    // pixel-distance boundary fail closed if the persisted design identity rolls over
+    // pixel-distance boundary fail closed if package/tree/design identity rolls over
     // during the asynchronous second screenshot, after the first evidence read.
-    private static volatile String runtimeExpectedDesignAnchor = null;
+    private static volatile RuntimeContext runtimeExpectedContext = null;
+
+    private static final class RuntimeContext {
+        final String packageName;
+        final String fingerprint;
+        final String designAnchor;
+
+        RuntimeContext(String packageName, String fingerprint, String designAnchor) {
+            this.packageName = packageName;
+            this.fingerprint = fingerprint;
+            this.designAnchor = designAnchor;
+        }
+    }
 
     /**
      * Legacy/test-only owner binding. Invalid input is intentionally side-effect free:
@@ -37,25 +51,32 @@ public final class VisualEvidenceLease {
      * the same global lease monitor, eliminating a check-then-act race with a newer
      * teacher request. For the same live execution token, first successful bind wins.
      *
-     * In production, the persisted design identity is captured at the same evidence
-     * boundary. A later anchor rollover invalidates the evidence even when the pixels
-     * and structural tree happen to look identical.
+     * In production, the live Canva package, structural fingerprint and persisted
+     * design identity are captured at the same evidence boundary. Any rollover during
+     * the later execution screenshot invalidates the evidence even when pixels happen
+     * to remain visually similar.
      */
     public synchronized boolean bindIfExecutionCurrent(String executionToken, String hash) {
         if (hash == null || hash.isEmpty()) return false;
         return TeacherExecutionLease.withGlobalCurrent(executionToken, false, () -> {
-            String currentDesignAnchor = currentRuntimeDesignAnchor();
+            RuntimeContext currentContext = currentRuntimeContext();
+            String currentDesignAnchor = currentContext == null ? null : currentContext.designAnchor;
             boolean capturedDesignContext = currentDesignAnchor != null;
             if (isOwnedBy(executionToken)) {
                 if (!visualHash.equals(hash)) return false;
                 if (ownerDesignContextCaptured != capturedDesignContext) return false;
-                return !capturedDesignContext || ownerDesignAnchor.equals(currentDesignAnchor);
+                if (capturedDesignContext && !ownerDesignAnchor.equals(currentDesignAnchor)) return false;
+                RuntimeContext expected = runtimeExpectedContext;
+                return expected == null || executionContextMatches(
+                        expected.packageName,currentContext.packageName,
+                        expected.fingerprint,currentContext.fingerprint,
+                        expected.designAnchor,currentContext.designAnchor);
             }
             ownerExecutionToken = executionToken;
             visualHash = hash;
             ownerDesignContextCaptured = capturedDesignContext;
             ownerDesignAnchor = capturedDesignContext ? currentDesignAnchor : "";
-            runtimeExpectedDesignAnchor = capturedDesignContext ? currentDesignAnchor : null;
+            runtimeExpectedContext = currentContext;
             return true;
         });
     }
@@ -117,21 +138,52 @@ public final class VisualEvidenceLease {
      * evidence means ordinary fingerprint comparisons remain unaffected.
      */
     static boolean isRuntimeDesignContextCurrent() {
-        String expected = runtimeExpectedDesignAnchor;
+        RuntimeContext expected = runtimeExpectedContext;
         if (expected == null) return true;
-        String current = currentRuntimeDesignAnchor();
-        return current != null && expected.equals(current);
+        RuntimeContext current = currentRuntimeContext();
+        return current != null && executionContextMatches(
+                expected.packageName,current.packageName,
+                expected.fingerprint,current.fingerprint,
+                expected.designAnchor,current.designAnchor);
     }
 
     static boolean designIdentityMatches(String expected, String current) {
         return expected != null && current != null && expected.trim().equals(current.trim());
     }
 
-    private static String currentRuntimeDesignAnchor() {
+    static boolean executionContextMatches(
+            String expectedPackage,
+            String currentPackage,
+            String expectedFingerprint,
+            String currentFingerprint,
+            String expectedDesignAnchor,
+            String currentDesignAnchor) {
+        if (expectedPackage == null || currentPackage == null
+                || expectedFingerprint == null || currentFingerprint == null
+                || expectedDesignAnchor == null || currentDesignAnchor == null) return false;
+        return AgentConstants.CANVA_PACKAGE.equals(expectedPackage)
+                && expectedPackage.equals(currentPackage)
+                && !expectedFingerprint.isEmpty()
+                && expectedFingerprint.equals(currentFingerprint)
+                && designIdentityMatches(expectedDesignAnchor,currentDesignAnchor);
+    }
+
+    private static RuntimeContext currentRuntimeContext() {
         AgentAccessibilityService service = AgentAccessibilityService.INSTANCE;
         if (service == null) return null;
+        AccessibilityNodeInfo root = service.getRootInActiveWindow();
+        String packageName = root != null && root.getPackageName() != null
+                ? root.getPackageName().toString() : "";
+        if (!AgentConstants.CANVA_PACKAGE.equals(packageName) || root == null) return null;
+        UiTreeSnapshot snapshot = UiTreeSnapshot.capture(root);
         TaskState state = new TaskStateRepository(service).load();
-        return state.designAnchor == null ? null : state.designAnchor.trim();
+        String designAnchor = state.designAnchor == null ? null : state.designAnchor.trim();
+        return new RuntimeContext(packageName,snapshot.stableFingerprint(),designAnchor);
+    }
+
+    private static String currentRuntimeDesignAnchor() {
+        RuntimeContext current = currentRuntimeContext();
+        return current == null ? null : current.designAnchor;
     }
 
     /** Explicit lifecycle reset; never use this from asynchronous request callbacks. */
@@ -140,7 +192,7 @@ public final class VisualEvidenceLease {
         visualHash = "";
         ownerDesignAnchor = "";
         ownerDesignContextCaptured = false;
-        runtimeExpectedDesignAnchor = null;
+        runtimeExpectedContext = null;
     }
 
     synchronized String ownerTokenForTest() { return ownerExecutionToken; }
