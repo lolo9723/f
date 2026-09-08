@@ -6,7 +6,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 public final class VisualRequestContextGuardTest {
-    @Test public void acceptsExactSameUnboundCanvaState() {
+    @Test public void acceptsExactSameUnboundCanvaEditorState() {
         assertTrue(VisualRequestContextGuard.matches(
                 AgentConstants.CANVA_PACKAGE,
                 AgentConstants.CANVA_PACKAGE,
@@ -15,6 +15,17 @@ public final class VisualRequestContextGuardTest {
                 "",
                 false,
                 false));
+    }
+
+    @Test public void rejectsUnboundCanvaHomeToPreventVisualDesignGuessing() {
+        assertFalse(VisualRequestContextGuard.matches(
+                AgentConstants.CANVA_PACKAGE,
+                AgentConstants.CANVA_PACKAGE,
+                "fp-home",
+                "fp-home",
+                "",
+                false,
+                true));
     }
 
     @Test public void rejectsScreenshotWhenTreeChangedDuringCapture() {
