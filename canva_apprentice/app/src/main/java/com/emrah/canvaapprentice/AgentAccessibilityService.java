@@ -140,10 +140,11 @@ public final class AgentAccessibilityService extends AccessibilityService {
                     }
                     String nowVisual=VisualFingerprint.fromFile(file);
                     double drift=VisualFingerprint.distance(expectedVisual,nowVisual);
-                    if(drift>=0.0100){
+                    boolean executionContextMatches=VisualRequestContextGuard.currentExecutionAllows(drift,0.0100);
+                    if(!executionContextMatches){
                         visualEvidence.clearIfExecutionCurrent(action.executionLeaseToken);
                         cycleBusy.set(false);
-                        runCanvaCycle("Görüntülü komut beklerken Canva ekranı görsel olarak değişti (drift="+
+                        runCanvaCycle("Görüntülü komut beklerken Canva ekranı/bağlı tasarım execution bağlamı değişti veya görsel drift sınırı aşıldı (drift="+
                                 String.format(java.util.Locale.US,"%.4f",drift)+"). Eski koordinat komutu uygulanmadı.");
                     }else{
                         handleTeacherAction(action,beforeFingerprint,teacherSessionId);

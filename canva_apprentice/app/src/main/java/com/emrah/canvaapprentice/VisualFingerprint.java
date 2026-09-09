@@ -31,19 +31,20 @@ public final class VisualFingerprint {
     }
 
     public static double distance(String a, String b) {
-        // Post-action verification is measurement, not execution authorization. The
-        // visual-before lease has already been consumed, so validate and consume the
-        // exact post-action runtime context once, then return the real pixel distance.
-        // This prevents a cleared pre-action lease from turning every valid result into
-        // synthetic distance=1.0 while still failing closed on runtime rollover.
+        // Pixel distance is measurement only. Execution authorization belongs at the
+        // explicit waitForCanvaAndHandle() boundary, where package/tree/design/lease
+        // continuity is evaluated by VisualRequestContextGuard.currentExecutionAllows().
+        //
+        // Post-action verification is the one exception: its pre-action evidence has
+        // already been consumed, so consume the dedicated one-shot measurement context
+        // here before returning a distance. A stale post-action callback still fails
+        // closed with synthetic distance=1.0, but a normal pre-action comparison no
+        // longer hides execution authorization inside this generic metric helper.
         if (VisualEvidenceLease.hasPendingPostActionMeasurement()) {
             boolean contextCurrent = VisualEvidenceLease.consumePostActionMeasurementContextIfCurrent();
             return distanceForExecutionContext(a,b,contextCurrent);
         }
-
-        double distance=distanceForExecutionContext(a,b,VisualEvidenceLease.isRuntimeDesignContextCurrent());
-        if(distance>=1.0) return distance;
-        return VisualRequestContextGuard.currentExecutionAllows(distance,0.0100) ? distance : 1.0;
+        return distanceForExecutionContext(a,b,true);
     }
 
     static double distanceForExecutionContext(String a, String b, boolean designContextCurrent) {
