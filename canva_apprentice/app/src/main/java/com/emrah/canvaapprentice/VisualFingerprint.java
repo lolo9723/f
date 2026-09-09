@@ -31,21 +31,21 @@ public final class VisualFingerprint {
     }
 
     public static double distance(String a, String b) {
+        // Post-action verification is measurement, not execution authorization. The
+        // visual-before lease has already been consumed, so validate and consume the
+        // exact post-action runtime context once, then return the real pixel distance.
+        // This prevents a cleared pre-action lease from turning every valid result into
+        // synthetic distance=1.0 while still failing closed on runtime rollover.
+        if (VisualEvidenceLease.hasPendingPostActionMeasurement()) {
+            boolean contextCurrent = VisualEvidenceLease.consumePostActionMeasurementContextIfCurrent();
+            return distanceForExecutionContext(a,b,contextCurrent);
+        }
+
         double distance=distanceForExecutionContext(a,b,VisualEvidenceLease.isRuntimeDesignContextCurrent());
         if(distance>=1.0) return distance;
         return VisualRequestContextGuard.currentExecutionAllows(distance,0.0100) ? distance : 1.0;
     }
 
-    /**
-     * Fail closed at the asynchronous visual-execution boundary. Even identical
-     * screenshots cannot authorize a grounded action after the persisted Canva
-     * design identity has rolled over.
-     *
-     * Fingerprints must also have the exact production shape emitted by fromFile():
-     * 16x16 lowercase/uppercase hexadecimal luminance nibbles. Accepting a shorter
-     * same-valued string (for example "a" vs "a") would otherwise produce zero
-     * distance and could turn truncated/corrupt visual evidence into authorization.
-     */
     static double distanceForExecutionContext(String a, String b, boolean designContextCurrent) {
         if (!designContextCurrent) return 1.0;
         if (a == null || b == null || a.length() != HASH_LENGTH || b.length() != HASH_LENGTH) return 1.0;
