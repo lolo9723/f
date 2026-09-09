@@ -13,15 +13,31 @@ public final class FinalDoneCommitGuardTest {
         VerifiedCompletionMemoryHook.clearForTests();
     }
 
-    @Test public void currentLeaseAndSessionMayCommitStopOnlyWithVerifiedMemoryHook() {
+    @Test public void currentLeaseSessionAndVisualProofMayCommitVerifiedSuccessAndStop() {
+        String token = TeacherExecutionLease.beginGlobal();
+        AtomicBoolean learned = new AtomicBoolean(false);
+        AtomicBoolean stopped = new AtomicBoolean(false);
+
+        assertTrue(FinalDoneCommitGuard.commitIfCurrent(
+                token,
+                () -> true,
+                () -> true,
+                () -> learned.set(true),
+                () -> stopped.set(true)
+        ));
+        assertTrue(learned.get());
+        assertTrue(stopped.get());
+    }
+
+    @Test public void productionOverloadFailsClosedWithoutRuntimeVisualContext() {
         String token = TeacherExecutionLease.beginGlobal();
         AtomicBoolean learned = new AtomicBoolean(false);
         AtomicBoolean stopped = new AtomicBoolean(false);
         VerifiedCompletionMemoryHook.install(() -> learned.set(true));
 
-        assertTrue(FinalDoneCommitGuard.commitIfCurrent(token, () -> true, () -> stopped.set(true)));
-        assertTrue(learned.get());
-        assertTrue(stopped.get());
+        assertFalse(FinalDoneCommitGuard.commitIfCurrent(token, () -> true, () -> stopped.set(true)));
+        assertFalse(learned.get());
+        assertFalse(stopped.get());
     }
 
     @Test public void missingVerifiedMemoryHookFailsClosedWithoutStop() {
@@ -32,14 +48,42 @@ public final class FinalDoneCommitGuardTest {
         assertFalse(stopped.get());
     }
 
+    @Test public void staleVisualContextCannotLearnOrStopEvenWithCurrentLeaseAndSession() {
+        String token = TeacherExecutionLease.beginGlobal();
+        AtomicBoolean learned = new AtomicBoolean(false);
+        AtomicBoolean stopped = new AtomicBoolean(false);
+
+        assertFalse(FinalDoneCommitGuard.commitIfCurrent(
+                token,
+                () -> true,
+                () -> false,
+                () -> learned.set(true),
+                () -> stopped.set(true)
+        ));
+        assertFalse(learned.get());
+        assertFalse(stopped.get());
+    }
+
+    @Test public void missingOrStaleVisualEvidenceNeverMayCommit() {
+        assertFalse(FinalDoneCommitGuard.visualContextMayCommit(false, false));
+        assertFalse(FinalDoneCommitGuard.visualContextMayCommit(false, true));
+        assertFalse(FinalDoneCommitGuard.visualContextMayCommit(true, false));
+        assertTrue(FinalDoneCommitGuard.visualContextMayCommit(true, true));
+    }
+
     @Test public void staleLeaseCannotCommitStop() {
         String stale = TeacherExecutionLease.beginGlobal();
         TeacherExecutionLease.beginGlobal();
         AtomicBoolean learned = new AtomicBoolean(false);
         AtomicBoolean stopped = new AtomicBoolean(false);
-        VerifiedCompletionMemoryHook.install(() -> learned.set(true));
 
-        assertFalse(FinalDoneCommitGuard.commitIfCurrent(stale, () -> true, () -> stopped.set(true)));
+        assertFalse(FinalDoneCommitGuard.commitIfCurrent(
+                stale,
+                () -> true,
+                () -> true,
+                () -> learned.set(true),
+                () -> stopped.set(true)
+        ));
         assertFalse(learned.get());
         assertFalse(stopped.get());
     }
@@ -49,9 +93,14 @@ public final class FinalDoneCommitGuardTest {
         TeacherExecutionLease.invalidateGlobal();
         AtomicBoolean learned = new AtomicBoolean(false);
         AtomicBoolean stopped = new AtomicBoolean(false);
-        VerifiedCompletionMemoryHook.install(() -> learned.set(true));
 
-        assertFalse(FinalDoneCommitGuard.commitIfCurrent(stale, () -> true, () -> stopped.set(true)));
+        assertFalse(FinalDoneCommitGuard.commitIfCurrent(
+                stale,
+                () -> true,
+                () -> true,
+                () -> learned.set(true),
+                () -> stopped.set(true)
+        ));
         assertFalse(learned.get());
         assertFalse(stopped.get());
     }
@@ -60,20 +109,26 @@ public final class FinalDoneCommitGuardTest {
         String token = TeacherExecutionLease.beginGlobal();
         AtomicBoolean learned = new AtomicBoolean(false);
         AtomicBoolean stopped = new AtomicBoolean(false);
-        VerifiedCompletionMemoryHook.install(() -> learned.set(true));
 
-        assertFalse(FinalDoneCommitGuard.commitIfCurrent(token, () -> false, () -> stopped.set(true)));
+        assertFalse(FinalDoneCommitGuard.commitIfCurrent(
+                token,
+                () -> false,
+                () -> true,
+                () -> learned.set(true),
+                () -> stopped.set(true)
+        ));
         assertFalse(learned.get());
         assertFalse(stopped.get());
     }
 
-    @Test public void verifiedSuccessAndStopShareExactLeaseBoundary() {
+    @Test public void verifiedSuccessAndStopShareExactLeaseAndVisualBoundary() {
         String token = TeacherExecutionLease.beginGlobal();
         AtomicBoolean learned = new AtomicBoolean(false);
         AtomicBoolean stopped = new AtomicBoolean(false);
 
         assertTrue(FinalDoneCommitGuard.commitIfCurrent(
                 token,
+                () -> true,
                 () -> true,
                 () -> learned.set(true),
                 () -> stopped.set(true)
@@ -82,30 +137,15 @@ public final class FinalDoneCommitGuardTest {
         assertTrue(stopped.get());
     }
 
-    @Test public void staleLeaseCannotLearnVerifiedSuccessOrStop() {
-        String stale = TeacherExecutionLease.beginGlobal();
-        TeacherExecutionLease.beginGlobal();
-        AtomicBoolean learned = new AtomicBoolean(false);
-        AtomicBoolean stopped = new AtomicBoolean(false);
-
-        assertFalse(FinalDoneCommitGuard.commitIfCurrent(
-                stale,
-                () -> true,
-                () -> learned.set(true),
-                () -> stopped.set(true)
-        ));
-        assertFalse(learned.get());
-        assertFalse(stopped.get());
-    }
-
-    @Test public void staleSessionCannotLearnVerifiedSuccessOrStop() {
+    @Test public void failedVisualProofFailsClosedWithoutLearningOrStop() {
         String token = TeacherExecutionLease.beginGlobal();
         AtomicBoolean learned = new AtomicBoolean(false);
         AtomicBoolean stopped = new AtomicBoolean(false);
 
         assertFalse(FinalDoneCommitGuard.commitIfCurrent(
                 token,
-                () -> false,
+                () -> true,
+                () -> { throw new IllegalStateException("visual proof failed"); },
                 () -> learned.set(true),
                 () -> stopped.set(true)
         ));
@@ -120,6 +160,7 @@ public final class FinalDoneCommitGuardTest {
         assertFalse(FinalDoneCommitGuard.commitIfCurrent(
                 token,
                 () -> true,
+                () -> true,
                 () -> { throw new IllegalStateException("memory write failed"); },
                 () -> stopped.set(true)
         ));
@@ -132,6 +173,7 @@ public final class FinalDoneCommitGuardTest {
 
         assertFalse(FinalDoneCommitGuard.commitIfCurrent(
                 token,
+                () -> true,
                 () -> true,
                 () -> learned.set(true),
                 () -> { throw new IllegalStateException("stop write failed"); }
