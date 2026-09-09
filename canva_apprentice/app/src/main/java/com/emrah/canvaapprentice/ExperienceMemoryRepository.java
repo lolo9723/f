@@ -88,6 +88,8 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
             TaskState liveState = new TaskStateRepository(appContext).load();
             if (liveState.mode != TaskState.Mode.RUNNING) return false;
             if (!sameTaskGoal(goal, liveState.goal)) return false;
+            if (!LearningMemoryWriteContextPolicy.mayCommit(
+                    liveState.mode,beforeFp,liveState.lastSafeSnapshotHash,liveState.designAnchor)) return false;
             if (!mayUseTransitionMemory(liveState.designAnchor)) return false;
 
             String goalKey = goalScopeKey(liveState.goal);
