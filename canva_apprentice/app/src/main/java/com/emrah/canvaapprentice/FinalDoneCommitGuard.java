@@ -13,14 +13,18 @@ import java.util.function.BooleanSupplier;
  * context check closes the remaining stale-screen/design handoff at commit time.
  * A stale chain is side-effect free.
  *
- * Verified-success learning must use the same proof boundary as STOP. Production's
- * three-argument overload therefore requires both the memory hook installed by
+ * STOP is intentionally committed before verified-success learning. Durable task
+ * ownership is authoritative; learning memory is secondary. If STOP throws/fails,
+ * verified success must never be recorded for a task that can still continue. If
+ * learning persistence fails after STOP, the task remains safely stopped and the
+ * guard reports failure without reopening or re-running it.
+ *
+ * Production's three-argument overload requires both the memory hook installed by
  * ExperienceMemoryRepository and a live runtime visual-evidence context owned by
  * the current execution. The live task itself must also still be RUNNING with a
- * non-empty goal and bound design at the exact commit boundary. If any proof is
- * missing or stale, STOP is not committed. Runtime failures in any proof or mutation
- * are contained so final-QA persistence cannot crash the accessibility service and
- * strand runtime ownership.
+ * non-empty goal and bound design at the exact commit boundary. Runtime failures in
+ * any proof or mutation are contained so final-QA persistence cannot crash the
+ * accessibility service or create a false learned-success-before-stop state.
  */
 public final class FinalDoneCommitGuard {
     private FinalDoneCommitGuard() {}
@@ -63,14 +67,17 @@ public final class FinalDoneCommitGuard {
             return TeacherExecutionLease.withGlobalCurrent(executionLeaseToken, false, () -> {
                 if (!sessionStillCurrent.getAsBoolean()) return false;
                 if (!finalVisualContextStillCurrent.getAsBoolean()) return false;
-                verifiedSuccessMutation.run();
+
+                // Authoritative state first. A task must never learn a verified final
+                // success while STOP itself failed and the agent may continue running.
                 stopMutation.run();
+                verifiedSuccessMutation.run();
                 return true;
             });
         } catch (RuntimeException | Error failure) {
             // Final completion is safety-critical. A proof/persistence/runtime failure
-            // must not escape into AccessibilityService. Returning false keeps the
-            // caller fail-closed; STOP is never attempted when an earlier proof fails.
+            // must not escape into AccessibilityService. If STOP failed, learning was
+            // never attempted. If learning failed after STOP, STOP remains authoritative.
             return false;
         }
     }

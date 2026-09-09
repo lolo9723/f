@@ -3,6 +3,8 @@ package com.emrah.canvaapprentice;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.After;
 import org.junit.Test;
@@ -147,6 +149,22 @@ public final class FinalDoneCommitGuardTest {
         assertTrue(stopped.get());
     }
 
+    @Test public void stopIsAuthoritativeAndRunsBeforeVerifiedSuccessLearning() {
+        String token = TeacherExecutionLease.beginGlobal();
+        List<String> order = new ArrayList<>();
+
+        assertTrue(FinalDoneCommitGuard.commitIfCurrent(
+                token,
+                () -> true,
+                () -> true,
+                () -> order.add("learn"),
+                () -> order.add("stop")
+        ));
+        assertTrue(order.size() == 2);
+        assertTrue("stop".equals(order.get(0)));
+        assertTrue("learn".equals(order.get(1)));
+    }
+
     @Test public void failedVisualProofFailsClosedWithoutLearningOrStop() {
         String token = TeacherExecutionLease.beginGlobal();
         AtomicBoolean learned = new AtomicBoolean(false);
@@ -163,7 +181,7 @@ public final class FinalDoneCommitGuardTest {
         assertFalse(stopped.get());
     }
 
-    @Test public void failedVerifiedSuccessPersistenceFailsClosedWithoutCrashOrStop() {
+    @Test public void failedVerifiedSuccessPersistenceCannotReopenAlreadyStoppedTask() {
         String token = TeacherExecutionLease.beginGlobal();
         AtomicBoolean stopped = new AtomicBoolean(false);
 
@@ -174,10 +192,10 @@ public final class FinalDoneCommitGuardTest {
                 () -> { throw new IllegalStateException("memory write failed"); },
                 () -> stopped.set(true)
         ));
-        assertFalse(stopped.get());
+        assertTrue(stopped.get());
     }
 
-    @Test public void failedStopMutationFailsClosedWithoutCrashingAccessibilityRuntime() {
+    @Test public void failedStopMutationNeverWritesVerifiedSuccess() {
         String token = TeacherExecutionLease.beginGlobal();
         AtomicBoolean learned = new AtomicBoolean(false);
 
@@ -188,6 +206,6 @@ public final class FinalDoneCommitGuardTest {
                 () -> learned.set(true),
                 () -> { throw new IllegalStateException("stop write failed"); }
         ));
-        assertTrue(learned.get());
+        assertFalse(learned.get());
     }
 }
