@@ -56,11 +56,16 @@ public final class UiTreeSnapshot {
                     x.contains("verify your identity") || x.contains("confirm your identity") ||
                     x.contains("enter the code we sent") || x.contains("enter code we sent") ||
                     x.contains("check your phone for a code") || x.contains("check your email for a code") ||
+                    x.contains("recovery code") || x.contains("backup code") ||
+                    x.contains("sms code") || x.contains("text message code") ||
+                    x.contains("code sent by sms") || x.contains("code sent via sms") ||
                     x.contains("kimligini dogrula") || x.contains("kimliginizi dogrulayin") ||
                     x.contains("sen oldugunu dogrula") || x.contains("siz oldugunuzu dogrulayin") ||
                     x.contains("gonderdigimiz kodu gir") || x.contains("gonderilen kodu gir") ||
                     x.contains("telefonuna gelen kod") || x.contains("telefonunuza gelen kod") ||
-                    x.contains("e-postana gelen kod") || x.contains("e-postaniza gelen kod")) return true;
+                    x.contains("e-postana gelen kod") || x.contains("e-postaniza gelen kod") ||
+                    x.contains("kurtarma kodu") || x.contains("yedek kod") ||
+                    x.contains("sms kodu") || x.contains("mesajla gelen kod")) return true;
         }
         return false;
     }
@@ -87,10 +92,6 @@ public final class UiTreeSnapshot {
             if (x.equals("templates") || x.equals("sablonlar")) hits++;
             if (x.equals("home") || x.equals("ana sayfa")) hits++;
         }
-        // "Create a design / Tasarım oluştur" is a decisive gallery/home authority signal.
-        // Requiring a second navigation label is unsafe on compact/mobile layouts where the
-        // sidebar is collapsed: a bound design title may still be visible only as a project card,
-        // and treating that card as editor identity could authorize an action on the wrong surface.
         return decisiveCreateSurface || hits >= 2;
     }
 
@@ -115,11 +116,6 @@ public final class UiTreeSnapshot {
         for (Node n : nodes) {
             if (n.text.trim().isEmpty() && n.description.trim().isEmpty() &&
                     !n.clickable && !n.editable) continue;
-
-            // The fingerprint is also a stale-command guard. Text/class alone is not enough:
-            // Canva may keep the same labels while moving controls or changing which node is
-            // actually clickable/editable. Include structural/actionability evidence so an
-            // instruction produced for the old layout is discarded instead of being replayed.
             b.append('|').append(n.viewId)
                     .append('|').append(n.text)
                     .append('|').append(n.description)
@@ -135,7 +131,6 @@ public final class UiTreeSnapshot {
 
     private static String quantizedBounds(Rect r) {
         if (r == null) return "0,0,0,0";
-        // Ignore tiny rendering jitter while still detecting meaningful control movement.
         final int q = 8;
         return quantize(r.left, q) + "," + quantize(r.top, q) + "," +
                 quantize(r.right, q) + "," + quantize(r.bottom, q);
