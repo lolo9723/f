@@ -87,9 +87,10 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
         LearningMemoryLeasePolicy.withCurrentLease(action, false, () -> {
             TaskState liveState = new TaskStateRepository(appContext).load();
             if (liveState.mode != TaskState.Mode.RUNNING) return false;
+            if (!sameTaskGoal(goal, liveState.goal)) return false;
             if (!mayUseTransitionMemory(liveState.designAnchor)) return false;
 
-            String goalKey = goalScopeKey(goal);
+            String goalKey = goalScopeKey(liveState.goal);
             String designKey = transitionScopeKey(liveState.designAnchor);
             String target = sanitizeTarget(action.target);
             String after = success && afterFp != null ? afterFp : "";
@@ -199,6 +200,12 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
         Cursor c = getReadableDatabase().rawQuery("SELECT COUNT(*) FROM experiences WHERE success_count>0", null);
         try { return c.moveToFirst() ? c.getInt(0) : 0; }
         finally { c.close(); }
+    }
+
+    static boolean sameTaskGoal(String expectedGoal, String liveGoal) {
+        String expected = normalize(expectedGoal);
+        String live = normalize(liveGoal);
+        return !expected.isEmpty() && expected.equals(live);
     }
 
     static boolean mayUseTransitionMemory(String designAnchor) {
