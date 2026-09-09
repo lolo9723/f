@@ -246,8 +246,8 @@ public final class VisualRequestContextGuardTest {
                 AgentConstants.CANVA_PACKAGE,"fp-1","Design A",true,false));
     }
 
-    @Test public void productionBridgeIsNeutralAfterEvidenceWasIntentionallyConsumed() {
-        assertTrue(VisualRequestContextGuard.currentExecutionAllows(
+    @Test public void productionBridgeRejectsMissingEvidenceInsteadOfTreatingItAsNeutral() {
+        assertFalse(VisualRequestContextGuard.currentExecutionAllows(
                 0.5000,0.0100,false,false,
                 "","","",false,true));
     }
