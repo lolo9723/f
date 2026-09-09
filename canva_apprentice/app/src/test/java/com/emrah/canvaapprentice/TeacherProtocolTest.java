@@ -149,7 +149,7 @@ public class TeacherProtocolTest {
 
     @Test public void promptsNeverContainTheLiveReplyMarker() {
         String requestId = "abc123";
-        String marker = TeacherProtocol.markerFor(requestId);
+        String marker = "CAA1_REPLY_" + requestId + "|";
         TaskState state = new TaskState(
                 "goal","","","", "",
                 TaskState.Mode.RUNNING,false,0
