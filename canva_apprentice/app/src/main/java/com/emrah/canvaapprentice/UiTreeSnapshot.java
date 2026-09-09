@@ -76,14 +76,22 @@ public final class UiTreeSnapshot {
 
     public boolean looksLikeCanvaHome() {
         int hits = 0;
+        boolean decisiveCreateSurface = false;
         for (Node n : nodes) {
             String x = normalize(n.text + " " + n.description);
-            if (x.contains("create a design") || x.contains("tasarim olustur")) hits++;
+            if (x.contains("create a design") || x.contains("tasarim olustur")) {
+                hits++;
+                decisiveCreateSurface = true;
+            }
             if (x.equals("projects") || x.equals("projeler")) hits++;
             if (x.equals("templates") || x.equals("sablonlar")) hits++;
             if (x.equals("home") || x.equals("ana sayfa")) hits++;
         }
-        return hits >= 2;
+        // "Create a design / Tasarım oluştur" is a decisive gallery/home authority signal.
+        // Requiring a second navigation label is unsafe on compact/mobile layouts where the
+        // sidebar is collapsed: a bound design title may still be visible only as a project card,
+        // and treating that card as editor identity could authorize an action on the wrong surface.
+        return decisiveCreateSurface || hits >= 2;
     }
 
     public String compactForTeacher() {
