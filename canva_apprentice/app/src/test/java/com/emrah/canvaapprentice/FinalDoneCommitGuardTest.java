@@ -71,6 +71,16 @@ public final class FinalDoneCommitGuardTest {
         assertTrue(FinalDoneCommitGuard.visualContextMayCommit(true, true));
     }
 
+    @Test public void finalTaskStateRequiresRunningGoalAndBoundDesign() {
+        assertTrue(FinalDoneCommitGuard.taskStateMayCommit(TaskState.Mode.RUNNING, "make poster", "Poster A"));
+        assertFalse(FinalDoneCommitGuard.taskStateMayCommit(TaskState.Mode.HUMAN_TAKEOVER, "make poster", "Poster A"));
+        assertFalse(FinalDoneCommitGuard.taskStateMayCommit(TaskState.Mode.STOPPED, "make poster", "Poster A"));
+        assertFalse(FinalDoneCommitGuard.taskStateMayCommit(TaskState.Mode.RUNNING, "", "Poster A"));
+        assertFalse(FinalDoneCommitGuard.taskStateMayCommit(TaskState.Mode.RUNNING, "make poster", ""));
+        assertFalse(FinalDoneCommitGuard.taskStateMayCommit(TaskState.Mode.RUNNING, "   ", "Poster A"));
+        assertFalse(FinalDoneCommitGuard.taskStateMayCommit(TaskState.Mode.RUNNING, "make poster", "   "));
+    }
+
     @Test public void staleLeaseCannotCommitStop() {
         String stale = TeacherExecutionLease.beginGlobal();
         TeacherExecutionLease.beginGlobal();
