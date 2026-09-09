@@ -28,4 +28,23 @@ public final class LearningMemoryTaskGoalGuardTest {
         assertFalse(ExperienceMemoryRepository.sameTaskGoal("", "Sunumu düzenle"));
         assertFalse(ExperienceMemoryRepository.sameTaskGoal("Sunumu düzenle", ""));
     }
+
+    @Test public void replayRequiresRunningCurrentGoal() {
+        assertTrue(ExperienceMemoryRepository.mayReadForCurrentTask(
+                TaskState.Mode.RUNNING,
+                "Instagram postunu düzenle",
+                "Instagram postunu düzenle"));
+        assertFalse(ExperienceMemoryRepository.mayReadForCurrentTask(
+                TaskState.Mode.RUNNING,
+                "Instagram postunu düzenle",
+                "Sunumu düzenle"));
+        assertFalse(ExperienceMemoryRepository.mayReadForCurrentTask(
+                TaskState.Mode.PAUSED_HUMAN,
+                "Instagram postunu düzenle",
+                "Instagram postunu düzenle"));
+        assertFalse(ExperienceMemoryRepository.mayReadForCurrentTask(
+                TaskState.Mode.STOPPED,
+                "Instagram postunu düzenle",
+                "Instagram postunu düzenle"));
+    }
 }
