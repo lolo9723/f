@@ -157,8 +157,11 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
 
     public synchronized String summary(String goal, String beforeFp) {
         if (beforeFp == null || beforeFp.isEmpty()) return "none";
-        String goalKey = goalScopeKey(goal);
         TaskState state = new TaskStateRepository(appContext).load();
+        if (!mayReadForCurrentTask(state.mode, goal, state.goal)) {
+            return "withheld: requested learning-memory goal is not the current RUNNING task";
+        }
+        String goalKey = goalScopeKey(state.goal);
         if (!mayUseTransitionMemory(state.designAnchor)) return "withheld: exact existing design is not bound; transition memory replay is disabled";
         if (!MemoryReplayContinuityPolicy.mayRead(state.mode, state.lastSafeSnapshotHash, beforeFp)) return "withheld: current Canva/design continuity has not been re-proven for memory replay";
 
@@ -200,6 +203,10 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
         Cursor c = getReadableDatabase().rawQuery("SELECT COUNT(*) FROM experiences WHERE success_count>0", null);
         try { return c.moveToFirst() ? c.getInt(0) : 0; }
         finally { c.close(); }
+    }
+
+    static boolean mayReadForCurrentTask(TaskState.Mode mode, String requestedGoal, String liveGoal) {
+        return mode == TaskState.Mode.RUNNING && sameTaskGoal(requestedGoal, liveGoal);
     }
 
     static boolean sameTaskGoal(String expectedGoal, String liveGoal) {
