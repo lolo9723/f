@@ -59,13 +59,17 @@ public final class UiTreeSnapshot {
                     x.contains("recovery code") || x.contains("backup code") ||
                     x.contains("sms code") || x.contains("text message code") ||
                     x.contains("code sent by sms") || x.contains("code sent via sms") ||
+                    x.contains("passkey") || x.contains("security key") ||
+                    x.contains("physical security key") || x.contains("sign in with a passkey") ||
+                    x.contains("use your security key") ||
                     x.contains("kimligini dogrula") || x.contains("kimliginizi dogrulayin") ||
                     x.contains("sen oldugunu dogrula") || x.contains("siz oldugunuzu dogrulayin") ||
                     x.contains("gonderdigimiz kodu gir") || x.contains("gonderilen kodu gir") ||
                     x.contains("telefonuna gelen kod") || x.contains("telefonunuza gelen kod") ||
                     x.contains("e-postana gelen kod") || x.contains("e-postaniza gelen kod") ||
                     x.contains("kurtarma kodu") || x.contains("yedek kod") ||
-                    x.contains("sms kodu") || x.contains("mesajla gelen kod")) return true;
+                    x.contains("sms kodu") || x.contains("mesajla gelen kod") ||
+                    x.contains("gecis anahtari") || x.contains("guvenlik anahtari")) return true;
         }
         return false;
     }
