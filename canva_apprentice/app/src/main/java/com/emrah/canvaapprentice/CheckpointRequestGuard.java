@@ -21,9 +21,17 @@ public final class CheckpointRequestGuard {
         String m = normalize(marker);
         if (m.isEmpty()) return;
 
-        // A marker should be unique, but if a caller accidentally reuses one, refresh its
-        // insertion position rather than leaving it eligible for eviction as an old request.
-        REQUESTS.remove(m);
+        // Marker reuse is ambiguous: an older in-flight teacher reply could arrive after
+        // a newer request reused the same marker and otherwise borrow that newer request's
+        // execution lease. Poison the marker instead of refreshing it. Whichever reply
+        // arrives first will consume an invalid lease; any later duplicate also fails closed.
+        if (REQUESTS.containsKey(m)) {
+            REQUESTS.remove(m);
+            REQUESTS.put(m, new RequestLease(-1L, "", false));
+            evictOldestPendingRequests();
+            return;
+        }
+
         REQUESTS.put(m, new RequestLease(
                 checkpointGeneration,
                 normalize(executionLeaseToken),
@@ -42,6 +50,8 @@ public final class CheckpointRequestGuard {
                 recorded.checkpointGeneration,
                 recorded.executionLeaseToken,
                 recorded.checkpointGeneration == checkpointGeneration
+                        && recorded.checkpointGeneration >= 0L
+                        && !recorded.executionLeaseToken.isEmpty()
         );
     }
 
