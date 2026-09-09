@@ -16,9 +16,11 @@ import java.util.function.BooleanSupplier;
  * Verified-success learning must use the same proof boundary as STOP. Production's
  * three-argument overload therefore requires both the memory hook installed by
  * ExperienceMemoryRepository and a live runtime visual-evidence context owned by
- * the current execution. If either proof is missing or stale, STOP is not committed.
- * Runtime failures in any proof or mutation are contained so final-QA persistence
- * cannot crash the accessibility service and strand runtime ownership.
+ * the current execution. The live task itself must also still be RUNNING with a
+ * non-empty goal and bound design at the exact commit boundary. If any proof is
+ * missing or stale, STOP is not committed. Runtime failures in any proof or mutation
+ * are contained so final-QA persistence cannot crash the accessibility service and
+ * strand runtime ownership.
  */
 public final class FinalDoneCommitGuard {
     private FinalDoneCommitGuard() {}
@@ -31,7 +33,7 @@ public final class FinalDoneCommitGuard {
         return commitIfCurrent(
                 executionLeaseToken,
                 sessionStillCurrent,
-                FinalDoneCommitGuard::runtimeVisualContextStillCurrent,
+                FinalDoneCommitGuard::runtimeFinalContextStillCurrent,
                 verifiedSuccessMutation,
                 stopMutation
         );
@@ -44,7 +46,7 @@ public final class FinalDoneCommitGuard {
         return commitIfCurrent(
                 executionLeaseToken,
                 sessionStillCurrent,
-                FinalDoneCommitGuard::runtimeVisualContextStillCurrent,
+                FinalDoneCommitGuard::runtimeFinalContextStillCurrent,
                 verifiedSuccessMutation,
                 stopMutation
         );
@@ -77,9 +79,20 @@ public final class FinalDoneCommitGuard {
         return evidenceContextPresent && evidenceContextCurrent;
     }
 
-    private static boolean runtimeVisualContextStillCurrent() {
+    static boolean taskStateMayCommit(TaskState.Mode mode, String goal, String designAnchor) {
+        return mode == TaskState.Mode.RUNNING
+                && goal != null && !goal.trim().isEmpty()
+                && designAnchor != null && !designAnchor.trim().isEmpty();
+    }
+
+    private static boolean runtimeFinalContextStillCurrent() {
         boolean present = VisualEvidenceLease.hasRuntimeExpectedContext();
         boolean current = present && VisualEvidenceLease.isRuntimeDesignContextCurrent();
-        return visualContextMayCommit(present, current);
+        if (!visualContextMayCommit(present, current)) return false;
+
+        AgentAccessibilityService service = AgentAccessibilityService.INSTANCE;
+        if (service == null) return false;
+        TaskState live = new TaskStateRepository(service).load();
+        return taskStateMayCommit(live.mode, live.goal, live.designAnchor);
     }
 }
