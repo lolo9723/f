@@ -13,6 +13,7 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
     private static final String DB = "canva_apprentice_memory.db";
     private static final int VERSION = 5;
     private static final int MAX_ROWS = 500;
+    private static final int MIN_VERIFIED_SUCCESSES_FOR_REPLAY = 2;
     private static final String UNBOUND_DESIGN_SCOPE = "__unbound_design__";
     private final Context appContext;
 
@@ -206,7 +207,7 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
 
     static boolean mayReplayTransition(int successes, int failures, String afterFp) {
         if (afterFp == null || afterFp.trim().isEmpty()) return false;
-        if (successes <= 0 || failures < 0) return false;
+        if (successes < MIN_VERIFIED_SUCCESSES_FOR_REPLAY || failures < 0) return false;
         if (successes <= failures) return false;
         return transitionTrust(successes, failures) >= 0.60;
     }
