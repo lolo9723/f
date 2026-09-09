@@ -43,6 +43,17 @@ public final class SafetyGate {
             return Decision.block("Eski öğretmen eylemi geçersiz execution lease nedeniyle engellendi.");
         }
 
+        // Teacher-produced exact-node actions must carry the complete compact UI-row proof.
+        // A leased CLICK_NODE/SET_NODE_TEXT with only index+label is not "exact": the row can
+        // be reordered or duplicated before execution, and letting it continue merely burns
+        // an execution attempt before ActionExecutor rejects it. Fail at the safety boundary
+        // instead, so the agent re-grounds rather than entering a retry/failure loop.
+        if (!action.executionLeaseToken.isEmpty()
+                && action.isNodeAction()
+                && !NodeTargetCodec.hasStructuralEvidence(action.target)) {
+            return Decision.block("Öğretmen exact-node eylemi tam yapısal düğüm kanıtı taşımıyor; hedef yeniden doğrulanmalı.");
+        }
+
         // Screenshot-grounded mutations must never execute before exact design identity has
         // been bound. The visual teacher may inspect an unbound editor only to establish the
         // identity (BIND_DESIGN is handled before SafetyGate by AgentAccessibilityService).
