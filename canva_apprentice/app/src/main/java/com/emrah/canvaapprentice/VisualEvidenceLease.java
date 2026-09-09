@@ -114,6 +114,20 @@ public final class VisualEvidenceLease {
         return !serviceActive || (evidenceContextPresent && evidenceContextCurrent);
     }
 
+    /**
+     * The evidence holder itself is a trust boundary, not only the later SafetyGate.
+     * While the production AccessibilityService is live, an owner token/hash without
+     * its runtime package/tree/design context is incomplete evidence and must not be
+     * readable or consumable. This prevents visual DONE and any future pre-SafetyGate
+     * consumer from accidentally treating orphaned screenshot evidence as valid.
+     */
+    static boolean runtimeEvidenceMayBeRead(
+            boolean serviceActive,
+            boolean evidenceContextPresent,
+            boolean evidenceContextCurrent) {
+        return !serviceActive || (evidenceContextPresent && evidenceContextCurrent);
+    }
+
     static boolean hasRuntimeExpectedContext() {
         return runtimeExpectedContext != null && !runtimeExpectedOwnerExecutionToken.isEmpty();
     }
@@ -126,6 +140,10 @@ public final class VisualEvidenceLease {
 
     synchronized String readIfOwnedBy(String executionToken) {
         if (!isOwnedBy(executionToken)) return "";
+        boolean serviceActive = AgentAccessibilityService.INSTANCE != null;
+        boolean contextPresent = hasRuntimeExpectedContext();
+        boolean contextCurrent = contextPresent && isRuntimeDesignContextCurrent();
+        if (!runtimeEvidenceMayBeRead(serviceActive, contextPresent, contextCurrent)) return "";
         if (ownerDesignContextCaptured && !ownerDesignAnchor.equals(currentRuntimeDesignAnchor())) return "";
         if (runtimeExpectedContext != null) {
             if (!executionToken.equals(runtimeExpectedOwnerExecutionToken)) return "";
@@ -151,6 +169,10 @@ public final class VisualEvidenceLease {
     public synchronized String consumeIfExecutionCurrent(String executionToken) {
         return TeacherExecutionLease.withGlobalCurrent(executionToken, "", () -> {
             if (!isOwnedBy(executionToken)) return "";
+            boolean serviceActive = AgentAccessibilityService.INSTANCE != null;
+            boolean contextPresent = hasRuntimeExpectedContext();
+            boolean contextCurrent = contextPresent && isRuntimeDesignContextCurrent();
+            if (!runtimeEvidenceMayBeRead(serviceActive, contextPresent, contextCurrent)) return "";
             if (ownerDesignContextCaptured && !ownerDesignAnchor.equals(currentRuntimeDesignAnchor())) return "";
             if (runtimeExpectedContext != null) {
                 if (!executionToken.equals(runtimeExpectedOwnerExecutionToken)) return "";
