@@ -28,7 +28,27 @@ public class SensitiveVerificationDetectionTest {
         assertTrue(snap("Yedek kod ile doğrula").containsSensitiveInput());
     }
 
+    @Test public void passkeyRequiresHumanTakeover() {
+        assertTrue(snap("Sign in with a passkey").containsSensitiveInput());
+    }
+
+    @Test public void physicalSecurityKeyRequiresHumanTakeover() {
+        assertTrue(snap("Use your security key to continue").containsSensitiveInput());
+    }
+
+    @Test public void turkishPasskeyRequiresHumanTakeover() {
+        assertTrue(snap("Geçiş anahtarı ile devam et").containsSensitiveInput());
+    }
+
+    @Test public void turkishSecurityKeyRequiresHumanTakeover() {
+        assertTrue(snap("Güvenlik anahtarı kullan").containsSensitiveInput());
+    }
+
     @Test public void ordinaryCanvaCodeTextDoesNotTriggerTakeover() {
         assertFalse(snap("Brand color code").containsSensitiveInput());
+    }
+
+    @Test public void ordinaryCanvaKeyboardShortcutTextDoesNotTriggerTakeover() {
+        assertFalse(snap("Keyboard shortcuts").containsSensitiveInput());
     }
 }
