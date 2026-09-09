@@ -60,7 +60,7 @@ public final class CheckpointRequestGuardTest {
         assertEquals(1L, fresh.checkpointGeneration);
     }
 
-    @Test public void unknownOrDuplicateMarkerFailsClosedWithoutBorrowingLease() {
+    @Test public void unknownOrDuplicateConsumeFailsClosedWithoutBorrowingLease() {
         CheckpointRequestGuard.RequestLease missing = CheckpointRequestGuard.consume("CAA1_REPLY_missing|");
         assertFalse(missing.checkpointCurrent);
         assertEquals("", missing.executionLeaseToken);
@@ -70,6 +70,31 @@ public final class CheckpointRequestGuardTest {
         CheckpointRequestGuard.RequestLease duplicate = CheckpointRequestGuard.consume("CAA1_REPLY_once|");
         assertFalse(duplicate.checkpointCurrent);
         assertEquals("", duplicate.executionLeaseToken);
+    }
+
+    @Test public void duplicatePendingMarkerIsPoisonedSoOldReplyCannotBorrowNewLease() {
+        CheckpointRequestGuard.bind("CAA1_REPLY_same|", "lease-old");
+        CheckpointRequestGuard.bind("CAA1_REPLY_same|", "lease-new");
+
+        CheckpointRequestGuard.RequestLease firstArrival = CheckpointRequestGuard.consume("CAA1_REPLY_same|");
+        assertFalse(firstArrival.checkpointCurrent);
+        assertEquals("", firstArrival.executionLeaseToken);
+        assertEquals(-1L, firstArrival.checkpointGeneration);
+
+        CheckpointRequestGuard.RequestLease laterArrival = CheckpointRequestGuard.consume("CAA1_REPLY_same|");
+        assertFalse(laterArrival.checkpointCurrent);
+        assertEquals("", laterArrival.executionLeaseToken);
+    }
+
+    @Test public void duplicateMarkerRemainsFailClosedAcrossCheckpointCommit() {
+        CheckpointRequestGuard.bind("CAA1_REPLY_same|", "lease-old");
+        CheckpointRequestGuard.bind("CAA1_REPLY_same|", "lease-new");
+        CheckpointRequestGuard.onCheckpointCommitted();
+
+        CheckpointRequestGuard.RequestLease lease = CheckpointRequestGuard.consume("CAA1_REPLY_same|");
+        assertFalse(lease.checkpointCurrent);
+        assertEquals("", lease.executionLeaseToken);
+        assertEquals(-1L, lease.checkpointGeneration);
     }
 
     @Test public void heavyAbandonedRequestChurnEvictsOnlyOldestAndKeepsFreshLease() {
