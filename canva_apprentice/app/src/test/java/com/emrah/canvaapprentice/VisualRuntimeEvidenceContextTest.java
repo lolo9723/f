@@ -14,7 +14,11 @@ public final class VisualRuntimeEvidenceContextTest {
         assertTrue(VisualRequestContextGuard.runtimeEvidenceContextAllowsExecution(true,true));
     }
 
-    @Test public void jvmPurePolicyRemainsNeutralWithoutService() {
-        assertTrue(VisualRequestContextGuard.runtimeEvidenceContextAllowsExecution(false,false));
+    @Test public void missingEvidenceFailsClosedEvenOutsideLiveService() {
+        assertFalse(VisualRequestContextGuard.runtimeEvidenceContextAllowsExecution(false,false));
+    }
+
+    @Test public void evidencePresenceRemainsNecessaryAndSufficientForContextGate() {
+        assertTrue(VisualRequestContextGuard.runtimeEvidenceContextAllowsExecution(false,true));
     }
 }
