@@ -23,6 +23,12 @@ public final class SafetyGate {
 
     public Decision evaluate(AgentAction action, TaskState state, String activePackage) {
         if (action == null) return Decision.block("Boş eylem uygulanamaz.");
+        // A malformed/forward-incompatible teacher response must never fall through as a
+        // high-confidence generic action. Several checks below intentionally compare known
+        // enum values; a null type would skip all of them and could otherwise reach ALLOW,
+        // only to crash or behave unpredictably at the executor boundary. Fail closed here.
+        if (action.type == null) return Decision.block("Eylem türü doğrulanamadı; bilinmeyen komut uygulanamaz.");
+        if (state == null) return Decision.block("Görev durumu doğrulanamadı; eylem uygulanamaz.");
         if (state.mode != TaskState.Mode.RUNNING) return Decision.block("Ajan çalışma modunda değil.");
 
         // ChatGPT is an allowed companion app for teacher communication, but it is never an
