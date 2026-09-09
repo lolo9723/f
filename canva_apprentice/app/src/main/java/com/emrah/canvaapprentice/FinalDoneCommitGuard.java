@@ -68,8 +68,9 @@ public final class FinalDoneCommitGuard {
                 if (!sessionStillCurrent.getAsBoolean()) return false;
                 if (!finalVisualContextStillCurrent.getAsBoolean()) return false;
 
-                // Authoritative state first. A task must never learn a verified final
-                // success while STOP itself failed and the agent may continue running.
+                // Authoritative runtime state always precedes advisory learning state.
+                // A task must never learn a verified final success while STOP itself
+                // failed and the agent may therefore still be RUNNING.
                 stopMutation.run();
                 verifiedSuccessMutation.run();
                 return true;
