@@ -39,7 +39,7 @@ public final class LearningMemoryTaskGoalGuardTest {
                 "Instagram postunu düzenle",
                 "Sunumu düzenle"));
         assertFalse(ExperienceMemoryRepository.mayReadForCurrentTask(
-                TaskState.Mode.PAUSED_HUMAN,
+                TaskState.Mode.HUMAN_TAKEOVER,
                 "Instagram postunu düzenle",
                 "Instagram postunu düzenle"));
         assertFalse(ExperienceMemoryRepository.mayReadForCurrentTask(
