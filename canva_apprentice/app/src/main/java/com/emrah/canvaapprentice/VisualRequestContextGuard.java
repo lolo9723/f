@@ -115,6 +115,19 @@ public final class VisualRequestContextGuard {
     }
 
     /**
+     * Production must never treat a missing runtime evidence context as neutral while
+     * the accessibility service is live. A lost/cleared static context combined with
+     * still-present instance evidence must fail closed, including visual DONE paths
+     * that are evaluated before the ordinary mutation SafetyGate.
+     *
+     * JVM unit tests have no live AccessibilityService, so context-free pure-policy
+     * tests remain neutral without weakening production execution.
+     */
+    static boolean runtimeEvidenceContextAllowsExecution(boolean serviceActive, boolean evidenceContextPresent) {
+        return !serviceActive || evidenceContextPresent;
+    }
+
+    /**
      * Production bridge for the existing second-screenshot execution boundary.
      * VisualEvidenceLease first proves that package/tree/design identity still
      * equals the context captured for the teacher. We then re-read the live Canva
@@ -128,13 +141,15 @@ public final class VisualRequestContextGuard {
      * could change immediately after the second check but before this helper returned
      * ALLOW to the screenshot callback.
      *
-     * With no runtime evidence context this helper is neutral because callers such
-     * as post-action visual verification intentionally consume the evidence first.
-     * The execution SafetyGate independently rejects a visual mutation that reaches
-     * it without live evidence, so this does not create a context-free execution path.
+     * When the production service is active, absence of runtime evidence is a hard
+     * failure rather than a neutral condition. Only JVM/pure-policy callers without
+     * a live service retain neutral behavior.
      */
     static boolean currentExecutionAllows(double visualDrift, double maxVisualDrift) {
-        if (!VisualEvidenceLease.hasRuntimeExpectedContext()) return true;
+        boolean serviceActive = AgentAccessibilityService.INSTANCE != null;
+        boolean evidenceContextPresent = VisualEvidenceLease.hasRuntimeExpectedContext();
+        if (!runtimeEvidenceContextAllowsExecution(serviceActive, evidenceContextPresent)) return false;
+        if (!evidenceContextPresent) return true;
         if (!VisualEvidenceLease.isRuntimeDesignContextCurrent()) return false;
 
         AgentAccessibilityService service = AgentAccessibilityService.INSTANCE;
