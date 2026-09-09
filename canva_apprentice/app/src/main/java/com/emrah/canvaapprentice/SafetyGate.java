@@ -43,6 +43,19 @@ public final class SafetyGate {
             return Decision.block("Eski öğretmen eylemi geçersiz execution lease nedeniyle engellendi.");
         }
 
+        // A screenshot-grounded production mutation is meaningful only as the result of one
+        // exact live teacher request. If a parsing/callback regression ever produces a visual
+        // action without that execution lease, treating visualGrounded=true as authority would
+        // let coordinate gestures bypass stale-request ownership checks. JVM policy tests run
+        // without a live AccessibilityService, so ordinary locally-constructed test actions
+        // remain usable while production fails closed.
+        if (!visualTeacherLeaseMayExecute(
+                AgentAccessibilityService.INSTANCE != null,
+                action.visualGrounded,
+                action.executionLeaseToken)) {
+            return Decision.block("Görüntülü öğretmen eylemi geçerli execution lease taşımıyor; kanıtsız visual mutasyon uygulanmadı.");
+        }
+
         // Teacher-produced exact-node actions must carry the complete compact UI-row proof.
         // A leased CLICK_NODE/SET_NODE_TEXT with only index+label is not "exact": the row can
         // be reordered or duplicated before execution, and letting it continue merely burns
@@ -135,6 +148,14 @@ public final class SafetyGate {
             return Decision.block("Normalize drag koordinatı geçersiz.");
         }
         return Decision.allow();
+    }
+
+    static boolean visualTeacherLeaseMayExecute(
+            boolean serviceActive,
+            boolean visualGrounded,
+            String executionLeaseToken) {
+        if (!serviceActive || !visualGrounded) return true;
+        return executionLeaseToken != null && !executionLeaseToken.isEmpty();
     }
 
     private static boolean validTap(String spec) {
