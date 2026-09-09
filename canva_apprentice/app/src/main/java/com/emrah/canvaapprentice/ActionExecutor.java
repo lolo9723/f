@@ -28,6 +28,7 @@ public final class ActionExecutor {
         if (!AgentConstants.CANVA_PACKAGE.equals(root.getPackageName().toString())) return false;
 
         TaskState state = stateRepo.load();
+        if (state.mode != TaskState.Mode.RUNNING) return false;
         UiTreeSnapshot snap = UiTreeSnapshot.capture(root);
         boolean anchorVisible = !state.designAnchor.isEmpty() && snap.containsText(state.designAnchor);
         String currentSnapshotHash = snap.stableFingerprint();
@@ -39,6 +40,34 @@ public final class ActionExecutor {
             return false;
         }
 
+        // Commit-boundary revalidation: the service may have proven the visual/tree context
+        // immediately before calling us, but Accessibility UI can still change between that
+        // proof and the actual mutation. Re-read the active window and persisted design state
+        // here, immediately before dispatch, and fail closed on any drift.
+        AccessibilityNodeInfo commitRoot = service.getRootInActiveWindow();
+        if (commitRoot == null || commitRoot.getPackageName() == null) return false;
+        TaskState commitState = stateRepo.load();
+        UiTreeSnapshot commitSnap = UiTreeSnapshot.capture(commitRoot);
+        String commitPackage = commitRoot.getPackageName().toString();
+        if (!executionCommitContextMatches(
+                commitPackage,
+                currentSnapshotHash,
+                commitSnap.stableFingerprint(),
+                state.designAnchor,
+                commitState.designAnchor,
+                commitState.mode == TaskState.Mode.RUNNING)) {
+            return false;
+        }
+        boolean commitAnchorVisible = !commitState.designAnchor.isEmpty()
+                && commitSnap.containsText(commitState.designAnchor);
+        boolean commitMatchesLastSafe = !commitState.lastSafeSnapshotHash.isEmpty()
+                && commitState.lastSafeSnapshotHash.equals(commitSnap.stableFingerprint());
+        if (!DesignContinuityPolicy.allows(
+                action, commitState.designAnchor, commitAnchorVisible, commitSnap.looksLikeCanvaHome(),
+                commitMatchesLastSafe)) {
+            return false;
+        }
+
         switch (action.type) {
             case TAP_NORM:
                 return tapNorm(action.target);
@@ -47,16 +76,31 @@ public final class ActionExecutor {
             case BACK:
                 return service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
             case CLICK_TEXT:
-                return clickByTextOrDescription(root, action.target);
+                return clickByTextOrDescription(commitRoot, action.target);
             case SET_TEXT:
-                return setText(root, action.target, action.value);
+                return setText(commitRoot, action.target, action.value);
             case CLICK_NODE:
-                return clickExactNode(root, action.target);
+                return clickExactNode(commitRoot, action.target);
             case SET_NODE_TEXT:
-                return setExactNodeText(root, action.target, action.value);
+                return setExactNodeText(commitRoot, action.target, action.value);
             default:
                 return false;
         }
+    }
+
+    static boolean executionCommitContextMatches(String currentPackage,
+                                                 String expectedFingerprint,
+                                                 String currentFingerprint,
+                                                 String expectedDesignAnchor,
+                                                 String currentDesignAnchor,
+                                                 boolean running) {
+        return running
+                && AgentConstants.CANVA_PACKAGE.equals(currentPackage)
+                && expectedFingerprint != null
+                && !expectedFingerprint.isEmpty()
+                && expectedFingerprint.equals(currentFingerprint)
+                && expectedDesignAnchor != null
+                && expectedDesignAnchor.equals(currentDesignAnchor);
     }
 
     private boolean clickExactNode(AccessibilityNodeInfo root, String encodedTarget) {
