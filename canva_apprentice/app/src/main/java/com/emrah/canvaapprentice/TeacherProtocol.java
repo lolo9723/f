@@ -114,23 +114,43 @@ public final class TeacherProtocol {
         try {
             String cmd = at(p,0);
             switch (cmd) {
-                case "BIND_DESIGN": return action(AgentAction.Type.BIND_DESIGN,at(p,1),"",dbl(at(p,2)),at(p,3),visualGrounded,executionLeaseToken);
+                case "BIND_DESIGN":
+                    if (!arity(p,4)) return malformed(visualGrounded,executionLeaseToken);
+                    return action(AgentAction.Type.BIND_DESIGN,at(p,1),"",dbl(at(p,2)),at(p,3),visualGrounded,executionLeaseToken);
                 case "CLICK_NODE":
-                    if (p.size() >= 8) return action(AgentAction.Type.CLICK_NODE,
+                    if (arity(p,8)) return action(AgentAction.Type.CLICK_NODE,
                             NodeTargetCodec.encode(integer(at(p,1)),nodeLabel(at(p,2)),at(p,3),at(p,4),at(p,5)),"",dbl(at(p,6)),at(p,7),visualGrounded,executionLeaseToken);
-                    return action(AgentAction.Type.CLICK_NODE,NodeTargetCodec.encode(integer(at(p,1)),at(p,2)),"",dbl(at(p,3)),at(p,4),visualGrounded,executionLeaseToken);
+                    if (arity(p,5)) return action(AgentAction.Type.CLICK_NODE,NodeTargetCodec.encode(integer(at(p,1)),at(p,2)),"",dbl(at(p,3)),at(p,4),visualGrounded,executionLeaseToken);
+                    return malformed(visualGrounded,executionLeaseToken);
                 case "SET_NODE_TEXT":
-                    if (p.size() >= 9) return action(AgentAction.Type.SET_NODE_TEXT,
+                    if (arity(p,9)) return action(AgentAction.Type.SET_NODE_TEXT,
                             NodeTargetCodec.encode(integer(at(p,1)),nodeLabel(at(p,2)),at(p,3),at(p,4),at(p,5)),at(p,6),dbl(at(p,7)),at(p,8),visualGrounded,executionLeaseToken);
-                    return action(AgentAction.Type.SET_NODE_TEXT,NodeTargetCodec.encode(integer(at(p,1)),nodeLabel(at(p,2))),at(p,3),dbl(at(p,4)),at(p,5),visualGrounded,executionLeaseToken);
-                case "CLICK_TEXT": return action(AgentAction.Type.CLICK_TEXT,at(p,1),"",dbl(at(p,2)),at(p,3),visualGrounded,executionLeaseToken);
-                case "SET_TEXT": return action(AgentAction.Type.SET_TEXT,at(p,1),at(p,2),dbl(at(p,3)),at(p,4),visualGrounded,executionLeaseToken);
-                case "TAP_NORM": return action(AgentAction.Type.TAP_NORM,at(p,1),"",dbl(at(p,2)),at(p,3),visualGrounded,executionLeaseToken);
-                case "DRAG_NORM": return action(AgentAction.Type.DRAG_NORM,at(p,1),"",dbl(at(p,2)),at(p,3),visualGrounded,executionLeaseToken);
-                case "BACK": return action(AgentAction.Type.BACK,"","",dbl(at(p,3).isEmpty()?at(p,2):at(p,3)),at(p,4),visualGrounded,executionLeaseToken);
-                case "SCREENSHOT": return action(AgentAction.Type.SCREENSHOT,"","",1.0,at(p,4),visualGrounded,executionLeaseToken);
-                case "HUMAN": return action(AgentAction.Type.HUMAN_TAKEOVER,"","",1.0,at(p,4),visualGrounded,executionLeaseToken);
+                    if (arity(p,6)) return action(AgentAction.Type.SET_NODE_TEXT,NodeTargetCodec.encode(integer(at(p,1)),nodeLabel(at(p,2))),at(p,3),dbl(at(p,4)),at(p,5),visualGrounded,executionLeaseToken);
+                    return malformed(visualGrounded,executionLeaseToken);
+                case "CLICK_TEXT":
+                    if (!arity(p,4)) return malformed(visualGrounded,executionLeaseToken);
+                    return action(AgentAction.Type.CLICK_TEXT,at(p,1),"",dbl(at(p,2)),at(p,3),visualGrounded,executionLeaseToken);
+                case "SET_TEXT":
+                    if (!arity(p,5)) return malformed(visualGrounded,executionLeaseToken);
+                    return action(AgentAction.Type.SET_TEXT,at(p,1),at(p,2),dbl(at(p,3)),at(p,4),visualGrounded,executionLeaseToken);
+                case "TAP_NORM":
+                    if (!arity(p,4)) return malformed(visualGrounded,executionLeaseToken);
+                    return action(AgentAction.Type.TAP_NORM,at(p,1),"",dbl(at(p,2)),at(p,3),visualGrounded,executionLeaseToken);
+                case "DRAG_NORM":
+                    if (!arity(p,4)) return malformed(visualGrounded,executionLeaseToken);
+                    return action(AgentAction.Type.DRAG_NORM,at(p,1),"",dbl(at(p,2)),at(p,3),visualGrounded,executionLeaseToken);
+                case "BACK":
+                    if (arity(p,5)) return action(AgentAction.Type.BACK,"","",dbl(at(p,3)),at(p,4),visualGrounded,executionLeaseToken);
+                    if (arity(p,4)) return action(AgentAction.Type.BACK,"","",dbl(at(p,2)),at(p,3),visualGrounded,executionLeaseToken);
+                    return malformed(visualGrounded,executionLeaseToken);
+                case "SCREENSHOT":
+                    if (!arity(p,5)) return malformed(visualGrounded,executionLeaseToken);
+                    return action(AgentAction.Type.SCREENSHOT,"","",1.0,at(p,4),visualGrounded,executionLeaseToken);
+                case "HUMAN":
+                    if (!arity(p,5)) return malformed(visualGrounded,executionLeaseToken);
+                    return action(AgentAction.Type.HUMAN_TAKEOVER,"","",1.0,at(p,4),visualGrounded,executionLeaseToken);
                 case "DONE": {
+                    if (!arity(p,5)) return malformed(visualGrounded,executionLeaseToken);
                     double doneConfidence = dbl(at(p,3));
                     if (doneConfidence < 0.995) {
                         return action(AgentAction.Type.NOOP,"","",0,
@@ -138,11 +158,23 @@ public final class TeacherProtocol {
                     }
                     return action(AgentAction.Type.DONE,"","",doneConfidence,at(p,4),visualGrounded,executionLeaseToken);
                 }
-                default: return action(AgentAction.Type.NOOP,"","",1.0,at(p,4),visualGrounded,executionLeaseToken);
+                case "NOOP":
+                    if (!arity(p,5)) return malformed(visualGrounded,executionLeaseToken);
+                    return action(AgentAction.Type.NOOP,"","",1.0,at(p,4),visualGrounded,executionLeaseToken);
+                default: return action(AgentAction.Type.NOOP,"","",1.0,"unknown teacher command",visualGrounded,executionLeaseToken);
             }
         } catch (Exception e) {
             return action(AgentAction.Type.NOOP,"","",0,"teacher protocol parse error",visualGrounded,executionLeaseToken);
         }
+    }
+
+    private static boolean arity(java.util.List<String> p, int expected) {
+        return p != null && p.size() == expected;
+    }
+
+    private static AgentAction malformed(boolean visualGrounded, String executionLeaseToken) {
+        return action(AgentAction.Type.NOOP,"","",0,
+                "teacher protocol field count mismatch",visualGrounded,executionLeaseToken);
     }
 
     private static AgentAction action(AgentAction.Type type, String target, String value, double confidence,
