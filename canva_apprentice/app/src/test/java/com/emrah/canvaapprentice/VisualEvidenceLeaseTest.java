@@ -155,6 +155,14 @@ public class VisualEvidenceLeaseTest {
         assertTrue(VisualEvidenceLease.visualRuntimeEvidenceMayExecute(false, false, false));
     }
 
+    @Test public void productionEvidenceReadRequiresPresentAndCurrentRuntimeContext() {
+        assertFalse(VisualEvidenceLease.runtimeEvidenceMayBeRead(true, false, false));
+        assertFalse(VisualEvidenceLease.runtimeEvidenceMayBeRead(true, false, true));
+        assertFalse(VisualEvidenceLease.runtimeEvidenceMayBeRead(true, true, false));
+        assertTrue(VisualEvidenceLease.runtimeEvidenceMayBeRead(true, true, true));
+        assertTrue(VisualEvidenceLease.runtimeEvidenceMayBeRead(false, false, false));
+    }
+
     @Test public void staleLifecycleCleanupCannotClearNewerRuntimeContextOwner() {
         assertFalse(VisualEvidenceLease.mayClearRuntimeExpectedContext("old-execution", "new-execution"));
         assertFalse(VisualEvidenceLease.mayClearRuntimeExpectedContext("", "new-execution"));
