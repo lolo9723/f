@@ -16,7 +16,10 @@ public final class VisualEvidenceLease {
     // The production service has one VisualEvidenceLease. This static mirror lets the
     // pixel-distance boundary fail closed if package/tree/design identity rolls over
     // during the asynchronous second screenshot, after the first evidence read.
+    // The mirror itself is execution-owned: lifecycle cleanup from an older service
+    // instance must never erase runtime evidence that belongs to a newer execution.
     private static volatile RuntimeContext runtimeExpectedContext = null;
+    private static volatile String runtimeExpectedOwnerExecutionToken = "";
 
     private static final class RuntimeContext {
         final String packageName;
@@ -72,6 +75,7 @@ public final class VisualEvidenceLease {
                 if (ownerDesignContextCaptured != capturedDesignContext) return false;
                 if (capturedDesignContext && !ownerDesignAnchor.equals(currentDesignAnchor)) return false;
                 RuntimeContext expected = runtimeExpectedContext;
+                if (expected != null && !executionToken.equals(runtimeExpectedOwnerExecutionToken)) return false;
                 return expected == null || (currentContext != null && executionContextMatches(
                         expected.packageName,currentContext.packageName,
                         expected.fingerprint,currentContext.fingerprint,
@@ -82,6 +86,7 @@ public final class VisualEvidenceLease {
             ownerDesignContextCaptured = capturedDesignContext;
             ownerDesignAnchor = capturedDesignContext ? currentDesignAnchor : "";
             runtimeExpectedContext = currentContext;
+            runtimeExpectedOwnerExecutionToken = currentContext == null ? "" : executionToken;
             return true;
         });
     }
@@ -110,13 +115,22 @@ public final class VisualEvidenceLease {
     }
 
     static boolean hasRuntimeExpectedContext() {
-        return runtimeExpectedContext != null;
+        return runtimeExpectedContext != null && !runtimeExpectedOwnerExecutionToken.isEmpty();
+    }
+
+    /** Pure ownership policy used by lifecycle cleanup and regression tests. */
+    static boolean mayClearRuntimeExpectedContext(String clearingOwner, String runtimeOwner) {
+        return clearingOwner != null && !clearingOwner.isEmpty()
+                && runtimeOwner != null && clearingOwner.equals(runtimeOwner);
     }
 
     synchronized String readIfOwnedBy(String executionToken) {
         if (!isOwnedBy(executionToken)) return "";
         if (ownerDesignContextCaptured && !ownerDesignAnchor.equals(currentRuntimeDesignAnchor())) return "";
-        if (runtimeExpectedContext != null && !isRuntimeDesignContextCurrent()) return "";
+        if (runtimeExpectedContext != null) {
+            if (!executionToken.equals(runtimeExpectedOwnerExecutionToken)) return "";
+            if (!isRuntimeDesignContextCurrent()) return "";
+        }
         return visualHash;
     }
 
@@ -138,7 +152,10 @@ public final class VisualEvidenceLease {
         return TeacherExecutionLease.withGlobalCurrent(executionToken, "", () -> {
             if (!isOwnedBy(executionToken)) return "";
             if (ownerDesignContextCaptured && !ownerDesignAnchor.equals(currentRuntimeDesignAnchor())) return "";
-            if (runtimeExpectedContext != null && !isRuntimeDesignContextCurrent()) return "";
+            if (runtimeExpectedContext != null) {
+                if (!executionToken.equals(runtimeExpectedOwnerExecutionToken)) return "";
+                if (!isRuntimeDesignContextCurrent()) return "";
+            }
             String consumed = visualHash;
             clear();
             return consumed;
@@ -173,7 +190,9 @@ public final class VisualEvidenceLease {
      */
     static boolean isRuntimeDesignContextCurrent() {
         RuntimeContext expected = runtimeExpectedContext;
-        if (expected == null) return true;
+        String expectedOwner = runtimeExpectedOwnerExecutionToken;
+        if (expected == null || expectedOwner.isEmpty()) return true;
+        if (!TeacherExecutionLease.isGlobalCurrent(expectedOwner)) return false;
         RuntimeContext current = currentRuntimeContext();
         return current != null && executionContextMatches(
                 expected.packageName,current.packageName,
@@ -220,13 +239,21 @@ public final class VisualEvidenceLease {
         return current == null ? null : current.designAnchor;
     }
 
-    /** Explicit lifecycle reset; never use this from asynchronous request callbacks. */
+    /**
+     * Explicit lifecycle reset. Runtime context is cleared only when this instance still
+     * owns the static context; cleanup from an older service/lease cannot erase evidence
+     * bound by a newer execution chain.
+     */
     public synchronized void clear() {
+        String clearingOwner = ownerExecutionToken;
         ownerExecutionToken = "";
         visualHash = "";
         ownerDesignAnchor = "";
         ownerDesignContextCaptured = false;
-        runtimeExpectedContext = null;
+        if (mayClearRuntimeExpectedContext(clearingOwner, runtimeExpectedOwnerExecutionToken)) {
+            runtimeExpectedContext = null;
+            runtimeExpectedOwnerExecutionToken = "";
+        }
     }
 
     synchronized String ownerTokenForTest() { return ownerExecutionToken; }
