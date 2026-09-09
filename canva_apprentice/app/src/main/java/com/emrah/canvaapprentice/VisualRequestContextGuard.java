@@ -115,16 +115,14 @@ public final class VisualRequestContextGuard {
     }
 
     /**
-     * Production must never treat a missing runtime evidence context as neutral while
-     * the accessibility service is live. A lost/cleared static context combined with
-     * still-present instance evidence must fail closed, including visual DONE paths
-     * that are evaluated before the ordinary mutation SafetyGate.
-     *
-     * JVM unit tests have no live AccessibilityService, so context-free pure-policy
-     * tests remain neutral without weakening production execution.
+     * Execution evidence is mandatory, regardless of whether this helper is invoked
+     * from the live AccessibilityService or from another caller. Treating a missing
+     * runtime context as neutral created a dangerous fail-open seam: a future caller
+     * could accidentally authorize a screenshot-grounded mutation after its evidence
+     * had already been cleared. Missing evidence is therefore always a hard failure.
      */
     static boolean runtimeEvidenceContextAllowsExecution(boolean serviceActive, boolean evidenceContextPresent) {
-        return !serviceActive || evidenceContextPresent;
+        return evidenceContextPresent;
     }
 
     /**
@@ -140,16 +138,11 @@ public final class VisualRequestContextGuard {
      * closes the remaining rollover window where the persisted design/package/tree
      * could change immediately after the second check but before this helper returned
      * ALLOW to the screenshot callback.
-     *
-     * When the production service is active, absence of runtime evidence is a hard
-     * failure rather than a neutral condition. Only JVM/pure-policy callers without
-     * a live service retain neutral behavior.
      */
     static boolean currentExecutionAllows(double visualDrift, double maxVisualDrift) {
         boolean serviceActive = AgentAccessibilityService.INSTANCE != null;
         boolean evidenceContextPresent = VisualEvidenceLease.hasRuntimeExpectedContext();
         if (!runtimeEvidenceContextAllowsExecution(serviceActive, evidenceContextPresent)) return false;
-        if (!evidenceContextPresent) return true;
         if (!VisualEvidenceLease.isRuntimeDesignContextCurrent()) return false;
 
         AgentAccessibilityService service = AgentAccessibilityService.INSTANCE;
@@ -187,7 +180,7 @@ public final class VisualRequestContextGuard {
         return VisualEvidenceLease.isRuntimeDesignContextCurrent();
     }
 
-    /** Pure policy form used by regression tests. */
+    /** Pure policy form used by regression tests; missing evidence always fails closed. */
     static boolean currentExecutionAllows(
             double visualDrift,
             double maxVisualDrift,
@@ -198,7 +191,7 @@ public final class VisualRequestContextGuard {
             String designAnchor,
             boolean anchorVisible,
             boolean looksLikeCanvaHome) {
-        if (!evidenceContextPresent) return true;
+        if (!evidenceContextPresent) return false;
         if (!evidenceContextCurrent) return false;
         return matchesExecution(
                 packageName,
