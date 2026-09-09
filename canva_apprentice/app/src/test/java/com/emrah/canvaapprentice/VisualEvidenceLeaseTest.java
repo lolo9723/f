@@ -155,6 +155,13 @@ public class VisualEvidenceLeaseTest {
         assertTrue(VisualEvidenceLease.visualRuntimeEvidenceMayExecute(false, false, false));
     }
 
+    @Test public void staleLifecycleCleanupCannotClearNewerRuntimeContextOwner() {
+        assertFalse(VisualEvidenceLease.mayClearRuntimeExpectedContext("old-execution", "new-execution"));
+        assertFalse(VisualEvidenceLease.mayClearRuntimeExpectedContext("", "new-execution"));
+        assertFalse(VisualEvidenceLease.mayClearRuntimeExpectedContext(null, "new-execution"));
+        assertTrue(VisualEvidenceLease.mayClearRuntimeExpectedContext("new-execution", "new-execution"));
+    }
+
     @Test public void executionContextRequiresExactCanvaPackageTreeAndDesignIdentity() {
         assertTrue(VisualEvidenceLease.executionContextMatches(
                 AgentConstants.CANVA_PACKAGE,AgentConstants.CANVA_PACKAGE,
