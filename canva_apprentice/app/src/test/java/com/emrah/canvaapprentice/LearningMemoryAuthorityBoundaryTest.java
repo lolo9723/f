@@ -53,6 +53,19 @@ public final class LearningMemoryAuthorityBoundaryTest {
         assertTrue("verified completion DB write must remain inside boundary", transaction > state);
     }
 
+    @Test public void replayReadHoldsDurableAuthorityAcrossStateValidationAndDbQuery() throws Exception {
+        String source = source("ExperienceMemoryRepository.java");
+        String body = methodBody(source, "public synchronized String summary(", "private int verifiedCompletionCount(");
+        int authority = body.indexOf("TaskStateRepository.withDurableAuthorityLock");
+        int state = body.indexOf("TaskState state");
+        int query = body.indexOf("getReadableDatabase().rawQuery");
+        int result = body.lastIndexOf("return out.length()");
+        assertTrue("memory replay must acquire STOP/resume/session authority boundary", authority >= 0);
+        assertTrue("task/design/checkpoint state must be read after acquiring replay authority", state > authority);
+        assertTrue("transition-memory query must execute under the same authority boundary", query > state);
+        assertTrue("replay result must be formed before the authority boundary is released", result > query);
+    }
+
     @Test public void authorityHelperSynchronizesOnTransitionLock() throws Exception {
         String source = source("TaskStateRepository.java");
         String body = methodBody(source, "static <T> T withDurableAuthorityLock", "public synchronized TaskState load()");
