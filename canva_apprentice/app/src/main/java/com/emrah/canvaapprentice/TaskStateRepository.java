@@ -63,8 +63,6 @@ public final class TaskStateRepository {
         }
         boolean committed = editor.commit();
         if (!committed) {
-            // A restored runtime must never continue when stale checkpoint/session authority could
-            // still survive on disk. Leave initialization false so every later load retries.
             throw new IllegalStateException("Durable runtime continuity invalidation failed");
         }
         processContinuityInitialized = true;
@@ -142,7 +140,7 @@ public final class TaskStateRepository {
 
     @Deprecated
     public void markSafe(String hash) {
-        final String expectedHash = hash == null ? "" : hash.trim();
+        final String expectedHash = hash == null ?"":hash.trim();
         if (expectedHash.isEmpty()) return;
         final TaskState state;
         final String expectedAnchor;
@@ -209,9 +207,6 @@ public final class TaskStateRepository {
             return false;
         }
 
-        // Persistence-boundary TOCTOU guard: the UI may change after screenshot recapture but before
-        // this synchronized commit begins. Re-observe the live Canva tree immediately before writing
-        // continuity authority. Old pixels/tree evidence must never be able to overwrite a newer UI.
         AgentAccessibilityService service = AgentAccessibilityService.INSTANCE;
         if (service == null || !RuntimeOwnerPolicy.isCurrent(service, AgentAccessibilityService.INSTANCE)) return false;
         AccessibilityNodeInfo liveRoot = service.getRootInActiveWindow();
@@ -270,7 +265,9 @@ public final class TaskStateRepository {
 
     public synchronized void resume() {
         TaskState current = load();
-        if (!ResumeTransitionPolicy.mayResume(current.mode)) return;
+        if (!ResumeTransitionPolicy.mayResume(current.mode)) {
+            throw new IllegalStateException("Resume rejected outside HUMAN_TAKEOVER");
+        }
         requireDurableCommit(
                 prefs.edit()
                         .putString("mode", TaskState.Mode.RUNNING.name())
@@ -279,6 +276,10 @@ public final class TaskStateRepository {
                         .putString(LAST_SAFE_ANCHOR, "")
                         .putString(SESSION_ID, newSessionId()),
                 "task resume");
+        TaskState resumed = load();
+        if (resumed.mode != TaskState.Mode.RUNNING) {
+            throw new IllegalStateException("Durable task resume postcondition failed");
+        }
     }
 
     public synchronized void stop() {
