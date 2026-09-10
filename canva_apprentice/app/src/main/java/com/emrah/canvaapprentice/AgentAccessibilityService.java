@@ -24,6 +24,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
     private TeacherBridge teacher;
     private ExperienceMemoryRepository memory;
     private final AtomicBoolean cycleBusy = new AtomicBoolean(false);
+    private final AtomicBoolean persistenceHardHold = new AtomicBoolean(false);
     private final VisualEvidenceLease visualEvidence = new VisualEvidenceLease();
     private final ResumeGenerationGuard resumeGeneration = new ResumeGenerationGuard();
     private long lastCycleMs = 0;
@@ -53,7 +54,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
     }
 
     @Override public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (repo == null || event == null) return;
+        if (repo == null || event == null || persistenceHardHold.get()) return;
         String pkg = event.getPackageName()==null?"":event.getPackageName().toString();
         if (!AgentConstants.ALLOWED_PACKAGES.contains(pkg)) return;
         TaskState state=repo.load(); if(state.mode!=TaskState.Mode.RUNNING) return;
@@ -64,6 +65,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
     private void runCanvaCycle() { runCanvaCycle("Canva ekranını değerlendir ve yalnız bir güvenli sonraki adım ver."); }
 
     private void runCanvaCycle(String cycleNote) {
+        if(persistenceHardHold.get()) return;
         if(!cycleBusy.compareAndSet(false,true)) return;
         AccessibilityNodeInfo root=getRootInActiveWindow();
         if(root==null){cycleBusy.set(false);return;}
@@ -110,6 +112,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
     }
 
     private void waitForCanvaAndHandle(AgentAction action, String beforeFingerprint, String teacherSessionId, int attempt){
+        if(persistenceHardHold.get()) return;
         if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
         AccessibilityNodeInfo root=getRootInActiveWindow();
         String pkg=root!=null&&root.getPackageName()!=null?root.getPackageName().toString():"";
@@ -131,6 +134,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
                     return;
                 }
                 captureScreenshotForDiagnostics(file -> {
+                    if(persistenceHardHold.get()) return;
                     if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
                     if(file==null){
                         visualEvidence.clearIfExecutionCurrent(action.executionLeaseToken);
@@ -168,6 +172,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
     }
 
     private void handleTeacherAction(AgentAction action, String beforeFingerprint, String teacherSessionId){
+        if(persistenceHardHold.get()) return;
         if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
         TaskState state=repo.load();
         if(action.type==AgentAction.Type.HUMAN_TAKEOVER){
@@ -247,7 +252,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
                     repo::stop
             );
             if(!stopCommitted){
-                onStaleTeacherRequestDiscarded();
+                enterPersistenceHardHold("Görevi bitirme durumu kalıcılaştırılamadı. Servisi yeniden başlatmadan ajan devam etmeyecek.");
                 return;
             }
             visualEvidence.clear();
@@ -308,6 +313,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
 
     private void verifyActionResult(TaskState state, AgentAction action, String beforeFingerprint, String teacherSessionId,
                                     boolean preActionBoundDesignVerified){
+        if(persistenceHardHold.get()) return;
         if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
         AccessibilityNodeInfo afterRoot=getRootInActiveWindow();
         String afterPkg=afterRoot!=null&&afterRoot.getPackageName()!=null
@@ -334,6 +340,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
             }
             final boolean leaseOwnedVisualEvidence=true;
             captureScreenshotForDiagnostics(file -> {
+                if(persistenceHardHold.get()) return;
                 if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
                 if(file==null){
                     pauseForHuman("Görüntülü eylem sonrası Canva ekranı doğrulanamadı; sonuç başarılı sayılmadı.");
@@ -362,6 +369,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
                                           UiTreeSnapshot after, boolean changed, String evidence, String teacherSessionId,
                                           double visualDistance, boolean preActionBoundDesignVerified,
                                           boolean leaseOwnedVisualEvidence){
+        if(persistenceHardHold.get()) return;
         if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
 
         boolean anchorVisible=!state.designAnchor.isEmpty() && after.containsText(state.designAnchor);
@@ -412,6 +420,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
     }
 
     private void recoverCanvaThenCycle(AgentAction action, String note, String teacherSessionId, int attempt){
+        if(persistenceHardHold.get()) return;
         if(!isActionChainCurrent(action,teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
         AccessibilityNodeInfo root=getRootInActiveWindow();
         String pkg=root!=null&&root.getPackageName()!=null?root.getPackageName().toString():"";
@@ -436,6 +445,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
     }
 
     private void requestVisualTeacher(String screenshotReason){
+        if(persistenceHardHold.get()) return;
         AccessibilityNodeInfo root=getRootInActiveWindow();
         String pkg=root!=null&&root.getPackageName()!=null?root.getPackageName().toString():"";
         if(!AgentConstants.CANVA_PACKAGE.equals(pkg)){
@@ -454,6 +464,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
         final String marker=TeacherProtocol.markerFor(requestId);
         final String visualExecutionToken=TeacherExecutionLease.currentGlobalToken();
         captureScreenshotForDiagnostics(file -> {
+            if(persistenceHardHold.get()) return;
             if(!isTeacherSessionCurrent(teacherSessionId) || !TeacherExecutionLease.isGlobalCurrent(visualExecutionToken)){
                 onStaleTeacherRequestDiscarded();
                 return;
@@ -502,6 +513,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
             String prompt=TeacherProtocol.buildVisualRequest(state,snap,requestId,screenshotReason);
             teacher.askWithScreenshot(prompt,ScreenshotProvider.uriFor(file),marker,new TeacherBridge.ReplyCallback(){
                 @Override public void onReply(String reply){
+                    if(persistenceHardHold.get()) return;
                     if(!isTeacherSessionCurrent(teacherSessionId) || !TeacherExecutionLease.isGlobalCurrent(visualExecutionToken)){
                         onStaleTeacherRequestDiscarded();
                         return;
@@ -525,6 +537,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
                 }
 
                 @Override public void onFailure(String reason){
+                    if(persistenceHardHold.get()) return;
                     if(!isTeacherSessionCurrent(teacherSessionId) || !TeacherExecutionLease.isGlobalCurrent(visualExecutionToken)){
                         onStaleTeacherRequestDiscarded();
                         return;
@@ -546,7 +559,15 @@ public final class AgentAccessibilityService extends AccessibilityService {
         consecutiveExecutionFailures=0;
         AccessibilityNodeInfo root=getRootInActiveWindow(); String fp="";
         if(root!=null && AgentConstants.CANVA_PACKAGE.equals(String.valueOf(root.getPackageName()))) fp=UiTreeSnapshot.capture(root).stableFingerprint();
-        repo.start(goal,allowNewDesign,fp); overlay.hide();
+        final String startFingerprint=fp;
+        boolean started=ResumeUiTransitionGuard.runSafely(
+                () -> repo.start(goal,allowNewDesign,startFingerprint));
+        if(!started){
+            enterPersistenceHardHold("Görev başlangıcı kalıcılaştırılamadı. Eski/yarım görev yetkisi kullanılmayacak; erişilebilirlik servisini yeniden başlat.");
+            return;
+        }
+        persistenceHardHold.set(false);
+        overlay.hide();
         Intent canva=getPackageManager().getLaunchIntentForPackage(AgentConstants.CANVA_PACKAGE);
         if(canva!=null){canva.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);startActivity(canva);}
     }
@@ -558,7 +579,12 @@ public final class AgentAccessibilityService extends AccessibilityService {
         cycleBusy.set(false);
         consecutiveNoVisualChange=0;
         consecutiveExecutionFailures=0;
-        repo.stop();
+        boolean stopped=ResumeUiTransitionGuard.runSafely(repo::stop);
+        if(!stopped){
+            enterPersistenceHardHold("STOP durumu kalıcılaştırılamadı. Ajan bu servis ömründe hiçbir eylem yapmayacak.");
+            return;
+        }
+        persistenceHardHold.set(false);
         overlay.hide();
     }
 
@@ -566,12 +592,32 @@ public final class AgentAccessibilityService extends AccessibilityService {
         resumeGeneration.invalidate();
         TeacherExecutionLease.invalidateGlobal();
         visualEvidence.clear();
-        repo.pauseForHuman(reason);
+        boolean paused=ResumeUiTransitionGuard.runSafely(() -> repo.pauseForHuman(reason));
+        if(!paused){
+            enterPersistenceHardHold("Kullanıcıya bırakma durumu kalıcılaştırılamadı. Ajan işlem yapmayacak; erişilebilirlik servisini yeniden başlat.");
+            return;
+        }
         showHumanOverlay(reason);
     }
 
+    private void enterPersistenceHardHold(String reason){
+        persistenceHardHold.set(true);
+        resumeGeneration.invalidate();
+        TeacherExecutionLease.invalidateGlobal();
+        visualEvidence.clear();
+        cycleBusy.set(false);
+        consecutiveNoVisualChange=0;
+        consecutiveExecutionFailures=0;
+        overlay.showHardHold(reason);
+    }
+
     private void showHumanOverlay(String reason){
+        if(persistenceHardHold.get()){
+            overlay.showHardHold("Kalıcı durum belirsiz; servis yeniden başlatılmadan DEVAM ET kullanılamaz.");
+            return;
+        }
         overlay.show(reason,()->{
+            if(persistenceHardHold.get()) throw new IllegalStateException("Persistence hard hold active");
             TeacherExecutionLease.invalidateGlobal();
             visualEvidence.clear();
             repo.resume();
@@ -596,7 +642,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
     }
 
     private boolean isTeacherSessionCurrent(String expectedSessionId){
-        if(repo==null) return false;
+        if(repo==null || persistenceHardHold.get()) return false;
         TaskState current=repo.load();
         return TeacherSessionPolicy.isCurrent(
                 expectedSessionId,
@@ -607,11 +653,13 @@ public final class AgentAccessibilityService extends AccessibilityService {
 
     private boolean isActionChainCurrent(AgentAction action, String expectedSessionId){
         return action!=null
+                && !persistenceHardHold.get()
                 && isTeacherSessionCurrent(expectedSessionId)
                 && TeacherExecutionLease.isGlobalCurrent(action.executionLeaseToken);
     }
 
     private void runCanvaCycleIfActionCurrent(AgentAction action, String teacherSessionId, String note){
+        if(persistenceHardHold.get()) return;
         if(!isActionChainCurrent(action,teacherSessionId)){
             onStaleTeacherRequestDiscarded();
             return;
@@ -620,7 +668,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
     }
 
     private boolean isResumeContextCurrent(long generation, String expectedSessionId, String expectedDesignAnchor){
-        if(!resumeGeneration.isCurrent(generation) || repo==null) return false;
+        if(persistenceHardHold.get() || !resumeGeneration.isCurrent(generation) || repo==null) return false;
         TaskState current=repo.load();
         return ResumeContextPolicy.isCurrent(
                 current.mode,current.designAnchor,repo.currentTeacherSessionId(),
@@ -628,12 +676,14 @@ public final class AgentAccessibilityService extends AccessibilityService {
     }
 
     private void resumeOnCanva(long generation, String expectedSessionId, String expectedDesignAnchor, int attempt){
+        if(persistenceHardHold.get()) return;
         if(!isResumeContextCurrent(generation,expectedSessionId,expectedDesignAnchor)) return;
         AccessibilityNodeInfo root=getRootInActiveWindow();
         String pkg=root!=null&&root.getPackageName()!=null?root.getPackageName().toString():"";
         if(AgentConstants.CANVA_PACKAGE.equals(pkg)){
             if(!isResumeContextCurrent(generation,expectedSessionId,expectedDesignAnchor)) return;
             resumeGeneration.consumeIfCurrent(generation,()->{
+                if(persistenceHardHold.get()) return;
                 TaskState current=repo.load();
                 if(!ResumeContextPolicy.isCurrent(current.mode,current.designAnchor,repo.currentTeacherSessionId(),
                         expectedDesignAnchor,expectedSessionId)) return;
@@ -646,6 +696,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
         if(attempt>=12){
             if(!isResumeContextCurrent(generation,expectedSessionId,expectedDesignAnchor)) return;
             resumeGeneration.consumeIfCurrent(generation,()->{
+                if(persistenceHardHold.get()) return;
                 TaskState current=repo.load();
                 if(!ResumeContextPolicy.isCurrent(current.mode,current.designAnchor,repo.currentTeacherSessionId(),
                         expectedDesignAnchor,expectedSessionId)) return;
@@ -665,8 +716,10 @@ public final class AgentAccessibilityService extends AccessibilityService {
     }
 
     public void captureScreenshotForDiagnostics(ScreenshotCallback cb){
+        if(persistenceHardHold.get()){ cb.onDone(null); return; }
         takeScreenshot(Display.DEFAULT_DISPLAY,getMainExecutor(),new TakeScreenshotCallback(){
             @Override public void onSuccess(ScreenshotResult result){
+                if(persistenceHardHold.get()){ result.getHardwareBuffer().close(); cb.onDone(null); return; }
                 HardwareBuffer hb=result.getHardwareBuffer();
                 Bitmap bmp=Bitmap.wrapHardwareBuffer(hb,result.getColorSpace());
                 if(bmp==null){hb.close();cb.onDone(null);return;}
@@ -695,6 +748,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
     public interface ScreenshotCallback{void onDone(File file);}
     @Override public void onInterrupt() {}
     @Override public void onDestroy(){
+        persistenceHardHold.set(true);
         resumeGeneration.invalidate();
         TeacherExecutionLease.invalidateGlobal();
         visualEvidence.clear();
