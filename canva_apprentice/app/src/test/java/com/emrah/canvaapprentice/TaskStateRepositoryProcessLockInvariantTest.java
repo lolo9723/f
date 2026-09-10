@@ -57,4 +57,29 @@ public final class TaskStateRepositoryProcessLockInvariantTest {
         assertTrue(session.contains("synchronized (DURABLE_TRANSITION_LOCK)"));
         assertTrue(session.contains("Durable teacher session creation postcondition failed"));
     }
+
+    @Test public void designAnchorCommitSharesAuthorityLockAndReobservesUiInsideIt() throws Exception {
+        String source=repositorySource();
+        String bind=methodBody(source,"public synchronized boolean bindDesignAnchor(","@Deprecated");
+        int lock=bind.indexOf("synchronized (DURABLE_TRANSITION_LOCK)");
+        int commitRoot=bind.indexOf("AccessibilityNodeInfo commitRoot",lock);
+        int commit=bind.indexOf(".putString(\"design_anchor\", a)",lock);
+        assertTrue(lock>=0);
+        assertTrue(commitRoot>lock);
+        assertTrue(commit>commitRoot);
+        assertTrue(bind.substring(lock).contains("persisted.mode == TaskState.Mode.RUNNING"));
+    }
+
+    @Test public void safeCheckpointCommitSharesAuthorityLockAndChecksDurablePostcondition() throws Exception {
+        String source=repositorySource();
+        String checkpoint=methodBody(source,"public synchronized boolean markSafeIfObserved(","public synchronized void pauseForHuman(");
+        int lock=checkpoint.indexOf("synchronized (DURABLE_TRANSITION_LOCK)");
+        int liveRoot=checkpoint.indexOf("AccessibilityNodeInfo liveRoot",lock);
+        int commit=checkpoint.indexOf(".putString(LAST_SAFE_HASH, hash)",lock);
+        assertTrue(lock>=0);
+        assertTrue(liveRoot>lock);
+        assertTrue(commit>liveRoot);
+        assertTrue(checkpoint.substring(commit).contains("persisted.mode != TaskState.Mode.RUNNING"));
+        assertTrue(checkpoint.substring(commit).contains("!commitSessionId.equals(currentTeacherSessionId())"));
+    }
 }
