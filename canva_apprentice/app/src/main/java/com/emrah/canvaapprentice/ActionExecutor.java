@@ -231,10 +231,20 @@ public final class ActionExecutor {
 
     private boolean setText(AccessibilityNodeInfo root, String target, String value) {
         AccessibilityNodeInfo match = bestMatch(root, target, true);
-        if (match == null || !match.isEditable() || !match.isEnabled()) return false;
+        if (match == null) return false;
+        if (!plainTextDirectSetAllowed(true, match.isVisibleToUser(), match.isEnabled(), match.isEditable())) {
+            return false;
+        }
         Bundle args = new Bundle();
         args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value);
         return match.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args);
+    }
+
+    static boolean plainTextDirectSetAllowed(boolean uniqueExactMatch,
+                                             boolean visible,
+                                             boolean enabled,
+                                             boolean editable) {
+        return uniqueExactMatch && visible && enabled && editable;
     }
 
     private boolean tapNorm(String spec) {
