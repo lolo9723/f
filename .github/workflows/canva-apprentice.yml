@@ -33,16 +33,20 @@ jobs:
         with:
           gradle-version: '8.13'
       - name: Run safety unit tests
-        run: gradle :app:testDebugUnitTest --stacktrace
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle :app:testDebugUnitTest --stacktrace 2>&1 | tee safety-test.log
       - name: Upload safety test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: canva-apprentice-safety-test-reports
           path: |
+            canva_apprentice/safety-test.log
             canva_apprentice/app/build/reports/tests/testDebugUnitTest/**
             canva_apprentice/app/build/test-results/testDebugUnitTest/**
-          if-no-files-found: warn
+          if-no-files-found: error
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace
       - uses: actions/upload-artifact@v4
