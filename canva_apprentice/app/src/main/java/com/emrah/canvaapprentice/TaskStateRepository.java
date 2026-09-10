@@ -68,24 +68,27 @@ public final class TaskStateRepository {
         String id = prefs.getString(SESSION_ID, "");
         if (id == null || id.isEmpty()) {
             id = newSessionId();
-            prefs.edit().putString(SESSION_ID, id).apply();
+            requireDurableCommit(
+                    prefs.edit().putString(SESSION_ID, id),
+                    "teacher session creation");
         }
         return id;
     }
 
     public synchronized void start(String goal, boolean allowNewDesign, String currentFingerprint) {
-        prefs.edit()
-                .putString("goal", goal == null ? "" : goal.trim())
-                .putBoolean("allow_new_design", allowNewDesign)
-                .putString("design_fingerprint", currentFingerprint == null ? "" : currentFingerprint)
-                .putString("design_anchor", "")
-                .putString(LAST_SAFE_HASH, "")
-                .putString(LAST_SAFE_ANCHOR, "")
-                .putString("human_reason", "")
-                .putString("mode", TaskState.Mode.RUNNING.name())
-                .putString(SESSION_ID, newSessionId())
-                .putInt("step", 0)
-                .apply();
+        requireDurableCommit(
+                prefs.edit()
+                        .putString("goal", goal == null ? "" : goal.trim())
+                        .putBoolean("allow_new_design", allowNewDesign)
+                        .putString("design_fingerprint", currentFingerprint == null ? "" : currentFingerprint)
+                        .putString("design_anchor", "")
+                        .putString(LAST_SAFE_HASH, "")
+                        .putString(LAST_SAFE_ANCHOR, "")
+                        .putString("human_reason", "")
+                        .putString("mode", TaskState.Mode.RUNNING.name())
+                        .putString(SESSION_ID, newSessionId())
+                        .putInt("step", 0),
+                "task start");
     }
 
     public synchronized void bindDesignAnchor(String anchor) {
@@ -123,12 +126,12 @@ public final class TaskStateRepository {
                 rechecked.mode, actionTeacherSessionId, observedTeacherSessionId,
                 currentTeacherSessionId, a)) return false;
 
-        prefs.edit()
+        boolean committed = prefs.edit()
                 .putString("design_anchor", a)
                 .putString(LAST_SAFE_HASH, "")
                 .putString(LAST_SAFE_ANCHOR, "")
-                .apply();
-        return true;
+                .commit();
+        return committed;
     }
 
     @Deprecated
@@ -236,47 +239,54 @@ public final class TaskStateRepository {
 
         String owner = commitState.designAnchor.trim();
         String hash = recapturedFingerprint.trim();
-        prefs.edit()
+        boolean committed = prefs.edit()
                 .putString(LAST_SAFE_HASH, hash)
                 .putString(LAST_SAFE_ANCHOR, owner)
                 .putInt("step", commitState.step + 1)
-                .apply();
+                .commit();
+        if (!committed) return false;
         CheckpointRequestGuard.onCheckpointCommitted();
         return true;
     }
 
     public synchronized void pauseForHuman(String reason) {
-        prefs.edit()
-                .putString("mode", TaskState.Mode.HUMAN_TAKEOVER.name())
-                .putString("human_reason", reason == null ? "" : reason)
-                .putString(LAST_SAFE_HASH, "")
-                .putString(LAST_SAFE_ANCHOR, "")
-                .putString(SESSION_ID, newSessionId())
-                .apply();
+        requireDurableCommit(
+                prefs.edit()
+                        .putString("mode", TaskState.Mode.HUMAN_TAKEOVER.name())
+                        .putString("human_reason", reason == null ? "" : reason)
+                        .putString(LAST_SAFE_HASH, "")
+                        .putString(LAST_SAFE_ANCHOR, "")
+                        .putString(SESSION_ID, newSessionId()),
+                "human takeover");
     }
 
     public synchronized void resume() {
         TaskState current = load();
         if (!ResumeTransitionPolicy.mayResume(current.mode)) return;
-        prefs.edit()
-                .putString("mode", TaskState.Mode.RUNNING.name())
-                .putString("human_reason", "")
-                .putString(LAST_SAFE_HASH, "")
-                .putString(LAST_SAFE_ANCHOR, "")
-                .putString(SESSION_ID, newSessionId())
-                .apply();
+        requireDurableCommit(
+                prefs.edit()
+                        .putString("mode", TaskState.Mode.RUNNING.name())
+                        .putString("human_reason", "")
+                        .putString(LAST_SAFE_HASH, "")
+                        .putString(LAST_SAFE_ANCHOR, "")
+                        .putString(SESSION_ID, newSessionId()),
+                "task resume");
     }
 
     public synchronized void stop() {
-        boolean committed = prefs.edit()
-                .putString("mode", TaskState.Mode.STOPPED.name())
-                .putString("human_reason", "")
-                .putString(LAST_SAFE_HASH, "")
-                .putString(LAST_SAFE_ANCHOR, "")
-                .putString(SESSION_ID, newSessionId())
-                .commit();
-        if (!committed) {
-            throw new IllegalStateException("Durable STOP persistence failed");
+        requireDurableCommit(
+                prefs.edit()
+                        .putString("mode", TaskState.Mode.STOPPED.name())
+                        .putString("human_reason", "")
+                        .putString(LAST_SAFE_HASH, "")
+                        .putString(LAST_SAFE_ANCHOR, "")
+                        .putString(SESSION_ID, newSessionId()),
+                "STOP");
+    }
+
+    private static void requireDurableCommit(SharedPreferences.Editor editor, String transition) {
+        if (!editor.commit()) {
+            throw new IllegalStateException("Durable " + transition + " persistence failed");
         }
     }
 
