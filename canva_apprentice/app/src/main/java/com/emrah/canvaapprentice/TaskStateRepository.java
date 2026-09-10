@@ -51,11 +51,17 @@ public final class TaskStateRepository {
             processContinuityInitialized = true;
             return;
         }
-        boolean committed = prefs.edit()
+        SharedPreferences.Editor editor = prefs.edit()
                 .putString(LAST_SAFE_HASH, "")
                 .putString(LAST_SAFE_ANCHOR, "")
-                .putString(SESSION_ID, newSessionId())
-                .commit();
+                .putString(SESSION_ID, newSessionId());
+        if (RuntimeRestoreContinuityPolicy.mustRequireHumanResume(mode)) {
+            editor.putString("mode", TaskState.Mode.HUMAN_TAKEOVER.name())
+                    .putString("human_reason",
+                            "Ajan işlemi yeniden başladı. Eski çalışma bağlamı güvenlik nedeniyle geçersiz sayıldı; " +
+                            "Canva'daki mevcut tasarımı kontrol edip DEVAM ET'e bas.");
+        }
+        boolean committed = editor.commit();
         if (!committed) {
             // A restored runtime must never continue when stale checkpoint/session authority could
             // still survive on disk. Leave initialization false so every later load retries.
