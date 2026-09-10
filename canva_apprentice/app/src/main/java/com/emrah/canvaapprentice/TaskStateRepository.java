@@ -43,17 +43,25 @@ public final class TaskStateRepository {
 
     private void invalidatePersistedRuntimeContinuityOnFirstLoad() {
         if (processContinuityInitialized) return;
-        processContinuityInitialized = true;
         String modeRaw = prefs.getString("mode", TaskState.Mode.IDLE.name());
         TaskState.Mode mode;
         try { mode = TaskState.Mode.valueOf(modeRaw); }
         catch (Exception ignored) { mode = TaskState.Mode.IDLE; }
-        if (!RuntimeRestoreContinuityPolicy.mustInvalidate(mode)) return;
-        prefs.edit()
+        if (!RuntimeRestoreContinuityPolicy.mustInvalidate(mode)) {
+            processContinuityInitialized = true;
+            return;
+        }
+        boolean committed = prefs.edit()
                 .putString(LAST_SAFE_HASH, "")
                 .putString(LAST_SAFE_ANCHOR, "")
                 .putString(SESSION_ID, newSessionId())
-                .apply();
+                .commit();
+        if (!committed) {
+            // A restored runtime must never continue when stale checkpoint/session authority could
+            // still survive on disk. Leave initialization false so every later load retries.
+            throw new IllegalStateException("Durable runtime continuity invalidation failed");
+        }
+        processContinuityInitialized = true;
     }
 
     public synchronized String currentTeacherSessionId() {
