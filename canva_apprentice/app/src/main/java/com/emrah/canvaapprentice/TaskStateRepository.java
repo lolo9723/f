@@ -163,6 +163,10 @@ public final class TaskStateRepository {
             if (!DesignAnchorPolicy.mayBindVisibleEditor(
                     a, commitLive.containsText(a), commitLive.looksLikeCanvaHome())) return false;
 
+            // Re-binding the exact same durable identity is idempotent. Do not clear a valid
+            // checkpoint or invalidate unrelated requests merely because the teacher repeated BIND.
+            if (a.equals(rechecked.designAnchor)) return true;
+
             boolean committed = prefs.edit()
                     .putString("design_anchor", a)
                     .putString(LAST_SAFE_HASH, "")
@@ -170,9 +174,17 @@ public final class TaskStateRepository {
                     .commit();
             if (!committed) return false;
             TaskState persisted = load();
-            return persisted.mode == TaskState.Mode.RUNNING
+            boolean postcondition = persisted.mode == TaskState.Mode.RUNNING
                     && a.equals(persisted.designAnchor)
                     && currentTeacherSessionId.equals(currentTeacherSessionId());
+            if (!postcondition) return false;
+
+            // A newly bound design changes the authority context of every structural/memory-backed
+            // teacher request issued while the design was unbound. Poison those in-flight replies
+            // only after the durable anchor postcondition succeeds, so stale advice cannot execute
+            // against the newly established exact-design identity.
+            CheckpointRequestGuard.onCheckpointCommitted();
+            return true;
         }
     }
 
