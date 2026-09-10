@@ -250,6 +250,8 @@ public final class TaskStateRepository {
     }
 
     public synchronized void pauseForHuman(String reason) {
+        TaskState current = load();
+        if (!HumanTakeoverTransitionPolicy.mayPause(current.mode)) return;
         requireDurableCommit(
                 prefs.edit()
                         .putString("mode", TaskState.Mode.HUMAN_TAKEOVER.name())
