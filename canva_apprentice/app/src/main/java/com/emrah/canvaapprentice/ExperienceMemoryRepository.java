@@ -164,40 +164,42 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
 
     public synchronized String summary(String goal, String beforeFp) {
         if (beforeFp == null || beforeFp.isEmpty()) return "none";
-        TaskState state = new TaskStateRepository(appContext).load();
-        if (!mayReadForCurrentTask(state.mode, goal, state.goal)) {
-            return "withheld: requested learning-memory goal is not the current RUNNING task";
-        }
-        String goalKey = goalScopeKey(state.goal);
-        if (!mayUseTransitionMemory(state.designAnchor)) return "withheld: exact existing design is not bound; transition memory replay is disabled";
-        if (!MemoryReplayContinuityPolicy.mayRead(state.mode, state.lastSafeSnapshotHash, beforeFp)) return "withheld: current Canva/design continuity has not been re-proven for memory replay";
-
-        String designKey = transitionScopeKey(state.designAnchor);
-        Cursor c = getReadableDatabase().rawQuery(
-                "SELECT action_type,target,after_fp,success_count,failure_count FROM experiences WHERE goal_key=? AND design_key=? AND before_fp=? ORDER BY (success_count-failure_count) DESC, last_at DESC LIMIT 5",
-                new String[]{goalKey,designKey,beforeFp});
-        StringBuilder out = new StringBuilder();
-        try {
-            while (c.moveToNext()) {
-                String type = c.getString(0);
-                String target = c.getString(1);
-                String after = c.getString(2);
-                int successes = c.getInt(3);
-                int failures = c.getInt(4);
-                if (!mayReplayTransition(successes, failures, after)) continue;
-                double trust = transitionTrust(successes, failures);
-                out.append("exactGoal=true").append(" exactDesign=true").append(" action=").append(type)
-                        .append(" target=").append(target).append(" successes=").append(successes)
-                        .append(" failures=").append(failures).append(" trust=").append(String.format(Locale.US,"%.2f",trust))
-                        .append(" expectedAfter=").append(shortFp(after)).append('\n');
+        return TaskStateRepository.withDurableAuthorityLock(() -> {
+            TaskState state = new TaskStateRepository(appContext).load();
+            if (!mayReadForCurrentTask(state.mode, goal, state.goal)) {
+                return "withheld: requested learning-memory goal is not the current RUNNING task";
             }
-        } finally { c.close(); }
+            String goalKey = goalScopeKey(state.goal);
+            if (!mayUseTransitionMemory(state.designAnchor)) return "withheld: exact existing design is not bound; transition memory replay is disabled";
+            if (!MemoryReplayContinuityPolicy.mayRead(state.mode, state.lastSafeSnapshotHash, beforeFp)) return "withheld: current Canva/design continuity has not been re-proven for memory replay";
 
-        if (state.designAnchor != null && !state.designAnchor.trim().isEmpty()) {
-            int verifiedCompletions = verifiedCompletionCount(goalKey, completionScopeKey(state.designAnchor));
-            if (verifiedCompletions > 0) out.append("verifiedDesignGoalCompletions=").append(verifiedCompletions).append(" (final visual QA + exact bound-design proof)\n");
-        }
-        return out.length() == 0 ? "none" : out.toString();
+            String designKey = transitionScopeKey(state.designAnchor);
+            Cursor c = getReadableDatabase().rawQuery(
+                    "SELECT action_type,target,after_fp,success_count,failure_count FROM experiences WHERE goal_key=? AND design_key=? AND before_fp=? ORDER BY (success_count-failure_count) DESC, last_at DESC LIMIT 5",
+                    new String[]{goalKey,designKey,beforeFp});
+            StringBuilder out = new StringBuilder();
+            try {
+                while (c.moveToNext()) {
+                    String type = c.getString(0);
+                    String target = c.getString(1);
+                    String after = c.getString(2);
+                    int successes = c.getInt(3);
+                    int failures = c.getInt(4);
+                    if (!mayReplayTransition(successes, failures, after)) continue;
+                    double trust = transitionTrust(successes, failures);
+                    out.append("exactGoal=true").append(" exactDesign=true").append(" action=").append(type)
+                            .append(" target=").append(target).append(" successes=").append(successes)
+                            .append(" failures=").append(failures).append(" trust=").append(String.format(Locale.US,"%.2f",trust))
+                            .append(" expectedAfter=").append(shortFp(after)).append('\n');
+                }
+            } finally { c.close(); }
+
+            if (state.designAnchor != null && !state.designAnchor.trim().isEmpty()) {
+                int verifiedCompletions = verifiedCompletionCount(goalKey, completionScopeKey(state.designAnchor));
+                if (verifiedCompletions > 0) out.append("verifiedDesignGoalCompletions=").append(verifiedCompletions).append(" (final visual QA + exact bound-design proof)\n");
+            }
+            return out.length() == 0 ? "none" : out.toString();
+        });
     }
 
     private int verifiedCompletionCount(String goalKey, String designKey) {
