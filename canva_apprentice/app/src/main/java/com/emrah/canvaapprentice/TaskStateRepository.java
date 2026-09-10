@@ -209,6 +209,9 @@ public final class TaskStateRepository {
             return false;
         }
 
+        // Persistence-boundary TOCTOU guard: the UI may change after screenshot recapture but before
+        // this synchronized commit begins. Re-observe the live Canva tree immediately before writing
+        // continuity authority. Old pixels/tree evidence must never be able to overwrite a newer UI.
         AgentAccessibilityService service = AgentAccessibilityService.INSTANCE;
         if (service == null || !RuntimeOwnerPolicy.isCurrent(service, AgentAccessibilityService.INSTANCE)) return false;
         AccessibilityNodeInfo liveRoot = service.getRootInActiveWindow();
