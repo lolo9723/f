@@ -86,6 +86,23 @@ public final class TaskStateRepositoryProcessLockInvariantTest {
                 bind.contains("currentTeacherSessionId.equals(currentTeacherSessionId())"));
     }
 
+    @Test public void newlyBoundDesignInvalidatesOlderTeacherRequestsOnlyAfterDurableProof() throws Exception {
+        String source=repositorySource();
+        String bind=methodBody(source,"public synchronized boolean bindDesignAnchor(","@Deprecated");
+        assertOrdered(bind,
+                "if (a.equals(rechecked.designAnchor)) return true;",
+                ".putString(\"design_anchor\", a)",
+                "idempotent re-bind must not clear continuity state");
+        assertOrdered(bind,
+                "boolean postcondition = persisted.mode == TaskState.Mode.RUNNING",
+                "if (!postcondition) return false;",
+                "new anchor must prove durable state before authority invalidation");
+        assertOrdered(bind,
+                "if (!postcondition) return false;",
+                "CheckpointRequestGuard.onCheckpointCommitted();",
+                "in-flight teacher requests must be invalidated only after durable anchor proof");
+    }
+
     @Test public void safeCheckpointCommitSharesAuthorityLockAndChecksDurablePostcondition() throws Exception {
         String source=repositorySource();
         String checkpoint=methodBody(source,"public synchronized boolean markSafeIfObserved(","public synchronized void pauseForHuman(");
