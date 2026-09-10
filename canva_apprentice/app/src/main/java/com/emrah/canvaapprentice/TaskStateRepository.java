@@ -140,20 +140,34 @@ public final class TaskStateRepository {
         boolean homeVisible = live.looksLikeCanvaHome();
         if (!DesignAnchorPolicy.mayBindVisibleEditor(a, exactAnchorVisible, homeVisible)) return false;
 
-        if (!RuntimeOwnerPolicy.isCurrent(service, AgentAccessibilityService.INSTANCE)) return false;
-        TaskState rechecked = load();
-        String currentTeacherSessionId = currentTeacherSessionId();
-        if (!DesignAnchorPersistencePolicy.preservesBoundIdentity(rechecked.designAnchor, a)) return false;
-        if (!DesignAnchorPersistencePolicy.mayCommit(
-                rechecked.mode, actionTeacherSessionId, observedTeacherSessionId,
-                currentTeacherSessionId, a)) return false;
+        synchronized (DURABLE_TRANSITION_LOCK) {
+            if (!RuntimeOwnerPolicy.isCurrent(service, AgentAccessibilityService.INSTANCE)) return false;
+            TaskState rechecked = load();
+            String currentTeacherSessionId = currentTeacherSessionId();
+            if (!DesignAnchorPersistencePolicy.preservesBoundIdentity(rechecked.designAnchor, a)) return false;
+            if (!DesignAnchorPersistencePolicy.mayCommit(
+                    rechecked.mode, actionTeacherSessionId, observedTeacherSessionId,
+                    currentTeacherSessionId, a)) return false;
 
-        boolean committed = prefs.edit()
-                .putString("design_anchor", a)
-                .putString(LAST_SAFE_HASH, "")
-                .putString(LAST_SAFE_ANCHOR, "")
-                .commit();
-        return committed;
+            AccessibilityNodeInfo commitRoot = service.getRootInActiveWindow();
+            String commitPkg = commitRoot != null && commitRoot.getPackageName() != null
+                    ? commitRoot.getPackageName().toString() : "";
+            if (!AgentConstants.CANVA_PACKAGE.equals(commitPkg)) return false;
+            UiTreeSnapshot commitLive = UiTreeSnapshot.capture(commitRoot);
+            if (!DesignAnchorPolicy.mayBindVisibleEditor(
+                    a, commitLive.containsText(a), commitLive.looksLikeCanvaHome())) return false;
+
+            boolean committed = prefs.edit()
+                    .putString("design_anchor", a)
+                    .putString(LAST_SAFE_HASH, "")
+                    .putString(LAST_SAFE_ANCHOR, "")
+                    .commit();
+            if (!committed) return false;
+            TaskState persisted = load();
+            return persisted.mode == TaskState.Mode.RUNNING
+                    && a.equals(persisted.designAnchor)
+                    && currentTeacherSessionId.equals(currentTeacherSessionId());
+        }
     }
 
     @Deprecated
@@ -226,49 +240,58 @@ public final class TaskStateRepository {
         }
 
         // Persistence-boundary TOCTOU guard: the UI may change after screenshot recapture but before
-        // this synchronized commit begins. Re-observe the live Canva tree immediately before writing
-        // continuity authority. Old pixels/tree evidence must never be able to overwrite a newer UI.
-        AgentAccessibilityService service = AgentAccessibilityService.INSTANCE;
-        if (service == null || !RuntimeOwnerPolicy.isCurrent(service, AgentAccessibilityService.INSTANCE)) return false;
-        AccessibilityNodeInfo liveRoot = service.getRootInActiveWindow();
-        String livePkg = liveRoot != null && liveRoot.getPackageName() != null
-                ? liveRoot.getPackageName().toString() : "";
-        if (!AgentConstants.CANVA_PACKAGE.equals(livePkg)) return false;
-        UiTreeSnapshot live = UiTreeSnapshot.capture(liveRoot);
-        if (!SafeSnapshotPolicy.commitBoundaryStillMatches(
-                recapturedFingerprint,
-                live.stableFingerprint(),
-                live.containsText(expectedBoundAnchor),
-                live.looksLikeCanvaHome())) {
-            return false;
-        }
+        // the continuity commit. Serialize only the final re-observation + durable write with every
+        // process-wide task/session authority transition so stale evidence cannot cross STOP/resume.
+        synchronized (DURABLE_TRANSITION_LOCK) {
+            AgentAccessibilityService service = AgentAccessibilityService.INSTANCE;
+            if (service == null || !RuntimeOwnerPolicy.isCurrent(service, AgentAccessibilityService.INSTANCE)) return false;
+            AccessibilityNodeInfo liveRoot = service.getRootInActiveWindow();
+            String livePkg = liveRoot != null && liveRoot.getPackageName() != null
+                    ? liveRoot.getPackageName().toString() : "";
+            if (!AgentConstants.CANVA_PACKAGE.equals(livePkg)) return false;
+            UiTreeSnapshot live = UiTreeSnapshot.capture(liveRoot);
+            if (!SafeSnapshotPolicy.commitBoundaryStillMatches(
+                    recapturedFingerprint,
+                    live.stableFingerprint(),
+                    live.containsText(expectedBoundAnchor),
+                    live.looksLikeCanvaHome())) {
+                return false;
+            }
 
-        TaskState commitState = load();
-        String commitSessionId = currentTeacherSessionId();
-        if (!SafeSnapshotPolicy.mayCommitObservedCheckpoint(
-                commitState.mode,
-                commitState.designAnchor,
-                expectedBoundAnchor,
-                commitSessionId,
-                expectedTeacherSessionId,
-                structuralFingerprint,
-                recapturedFingerprint,
-                recapturedAnchorVisible,
-                recapturedCanvaHomeVisible,
-                visualFingerprint)) {
-            return false;
-        }
+            TaskState commitState = load();
+            String commitSessionId = currentTeacherSessionId();
+            if (!SafeSnapshotPolicy.mayCommitObservedCheckpoint(
+                    commitState.mode,
+                    commitState.designAnchor,
+                    expectedBoundAnchor,
+                    commitSessionId,
+                    expectedTeacherSessionId,
+                    structuralFingerprint,
+                    recapturedFingerprint,
+                    recapturedAnchorVisible,
+                    recapturedCanvaHomeVisible,
+                    visualFingerprint)) {
+                return false;
+            }
 
-        String owner = commitState.designAnchor.trim();
-        String hash = recapturedFingerprint.trim();
-        boolean committed = prefs.edit()
-                .putString(LAST_SAFE_HASH, hash)
-                .putString(LAST_SAFE_ANCHOR, owner)
-                .putInt("step", commitState.step + 1)
-                .commit();
-        if (!committed) return false;
-        CheckpointRequestGuard.onCheckpointCommitted();
-        return true;
+            String owner = commitState.designAnchor.trim();
+            String hash = recapturedFingerprint.trim();
+            boolean committed = prefs.edit()
+                    .putString(LAST_SAFE_HASH, hash)
+                    .putString(LAST_SAFE_ANCHOR, owner)
+                    .putInt("step", commitState.step + 1)
+                    .commit();
+            if (!committed) return false;
+            TaskState persisted = load();
+            if (persisted.mode != TaskState.Mode.RUNNING
+                    || !owner.equals(persisted.designAnchor)
+                    || !hash.equals(persisted.lastSafeHash)
+                    || !commitSessionId.equals(currentTeacherSessionId())) {
+                return false;
+            }
+            CheckpointRequestGuard.onCheckpointCommitted();
+            return true;
+        }
     }
 
     public synchronized void pauseForHuman(String reason) {
