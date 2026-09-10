@@ -82,6 +82,7 @@ public final class TaskStateRepository {
     }
 
     public synchronized void start(String goal, boolean allowNewDesign, String currentFingerprint) {
+        String expectedSessionId = newSessionId();
         requireDurableCommit(
                 prefs.edit()
                         .putString("goal", goal == null ? "" : goal.trim())
@@ -92,9 +93,10 @@ public final class TaskStateRepository {
                         .putString(LAST_SAFE_ANCHOR, "")
                         .putString("human_reason", "")
                         .putString("mode", TaskState.Mode.RUNNING.name())
-                        .putString(SESSION_ID, newSessionId())
+                        .putString(SESSION_ID, expectedSessionId)
                         .putInt("step", 0),
                 "task start");
+        requireDurableTransitionPostcondition(TaskState.Mode.RUNNING, expectedSessionId, "task start");
     }
 
     public synchronized void bindDesignAnchor(String anchor) {
@@ -260,18 +262,17 @@ public final class TaskStateRepository {
         if (!HumanTakeoverTransitionPolicy.mayPause(current.mode)) {
             throw new IllegalStateException("Human takeover rejected outside RUNNING");
         }
+        String expectedSessionId = newSessionId();
         requireDurableCommit(
                 prefs.edit()
                         .putString("mode", TaskState.Mode.HUMAN_TAKEOVER.name())
                         .putString("human_reason", reason == null ? "" : reason)
                         .putString(LAST_SAFE_HASH, "")
                         .putString(LAST_SAFE_ANCHOR, "")
-                        .putString(SESSION_ID, newSessionId()),
+                        .putString(SESSION_ID, expectedSessionId),
                 "human takeover");
-        TaskState paused = load();
-        if (paused.mode != TaskState.Mode.HUMAN_TAKEOVER) {
-            throw new IllegalStateException("Durable human takeover postcondition failed");
-        }
+        requireDurableTransitionPostcondition(
+                TaskState.Mode.HUMAN_TAKEOVER, expectedSessionId, "human takeover");
     }
 
     public synchronized void resume() {
@@ -279,29 +280,40 @@ public final class TaskStateRepository {
         if (!ResumeTransitionPolicy.mayResume(current.mode)) {
             throw new IllegalStateException("Resume rejected outside HUMAN_TAKEOVER");
         }
+        String expectedSessionId = newSessionId();
         requireDurableCommit(
                 prefs.edit()
                         .putString("mode", TaskState.Mode.RUNNING.name())
                         .putString("human_reason", "")
                         .putString(LAST_SAFE_HASH, "")
                         .putString(LAST_SAFE_ANCHOR, "")
-                        .putString(SESSION_ID, newSessionId()),
+                        .putString(SESSION_ID, expectedSessionId),
                 "task resume");
-        TaskState resumed = load();
-        if (resumed.mode != TaskState.Mode.RUNNING) {
-            throw new IllegalStateException("Durable task resume postcondition failed");
-        }
+        requireDurableTransitionPostcondition(TaskState.Mode.RUNNING, expectedSessionId, "task resume");
     }
 
     public synchronized void stop() {
+        String expectedSessionId = newSessionId();
         requireDurableCommit(
                 prefs.edit()
                         .putString("mode", TaskState.Mode.STOPPED.name())
                         .putString("human_reason", "")
                         .putString(LAST_SAFE_HASH, "")
                         .putString(LAST_SAFE_ANCHOR, "")
-                        .putString(SESSION_ID, newSessionId()),
+                        .putString(SESSION_ID, expectedSessionId),
                 "STOP");
+        requireDurableTransitionPostcondition(TaskState.Mode.STOPPED, expectedSessionId, "STOP");
+    }
+
+    private void requireDurableTransitionPostcondition(TaskState.Mode expectedMode,
+                                                       String expectedSessionId,
+                                                       String transition) {
+        String persistedMode = prefs.getString("mode", "");
+        String persistedSessionId = prefs.getString(SESSION_ID, "");
+        if (!expectedMode.name().equals(persistedMode)
+                || !expectedSessionId.equals(persistedSessionId)) {
+            throw new IllegalStateException("Durable " + transition + " postcondition failed");
+        }
     }
 
     private static void requireDurableCommit(SharedPreferences.Editor editor, String transition) {
