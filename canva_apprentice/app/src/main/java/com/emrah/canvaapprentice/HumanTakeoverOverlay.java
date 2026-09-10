@@ -47,6 +47,26 @@ public final class HumanTakeoverOverlay {
         });
         box.addView(text, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         box.addView(resume);
+        addOverlay(box);
+    }
+
+    /**
+     * Shows a non-resumable in-process safety barrier. This is used when a durable state mutation
+     * itself failed, so offering DEVAM ET would falsely imply that persisted authority is known.
+     */
+    public void showHardHold(String reason) {
+        hide();
+        LinearLayout box = new LinearLayout(service); box.setOrientation(LinearLayout.HORIZONTAL);
+        box.setPadding(20,14,20,14); box.setBackgroundColor(Color.argb(235, 32,32,32));
+        TextView text = new TextView(service); text.setTextColor(Color.WHITE); text.setTextSize(14);
+        text.setText("Ajan güvenli olarak durdu: " + reason + "  ");
+        Button stopped = new Button(service); stopped.setText("DURDU"); stopped.setEnabled(false);
+        box.addView(text, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        box.addView(stopped);
+        addOverlay(box);
+    }
+
+    private void addOverlay(LinearLayout box) {
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
