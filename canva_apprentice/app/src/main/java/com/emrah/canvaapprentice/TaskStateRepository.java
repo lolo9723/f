@@ -209,9 +209,6 @@ public final class TaskStateRepository {
             return false;
         }
 
-        // Persistence-boundary TOCTOU guard: the UI may change after screenshot recapture but before
-        // this synchronized commit begins. Re-observe the live Canva tree immediately before writing
-        // continuity authority. Old pixels/tree evidence must never be able to overwrite a newer UI.
         AgentAccessibilityService service = AgentAccessibilityService.INSTANCE;
         if (service == null || !RuntimeOwnerPolicy.isCurrent(service, AgentAccessibilityService.INSTANCE)) return false;
         AccessibilityNodeInfo liveRoot = service.getRootInActiveWindow();
@@ -257,7 +254,9 @@ public final class TaskStateRepository {
 
     public synchronized void pauseForHuman(String reason) {
         TaskState current = load();
-        if (!HumanTakeoverTransitionPolicy.mayPause(current.mode)) return;
+        if (!HumanTakeoverTransitionPolicy.mayPause(current.mode)) {
+            throw new IllegalStateException("Human takeover rejected outside RUNNING");
+        }
         requireDurableCommit(
                 prefs.edit()
                         .putString("mode", TaskState.Mode.HUMAN_TAKEOVER.name())
@@ -266,6 +265,10 @@ public final class TaskStateRepository {
                         .putString(LAST_SAFE_ANCHOR, "")
                         .putString(SESSION_ID, newSessionId()),
                 "human takeover");
+        TaskState paused = load();
+        if (paused.mode != TaskState.Mode.HUMAN_TAKEOVER) {
+            throw new IllegalStateException("Durable human takeover postcondition failed");
+        }
     }
 
     public synchronized void resume() {
