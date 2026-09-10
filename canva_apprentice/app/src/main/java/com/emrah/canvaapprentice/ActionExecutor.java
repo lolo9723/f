@@ -23,6 +23,19 @@ public final class ActionExecutor {
     }
 
     public boolean execute(AgentAction action) {
+        if (action == null) return false;
+        // Keep ownership of the exact teacher execution lease from the final
+        // revalidation through the actual Android mutation. A newer teacher request,
+        // STOP, human takeover or DEVAM ET rotates/invalidates this same monitor;
+        // therefore a stale chain can no longer pass a check and then dispatch after
+        // losing authority in the check-to-act window.
+        return TeacherExecutionLease.withGlobalCurrent(
+                action.executionLeaseToken,
+                false,
+                () -> executeWithCurrentLease(action));
+    }
+
+    private boolean executeWithCurrentLease(AgentAction action) {
         AccessibilityNodeInfo root = service.getRootInActiveWindow();
         if (root == null || root.getPackageName() == null) return false;
         if (!AgentConstants.CANVA_PACKAGE.equals(root.getPackageName().toString())) return false;
@@ -105,9 +118,6 @@ public final class ActionExecutor {
 
     private boolean clickExactNode(AccessibilityNodeInfo root, String encodedTarget) {
         AccessibilityNodeInfo node = verifiedCompactNode(root, encodedTarget);
-        // Exact-node execution must never silently climb to a clickable ancestor.
-        // The teacher proved one concrete row; clicking any other node would turn
-        // structural grounding into a guessed target.
         if (node == null || !node.isVisibleToUser() || !node.isEnabled() || !node.isClickable()) return false;
         return node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
     }
@@ -124,7 +134,6 @@ public final class ActionExecutor {
         int wantedIndex = NodeTargetCodec.index(encodedTarget);
         String expectedLabel = NodeTargetCodec.label(encodedTarget);
         if (wantedIndex < 0 || expectedLabel.trim().isEmpty()) return null;
-
         if (!NodeTargetCodec.hasStructuralEvidence(encodedTarget)) return null;
 
         int[] current = new int[]{0};
@@ -169,9 +178,6 @@ public final class ActionExecutor {
     }
 
     static boolean exactNodeBoundsUsable(Rect rect) {
-        // Compare raw edges instead of calling Rect.width()/height(). This is both
-        // semantically exact for positive-area admission and keeps this safety guard
-        // executable in local JVM tests, where android.jar methods are stubs.
         return rect != null && rect.right > rect.left && rect.bottom > rect.top;
     }
 
@@ -210,9 +216,6 @@ public final class ActionExecutor {
     private boolean clickByTextOrDescription(AccessibilityNodeInfo root, String target) {
         AccessibilityNodeInfo match = bestMatch(root, target, false);
         if (match == null) return false;
-        // Plain CLICK_TEXT is only a fallback when exact-node structural evidence is unavailable.
-        // Do not turn that weaker text proof into an implicit different target by climbing to a
-        // clickable ancestor. The exact uniquely labelled node must itself own click capability.
         if (!plainTextDirectClickAllowed(true, match.isVisibleToUser(), match.isEnabled(), match.isClickable())) {
             return false;
         }
