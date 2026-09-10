@@ -34,8 +34,16 @@ public final class HumanTakeoverOverlay {
             // Resume is a state transition and must be one-shot: only the first callback owns it.
             if (!resumeGuard.tryConsume()) return;
             resume.setEnabled(false);
-            hide();
-            listener.onResumeRequested();
+            boolean resumed = ResumeUiTransitionGuard.runSafely(listener::onResumeRequested);
+            if (resumed) {
+                hide();
+                return;
+            }
+            // A durable resume failure must remain visibly and operationally fail-closed. Do not
+            // remove the takeover surface or re-enable DEVAM ET against an uncertain persisted state.
+            text.setText("Ajan güvenli olarak durdu: DEVAM ET durumu kalıcılaştırılamadı. " +
+                    "Ajan işlem yapmayacak; erişilebilirlik servisini yeniden başlatıp tekrar dene.  ");
+            resume.setText("DURDU");
         });
         box.addView(text, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         box.addView(resume);
