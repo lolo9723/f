@@ -260,13 +260,16 @@ public final class TaskStateRepository {
     }
 
     public synchronized void stop() {
-        prefs.edit()
+        boolean committed = prefs.edit()
                 .putString("mode", TaskState.Mode.STOPPED.name())
                 .putString("human_reason", "")
                 .putString(LAST_SAFE_HASH, "")
                 .putString(LAST_SAFE_ANCHOR, "")
                 .putString(SESSION_ID, newSessionId())
-                .apply();
+                .commit();
+        if (!committed) {
+            throw new IllegalStateException("Durable STOP persistence failed");
+        }
     }
 
     private static String newSessionId() {
