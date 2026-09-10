@@ -22,4 +22,15 @@ public final class PlainTextDirectClickSafetyTest {
     @Test public void ambiguousTextProofFailsClosed() {
         assertFalse(ActionExecutor.plainTextDirectClickAllowed(false, true, true, true));
     }
+
+    @Test public void uniqueVisibleEnabledEditableNodeMayReceiveTextDirectly() {
+        assertTrue(ActionExecutor.plainTextDirectSetAllowed(true, true, true, true));
+    }
+
+    @Test public void hiddenDisabledNonEditableOrAmbiguousTextTargetFailsClosed() {
+        assertFalse(ActionExecutor.plainTextDirectSetAllowed(true, false, true, true));
+        assertFalse(ActionExecutor.plainTextDirectSetAllowed(true, true, false, true));
+        assertFalse(ActionExecutor.plainTextDirectSetAllowed(true, true, true, false));
+        assertFalse(ActionExecutor.plainTextDirectSetAllowed(false, true, true, true));
+    }
 }
