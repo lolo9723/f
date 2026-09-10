@@ -31,9 +31,18 @@ public final class TaskStateRepositoryProcessLockInvariantTest {
 
     private static String methodBody(String source,String startMarker,String endMarker){
         int start=source.indexOf(startMarker);
-        int end=source.indexOf(endMarker,start);
-        assertTrue(start>=0 && end>start);
+        int end=start<0 ? -1 : source.indexOf(endMarker,start);
+        assertTrue("Missing method start marker: "+startMarker,start>=0);
+        assertTrue("Missing method end marker after: "+startMarker,end>start);
         return source.substring(start,end);
+    }
+
+    private static void assertOrdered(String body,String first,String second,String message){
+        int firstIndex=body.indexOf(first);
+        int secondIndex=body.indexOf(second);
+        assertTrue(message+" (missing first token)",firstIndex>=0);
+        assertTrue(message+" (missing second token)",secondIndex>=0);
+        assertTrue(message+" (wrong order)",secondIndex>firstIndex);
     }
 
     @Test public void authorityRotatingTransitionsShareProcessWideLock() throws Exception {
@@ -61,25 +70,38 @@ public final class TaskStateRepositoryProcessLockInvariantTest {
     @Test public void designAnchorCommitSharesAuthorityLockAndReobservesUiInsideIt() throws Exception {
         String source=repositorySource();
         String bind=methodBody(source,"public synchronized boolean bindDesignAnchor(","@Deprecated");
-        int lock=bind.indexOf("synchronized (DURABLE_TRANSITION_LOCK)");
-        int commitRoot=bind.indexOf("AccessibilityNodeInfo commitRoot",lock);
-        int commit=bind.indexOf(".putString(\"design_anchor\", a)",lock);
-        assertTrue(lock>=0);
-        assertTrue(commitRoot>lock);
-        assertTrue(commit>commitRoot);
-        assertTrue(bind.substring(lock).contains("persisted.mode == TaskState.Mode.RUNNING"));
+        assertOrdered(bind,
+                "synchronized (DURABLE_TRANSITION_LOCK)",
+                "AccessibilityNodeInfo commitRoot",
+                "design anchor must re-observe the live Canva editor inside the authority lock");
+        assertOrdered(bind,
+                "AccessibilityNodeInfo commitRoot",
+                ".putString(\"design_anchor\", a)",
+                "design anchor persistence must happen only after the locked UI re-observation");
+        assertOrdered(bind,
+                ".putString(\"design_anchor\", a)",
+                "persisted.mode == TaskState.Mode.RUNNING",
+                "design anchor commit must verify durable RUNNING postcondition");
+        assertTrue("design anchor commit must verify session authority after persistence",
+                bind.contains("currentTeacherSessionId.equals(currentTeacherSessionId())"));
     }
 
     @Test public void safeCheckpointCommitSharesAuthorityLockAndChecksDurablePostcondition() throws Exception {
         String source=repositorySource();
         String checkpoint=methodBody(source,"public synchronized boolean markSafeIfObserved(","public synchronized void pauseForHuman(");
-        int lock=checkpoint.indexOf("synchronized (DURABLE_TRANSITION_LOCK)");
-        int liveRoot=checkpoint.indexOf("AccessibilityNodeInfo liveRoot",lock);
-        int commit=checkpoint.indexOf(".putString(LAST_SAFE_HASH, hash)",lock);
-        assertTrue(lock>=0);
-        assertTrue(liveRoot>lock);
-        assertTrue(commit>liveRoot);
-        assertTrue(checkpoint.substring(commit).contains("persisted.mode != TaskState.Mode.RUNNING"));
-        assertTrue(checkpoint.substring(commit).contains("!commitSessionId.equals(currentTeacherSessionId())"));
+        assertOrdered(checkpoint,
+                "synchronized (DURABLE_TRANSITION_LOCK)",
+                "AccessibilityNodeInfo liveRoot",
+                "safe checkpoint must re-observe the live Canva editor inside the authority lock");
+        assertOrdered(checkpoint,
+                "AccessibilityNodeInfo liveRoot",
+                ".putString(LAST_SAFE_HASH, hash)",
+                "safe checkpoint persistence must happen only after the locked UI re-observation");
+        assertOrdered(checkpoint,
+                ".putString(LAST_SAFE_HASH, hash)",
+                "persisted.mode != TaskState.Mode.RUNNING",
+                "safe checkpoint commit must verify durable RUNNING postcondition");
+        assertTrue("safe checkpoint commit must verify session authority after persistence",
+                checkpoint.contains("!commitSessionId.equals(currentTeacherSessionId())"));
     }
 }
