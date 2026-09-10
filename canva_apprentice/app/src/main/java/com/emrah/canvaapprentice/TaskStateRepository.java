@@ -10,6 +10,10 @@ public final class TaskStateRepository {
     private static final String SESSION_ID = "teacher_session_id";
     private static final String LAST_SAFE_HASH = "last_safe_hash";
     private static final String LAST_SAFE_ANCHOR = "last_safe_anchor";
+    // SharedPreferences is process-wide but synchronized instance methods are not. All writes that
+    // rotate execution/session authority must therefore share one process-wide lock, otherwise two
+    // repository instances can both validate an old state and then race their commits.
+    private static final Object DURABLE_TRANSITION_LOCK = new Object();
     private static boolean processContinuityInitialized = false;
     private final SharedPreferences prefs;
 
@@ -42,61 +46,71 @@ public final class TaskStateRepository {
     }
 
     private void invalidatePersistedRuntimeContinuityOnFirstLoad() {
-        if (processContinuityInitialized) return;
-        String modeRaw = prefs.getString("mode", TaskState.Mode.IDLE.name());
-        TaskState.Mode mode;
-        try { mode = TaskState.Mode.valueOf(modeRaw); }
-        catch (Exception ignored) { mode = TaskState.Mode.IDLE; }
-        if (!RuntimeRestoreContinuityPolicy.mustInvalidate(mode)) {
+        synchronized (DURABLE_TRANSITION_LOCK) {
+            if (processContinuityInitialized) return;
+            String modeRaw = prefs.getString("mode", TaskState.Mode.IDLE.name());
+            TaskState.Mode mode;
+            try { mode = TaskState.Mode.valueOf(modeRaw); }
+            catch (Exception ignored) { mode = TaskState.Mode.IDLE; }
+            if (!RuntimeRestoreContinuityPolicy.mustInvalidate(mode)) {
+                processContinuityInitialized = true;
+                return;
+            }
+            SharedPreferences.Editor editor = prefs.edit()
+                    .putString(LAST_SAFE_HASH, "")
+                    .putString(LAST_SAFE_ANCHOR, "")
+                    .putString(SESSION_ID, newSessionId());
+            if (RuntimeRestoreContinuityPolicy.mustRequireHumanResume(mode)) {
+                editor.putString("mode", TaskState.Mode.HUMAN_TAKEOVER.name())
+                        .putString("human_reason",
+                                "Ajan işlemi yeniden başladı. Eski çalışma bağlamı güvenlik nedeniyle geçersiz sayıldı; " +
+                                "Canva'daki mevcut tasarımı kontrol edip DEVAM ET'e bas.");
+            }
+            boolean committed = editor.commit();
+            if (!committed) {
+                // A restored runtime must never continue when stale checkpoint/session authority could
+                // still survive on disk. Leave initialization false so every later load retries.
+                throw new IllegalStateException("Durable runtime continuity invalidation failed");
+            }
             processContinuityInitialized = true;
-            return;
         }
-        SharedPreferences.Editor editor = prefs.edit()
-                .putString(LAST_SAFE_HASH, "")
-                .putString(LAST_SAFE_ANCHOR, "")
-                .putString(SESSION_ID, newSessionId());
-        if (RuntimeRestoreContinuityPolicy.mustRequireHumanResume(mode)) {
-            editor.putString("mode", TaskState.Mode.HUMAN_TAKEOVER.name())
-                    .putString("human_reason",
-                            "Ajan işlemi yeniden başladı. Eski çalışma bağlamı güvenlik nedeniyle geçersiz sayıldı; " +
-                            "Canva'daki mevcut tasarımı kontrol edip DEVAM ET'e bas.");
-        }
-        boolean committed = editor.commit();
-        if (!committed) {
-            // A restored runtime must never continue when stale checkpoint/session authority could
-            // still survive on disk. Leave initialization false so every later load retries.
-            throw new IllegalStateException("Durable runtime continuity invalidation failed");
-        }
-        processContinuityInitialized = true;
     }
 
     public synchronized String currentTeacherSessionId() {
-        String id = prefs.getString(SESSION_ID, "");
-        if (id == null || id.isEmpty()) {
-            id = newSessionId();
-            requireDurableCommit(
-                    prefs.edit().putString(SESSION_ID, id),
-                    "teacher session creation");
+        synchronized (DURABLE_TRANSITION_LOCK) {
+            String id = prefs.getString(SESSION_ID, "");
+            if (id == null || id.isEmpty()) {
+                id = newSessionId();
+                requireDurableCommit(
+                        prefs.edit().putString(SESSION_ID, id),
+                        "teacher session creation");
+                String persisted = prefs.getString(SESSION_ID, "");
+                if (!id.equals(persisted)) {
+                    throw new IllegalStateException("Durable teacher session creation postcondition failed");
+                }
+            }
+            return id;
         }
-        return id;
     }
 
     public synchronized void start(String goal, boolean allowNewDesign, String currentFingerprint) {
-        String expectedSessionId = newSessionId();
-        requireDurableCommit(
-                prefs.edit()
-                        .putString("goal", goal == null ? "" : goal.trim())
-                        .putBoolean("allow_new_design", allowNewDesign)
-                        .putString("design_fingerprint", currentFingerprint == null ? "" : currentFingerprint)
-                        .putString("design_anchor", "")
-                        .putString(LAST_SAFE_HASH, "")
-                        .putString(LAST_SAFE_ANCHOR, "")
-                        .putString("human_reason", "")
-                        .putString("mode", TaskState.Mode.RUNNING.name())
-                        .putString(SESSION_ID, expectedSessionId)
-                        .putInt("step", 0),
-                "task start");
-        requireDurableTransitionPostcondition(TaskState.Mode.RUNNING, expectedSessionId, "task start");
+        synchronized (DURABLE_TRANSITION_LOCK) {
+            String expectedSessionId = newSessionId();
+            requireDurableCommit(
+                    prefs.edit()
+                            .putString("goal", goal == null ? "" : goal.trim())
+                            .putBoolean("allow_new_design", allowNewDesign)
+                            .putString("design_fingerprint", currentFingerprint == null ? "" : currentFingerprint)
+                            .putString("design_anchor", "")
+                            .putString(LAST_SAFE_HASH, "")
+                            .putString(LAST_SAFE_ANCHOR, "")
+                            .putString("human_reason", "")
+                            .putString("mode", TaskState.Mode.RUNNING.name())
+                            .putString(SESSION_ID, expectedSessionId)
+                            .putInt("step", 0),
+                    "task start");
+            requireDurableTransitionPostcondition(TaskState.Mode.RUNNING, expectedSessionId, "task start");
+        }
     }
 
     public synchronized void bindDesignAnchor(String anchor) {
@@ -258,51 +272,57 @@ public final class TaskStateRepository {
     }
 
     public synchronized void pauseForHuman(String reason) {
-        TaskState current = load();
-        if (!HumanTakeoverTransitionPolicy.mayPause(current.mode)) {
-            throw new IllegalStateException("Human takeover rejected outside RUNNING");
+        synchronized (DURABLE_TRANSITION_LOCK) {
+            TaskState current = load();
+            if (!HumanTakeoverTransitionPolicy.mayPause(current.mode)) {
+                throw new IllegalStateException("Human takeover rejected outside RUNNING");
+            }
+            String expectedSessionId = newSessionId();
+            requireDurableCommit(
+                    prefs.edit()
+                            .putString("mode", TaskState.Mode.HUMAN_TAKEOVER.name())
+                            .putString("human_reason", reason == null ? "" : reason)
+                            .putString(LAST_SAFE_HASH, "")
+                            .putString(LAST_SAFE_ANCHOR, "")
+                            .putString(SESSION_ID, expectedSessionId),
+                    "human takeover");
+            requireDurableTransitionPostcondition(
+                    TaskState.Mode.HUMAN_TAKEOVER, expectedSessionId, "human takeover");
         }
-        String expectedSessionId = newSessionId();
-        requireDurableCommit(
-                prefs.edit()
-                        .putString("mode", TaskState.Mode.HUMAN_TAKEOVER.name())
-                        .putString("human_reason", reason == null ? "" : reason)
-                        .putString(LAST_SAFE_HASH, "")
-                        .putString(LAST_SAFE_ANCHOR, "")
-                        .putString(SESSION_ID, expectedSessionId),
-                "human takeover");
-        requireDurableTransitionPostcondition(
-                TaskState.Mode.HUMAN_TAKEOVER, expectedSessionId, "human takeover");
     }
 
     public synchronized void resume() {
-        TaskState current = load();
-        if (!ResumeTransitionPolicy.mayResume(current.mode)) {
-            throw new IllegalStateException("Resume rejected outside HUMAN_TAKEOVER");
+        synchronized (DURABLE_TRANSITION_LOCK) {
+            TaskState current = load();
+            if (!ResumeTransitionPolicy.mayResume(current.mode)) {
+                throw new IllegalStateException("Resume rejected outside HUMAN_TAKEOVER");
+            }
+            String expectedSessionId = newSessionId();
+            requireDurableCommit(
+                    prefs.edit()
+                            .putString("mode", TaskState.Mode.RUNNING.name())
+                            .putString("human_reason", "")
+                            .putString(LAST_SAFE_HASH, "")
+                            .putString(LAST_SAFE_ANCHOR, "")
+                            .putString(SESSION_ID, expectedSessionId),
+                    "task resume");
+            requireDurableTransitionPostcondition(TaskState.Mode.RUNNING, expectedSessionId, "task resume");
         }
-        String expectedSessionId = newSessionId();
-        requireDurableCommit(
-                prefs.edit()
-                        .putString("mode", TaskState.Mode.RUNNING.name())
-                        .putString("human_reason", "")
-                        .putString(LAST_SAFE_HASH, "")
-                        .putString(LAST_SAFE_ANCHOR, "")
-                        .putString(SESSION_ID, expectedSessionId),
-                "task resume");
-        requireDurableTransitionPostcondition(TaskState.Mode.RUNNING, expectedSessionId, "task resume");
     }
 
     public synchronized void stop() {
-        String expectedSessionId = newSessionId();
-        requireDurableCommit(
-                prefs.edit()
-                        .putString("mode", TaskState.Mode.STOPPED.name())
-                        .putString("human_reason", "")
-                        .putString(LAST_SAFE_HASH, "")
-                        .putString(LAST_SAFE_ANCHOR, "")
-                        .putString(SESSION_ID, expectedSessionId),
-                "STOP");
-        requireDurableTransitionPostcondition(TaskState.Mode.STOPPED, expectedSessionId, "STOP");
+        synchronized (DURABLE_TRANSITION_LOCK) {
+            String expectedSessionId = newSessionId();
+            requireDurableCommit(
+                    prefs.edit()
+                            .putString("mode", TaskState.Mode.STOPPED.name())
+                            .putString("human_reason", "")
+                            .putString(LAST_SAFE_HASH, "")
+                            .putString(LAST_SAFE_ANCHOR, "")
+                            .putString(SESSION_ID, expectedSessionId),
+                    "STOP");
+            requireDurableTransitionPostcondition(TaskState.Mode.STOPPED, expectedSessionId, "STOP");
+        }
     }
 
     private void requireDurableTransitionPostcondition(TaskState.Mode expectedMode,
