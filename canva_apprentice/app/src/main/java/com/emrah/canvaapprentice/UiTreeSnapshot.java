@@ -111,7 +111,7 @@ public final class UiTreeSnapshot {
                     !n.clickable && !n.editable) continue;
             b.append(i++).append('|').append(n.className).append('|')
                     .append(clean(n.text)).append('|').append(clean(n.description)).append('|')
-                    .append(n.bounds.flattenToString()).append('|')
+                    .append(boundsForTeacher(n.bounds)).append('|')
                     .append(n.clickable ? "C" : "-").append(n.editable ? "E" : "-").append('\n');
             if (i >= 220) break;
         }
@@ -136,6 +136,11 @@ public final class UiTreeSnapshot {
             if (++kept >= 120) break;
         }
         return sha256(b.toString());
+    }
+
+    private static String boundsForTeacher(Rect r) {
+        if (r == null) return "0 0 0 0";
+        return r.left + " " + r.top + " " + r.right + " " + r.bottom;
     }
 
     private static String quantizedBounds(Rect r) {

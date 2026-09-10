@@ -1,6 +1,5 @@
 package com.emrah.canvaapprentice;
 
-import android.graphics.Rect;
 import java.util.Arrays;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -8,7 +7,7 @@ import static org.junit.Assert.*;
 public final class HiddenAccessibilityEvidenceSafetyTest {
     private static UiTreeSnapshot.Node node(String text, boolean visible) {
         return new UiTreeSnapshot.Node(
-                "", "android.view.View", text, "", new Rect(0, 0, 100, 50),
+                "", "android.view.View", text, "", null,
                 true, false, false, true, visible);
     }
 
