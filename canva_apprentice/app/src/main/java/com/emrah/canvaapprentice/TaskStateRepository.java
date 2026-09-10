@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.view.accessibility.AccessibilityNodeInfo;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 public final class TaskStateRepository {
     private static final String PREFS = "agent_state_v2";
@@ -19,6 +20,13 @@ public final class TaskStateRepository {
 
     public TaskStateRepository(Context context) {
         prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+    }
+
+    static <T> T withDurableAuthorityLock(Supplier<T> operation) {
+        if (operation == null) throw new IllegalArgumentException("durable authority operation required");
+        synchronized (DURABLE_TRANSITION_LOCK) {
+            return operation.get();
+        }
     }
 
     public synchronized TaskState load() {
@@ -68,8 +76,6 @@ public final class TaskStateRepository {
             }
             boolean committed = editor.commit();
             if (!committed) {
-                // A restored runtime must never continue when stale checkpoint/session authority could
-                // still survive on disk. Leave initialization false so every later load retries.
                 throw new IllegalStateException("Durable runtime continuity invalidation failed");
             }
             processContinuityInitialized = true;
@@ -239,9 +245,6 @@ public final class TaskStateRepository {
             return false;
         }
 
-        // Persistence-boundary TOCTOU guard: the UI may change after screenshot recapture but before
-        // the continuity commit. Serialize only the final re-observation + durable write with every
-        // process-wide task/session authority transition so stale evidence cannot cross STOP/resume.
         synchronized (DURABLE_TRANSITION_LOCK) {
             AgentAccessibilityService service = AgentAccessibilityService.INSTANCE;
             if (service == null || !RuntimeOwnerPolicy.isCurrent(service, AgentAccessibilityService.INSTANCE)) return false;
