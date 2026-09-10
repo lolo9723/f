@@ -84,77 +84,82 @@ public final class ExperienceMemoryRepository extends SQLiteOpenHelper {
         if (action.type != AgentAction.Type.CLICK_TEXT && action.type != AgentAction.Type.BACK) return;
         if (beforeFp == null || beforeFp.isEmpty()) return;
 
-        LearningMemoryLeasePolicy.withCurrentLease(action, false, () -> {
-            TaskState liveState = new TaskStateRepository(appContext).load();
-            if (liveState.mode != TaskState.Mode.RUNNING) return false;
-            if (!sameTaskGoal(goal, liveState.goal)) return false;
-            if (!LearningMemoryWriteContextPolicy.mayCommit(
-                    liveState.mode,beforeFp,liveState.lastSafeSnapshotHash,liveState.designAnchor)) return false;
-            if (!mayUseTransitionMemory(liveState.designAnchor)) return false;
+        LearningMemoryLeasePolicy.withCurrentLease(action, false, () ->
+                TaskStateRepository.withDurableAuthorityLock(() -> {
+                    TaskStateRepository stateRepo = new TaskStateRepository(appContext);
+                    TaskState liveState = stateRepo.load();
+                    if (liveState.mode != TaskState.Mode.RUNNING) return false;
+                    if (!sameTaskGoal(goal, liveState.goal)) return false;
+                    if (!LearningMemoryWriteContextPolicy.mayCommit(
+                            liveState.mode,beforeFp,liveState.lastSafeSnapshotHash,liveState.designAnchor)) return false;
+                    if (!mayUseTransitionMemory(liveState.designAnchor)) return false;
 
-            String goalKey = goalScopeKey(liveState.goal);
-            String designKey = transitionScopeKey(liveState.designAnchor);
-            String target = sanitizeTarget(action.target);
-            String after = success && afterFp != null ? afterFp : "";
-            long now = System.currentTimeMillis();
-            SQLiteDatabase db = getWritableDatabase();
+                    String goalKey = goalScopeKey(liveState.goal);
+                    String designKey = transitionScopeKey(liveState.designAnchor);
+                    String target = sanitizeTarget(action.target);
+                    String after = success && afterFp != null ? afterFp : "";
+                    long now = System.currentTimeMillis();
+                    SQLiteDatabase db = getWritableDatabase();
 
-            db.beginTransaction();
-            try {
-                if (success) {
-                    db.execSQL(
-                            "INSERT OR IGNORE INTO experiences(goal_key,design_key,before_fp,action_type,target,after_fp,success_count,failure_count,last_at) " +
-                                    "VALUES(?,?,?,?,?,?,0,COALESCE((SELECT failure_count FROM experiences " +
-                                    "WHERE goal_key=? AND design_key=? AND before_fp=? AND action_type=? AND target=? AND after_fp=''),0),?)",
-                            new Object[]{goalKey,designKey,beforeFp,action.type.name(),target,after,
-                                    goalKey,designKey,beforeFp,action.type.name(),target,now}
-                    );
-                    db.execSQL(
-                            "UPDATE experiences SET success_count=success_count+1,last_at=? " +
-                                    "WHERE goal_key=? AND design_key=? AND before_fp=? AND action_type=? AND target=? AND after_fp=?",
-                            new Object[]{now,goalKey,designKey,beforeFp,action.type.name(),target,after}
-                    );
-                } else {
-                    db.execSQL(
-                            "INSERT OR IGNORE INTO experiences(goal_key,design_key,before_fp,action_type,target,after_fp,success_count,failure_count,last_at) " +
-                                    "VALUES(?,?,?,?,?,'',0,0,?)",
-                            new Object[]{goalKey,designKey,beforeFp,action.type.name(),target,now}
-                    );
-                    db.execSQL(
-                            "UPDATE experiences SET failure_count=failure_count+1,last_at=? " +
-                                    "WHERE goal_key=? AND design_key=? AND before_fp=? AND action_type=? AND target=?",
-                            new Object[]{now,goalKey,designKey,beforeFp,action.type.name(),target}
-                    );
-                }
+                    db.beginTransaction();
+                    try {
+                        if (success) {
+                            db.execSQL(
+                                    "INSERT OR IGNORE INTO experiences(goal_key,design_key,before_fp,action_type,target,after_fp,success_count,failure_count,last_at) " +
+                                            "VALUES(?,?,?,?,?,?,0,COALESCE((SELECT failure_count FROM experiences " +
+                                            "WHERE goal_key=? AND design_key=? AND before_fp=? AND action_type=? AND target=? AND after_fp=''),0),?)",
+                                    new Object[]{goalKey,designKey,beforeFp,action.type.name(),target,after,
+                                            goalKey,designKey,beforeFp,action.type.name(),target,now}
+                            );
+                            db.execSQL(
+                                    "UPDATE experiences SET success_count=success_count+1,last_at=? " +
+                                            "WHERE goal_key=? AND design_key=? AND before_fp=? AND action_type=? AND target=? AND after_fp=?",
+                                    new Object[]{now,goalKey,designKey,beforeFp,action.type.name(),target,after}
+                            );
+                        } else {
+                            db.execSQL(
+                                    "INSERT OR IGNORE INTO experiences(goal_key,design_key,before_fp,action_type,target,after_fp,success_count,failure_count,last_at) " +
+                                            "VALUES(?,?,?,?,?,'',0,0,?)",
+                                    new Object[]{goalKey,designKey,beforeFp,action.type.name(),target,now}
+                            );
+                            db.execSQL(
+                                    "UPDATE experiences SET failure_count=failure_count+1,last_at=? " +
+                                            "WHERE goal_key=? AND design_key=? AND before_fp=? AND action_type=? AND target=?",
+                                    new Object[]{now,goalKey,designKey,beforeFp,action.type.name(),target}
+                            );
+                        }
 
-                db.execSQL(
-                        "DELETE FROM experiences WHERE id NOT IN " +
-                                "(SELECT id FROM experiences ORDER BY last_at DESC LIMIT " + MAX_ROWS + ")"
-                );
-                db.setTransactionSuccessful();
-                return true;
-            } finally {
-                db.endTransaction();
-            }
-        });
+                        db.execSQL(
+                                "DELETE FROM experiences WHERE id NOT IN " +
+                                        "(SELECT id FROM experiences ORDER BY last_at DESC LIMIT " + MAX_ROWS + ")"
+                        );
+                        db.setTransactionSuccessful();
+                        return true;
+                    } finally {
+                        db.endTransaction();
+                    }
+                }));
     }
 
     public synchronized void recordVerifiedCompletion() {
-        TaskState state = new TaskStateRepository(appContext).load();
-        if (state.mode != TaskState.Mode.RUNNING) throw new IllegalStateException("verified completion requires RUNNING task");
-        if (state.goal == null || state.goal.trim().isEmpty()) throw new IllegalStateException("verified completion requires task goal");
-        if (state.designAnchor == null || state.designAnchor.trim().isEmpty()) throw new IllegalStateException("verified completion requires bound design");
+        TaskStateRepository.withDurableAuthorityLock(() -> {
+            TaskState state = new TaskStateRepository(appContext).load();
+            if (state.mode != TaskState.Mode.RUNNING) throw new IllegalStateException("verified completion requires RUNNING task");
+            if (state.goal == null || state.goal.trim().isEmpty()) throw new IllegalStateException("verified completion requires task goal");
+            if (state.designAnchor == null || state.designAnchor.trim().isEmpty()) throw new IllegalStateException("verified completion requires bound design");
 
-        String key = goalScopeKey(state.goal);
-        String designKey = completionScopeKey(state.designAnchor);
-        long now = System.currentTimeMillis();
-        SQLiteDatabase db = getWritableDatabase();
-        db.beginTransaction();
-        try {
-            db.execSQL("INSERT OR IGNORE INTO verified_completions(goal_key,design_key,success_count,last_at) VALUES(?,?,0,?)", new Object[]{key,designKey,now});
-            db.execSQL("UPDATE verified_completions SET success_count=success_count+1,last_at=? WHERE goal_key=? AND design_key=?", new Object[]{now,key,designKey});
-            db.setTransactionSuccessful();
-        } finally { db.endTransaction(); }
+            String key = goalScopeKey(state.goal);
+            String designKey = completionScopeKey(state.designAnchor);
+            long now = System.currentTimeMillis();
+            SQLiteDatabase db = getWritableDatabase();
+            db.beginTransaction();
+            try {
+                db.execSQL("INSERT OR IGNORE INTO verified_completions(goal_key,design_key,success_count,last_at) VALUES(?,?,0,?)", new Object[]{key,designKey,now});
+                db.execSQL("UPDATE verified_completions SET success_count=success_count+1,last_at=? WHERE goal_key=? AND design_key=?", new Object[]{now,key,designKey});
+                db.setTransactionSuccessful();
+            } finally { db.endTransaction(); }
+            return true;
+        });
     }
 
     public synchronized String summary(String goal, String beforeFp) {
