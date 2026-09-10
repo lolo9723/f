@@ -34,13 +34,14 @@ public final class UiTreeSnapshot {
         out.add(new Node(
                 str(n.getViewIdResourceName()), str(n.getClassName()), str(n.getText()),
                 str(n.getContentDescription()), r, n.isClickable(), n.isEditable(),
-                n.isPassword(), n.isEnabled()
+                n.isPassword(), n.isEnabled(), n.isVisibleToUser()
         ));
         for (int i = 0; i < n.getChildCount(); i++) walk(n.getChild(i), out, depth + 1);
     }
 
     public boolean containsSensitiveInput() {
         for (Node n : nodes) {
+            if (!n.visibleToUser) continue;
             if (n.password) return true;
             String x = normalize(n.text + " " + n.description);
             if (x.contains("captcha") || x.contains("password") || x.contains("sifre") ||
@@ -78,6 +79,7 @@ public final class UiTreeSnapshot {
         String wanted = normalize(anchor);
         if (wanted.isEmpty()) return false;
         for (Node n : nodes) {
+            if (!n.visibleToUser) continue;
             if (normalize(n.text).equals(wanted) || normalize(n.description).equals(wanted)) return true;
         }
         return false;
@@ -87,6 +89,7 @@ public final class UiTreeSnapshot {
         int hits = 0;
         boolean decisiveCreateSurface = false;
         for (Node n : nodes) {
+            if (!n.visibleToUser) continue;
             String x = normalize(n.text + " " + n.description);
             if (x.contains("create a design") || x.contains("tasarim olustur")) {
                 hits++;
@@ -103,6 +106,7 @@ public final class UiTreeSnapshot {
         StringBuilder b = new StringBuilder();
         int i = 0;
         for (Node n : nodes) {
+            if (!n.visibleToUser) continue;
             if (n.text.trim().isEmpty() && n.description.trim().isEmpty() &&
                     !n.clickable && !n.editable) continue;
             b.append(i++).append('|').append(n.className).append('|')
@@ -118,6 +122,7 @@ public final class UiTreeSnapshot {
         StringBuilder b = new StringBuilder(packageName);
         int kept = 0;
         for (Node n : nodes) {
+            if (!n.visibleToUser) continue;
             if (n.text.trim().isEmpty() && n.description.trim().isEmpty() &&
                     !n.clickable && !n.editable) continue;
             b.append('|').append(n.viewId)
@@ -169,10 +174,17 @@ public final class UiTreeSnapshot {
     public static final class Node {
         public final String viewId, className, text, description;
         public final Rect bounds;
-        public final boolean clickable, editable, password, enabled;
+        public final boolean clickable, editable, password, enabled, visibleToUser;
 
         public Node(String viewId, String className, String text, String description, Rect bounds,
                     boolean clickable, boolean editable, boolean password, boolean enabled) {
+            this(viewId, className, text, description, bounds,
+                    clickable, editable, password, enabled, true);
+        }
+
+        public Node(String viewId, String className, String text, String description, Rect bounds,
+                    boolean clickable, boolean editable, boolean password, boolean enabled,
+                    boolean visibleToUser) {
             this.viewId = viewId;
             this.className = className;
             this.text = text;
@@ -182,6 +194,7 @@ public final class UiTreeSnapshot {
             this.editable = editable;
             this.password = password;
             this.enabled = enabled;
+            this.visibleToUser = visibleToUser;
         }
     }
 }
