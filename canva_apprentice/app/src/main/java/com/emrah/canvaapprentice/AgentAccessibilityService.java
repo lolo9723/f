@@ -551,6 +551,10 @@ public final class AgentAccessibilityService extends AccessibilityService {
     }
 
     public void startTask(String goal, boolean allowNewDesign){
+        if(persistenceHardHold.get()){
+            enterPersistenceHardHold("Kalıcı durum belirsiz. Yeni görev bu servis ömründe başlatılamaz; erişilebilirlik servisini yeniden başlat.");
+            return;
+        }
         resumeGeneration.invalidate();
         TeacherExecutionLease.invalidateGlobal();
         visualEvidence.clear();
@@ -566,13 +570,13 @@ public final class AgentAccessibilityService extends AccessibilityService {
             enterPersistenceHardHold("Görev başlangıcı kalıcılaştırılamadı. Eski/yarım görev yetkisi kullanılmayacak; erişilebilirlik servisini yeniden başlat.");
             return;
         }
-        persistenceHardHold.set(false);
         overlay.hide();
         Intent canva=getPackageManager().getLaunchIntentForPackage(AgentConstants.CANVA_PACKAGE);
         if(canva!=null){canva.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);startActivity(canva);}
     }
 
     public void stopTask(){
+        final boolean wasHardHold=persistenceHardHold.get();
         resumeGeneration.invalidate();
         TeacherExecutionLease.invalidateGlobal();
         visualEvidence.clear();
@@ -584,7 +588,10 @@ public final class AgentAccessibilityService extends AccessibilityService {
             enterPersistenceHardHold("STOP durumu kalıcılaştırılamadı. Ajan bu servis ömründe hiçbir eylem yapmayacak.");
             return;
         }
-        persistenceHardHold.set(false);
+        if(wasHardHold){
+            enterPersistenceHardHold("STOP kalıcılaştırıldı ancak önceki persistence hatası nedeniyle bu servis ömründe ajan yeniden başlatılamaz. Erişilebilirlik servisini yeniden başlat.");
+            return;
+        }
         overlay.hide();
     }
 
