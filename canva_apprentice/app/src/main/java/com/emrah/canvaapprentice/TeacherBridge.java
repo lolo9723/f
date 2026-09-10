@@ -22,6 +22,7 @@ public final class TeacherBridge {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final TaskStateRepository stateRepo;
     private volatile String activeRequestToken = "";
+    private volatile String activeRequestDesignAnchor = "";
 
     public TeacherBridge(AccessibilityService service) {
         this.service = service;
@@ -30,8 +31,9 @@ public final class TeacherBridge {
 
     public void ask(String prompt, String awaitingMarker, ReplyCallback callback) {
         final String sessionId = stateRepo.currentTeacherSessionId();
+        final String designAnchor = stateRepo.load().designAnchor;
         TeacherRequestLeasePolicy.beginStructuralRequest();
-        final String requestToken = beginRequest();
+        final String requestToken = beginRequest(designAnchor);
         Intent launch = service.getPackageManager().getLaunchIntentForPackage(AgentConstants.CHATGPT_PACKAGE);
         if (launch == null) {
             failCurrentRequest(sessionId, requestToken, callback, "ChatGPT uygulaması bulunamadı.");
@@ -44,6 +46,7 @@ public final class TeacherBridge {
 
     public void askWithScreenshot(String prompt, Uri screenshotUri, String awaitingMarker, ReplyCallback callback) {
         final String sessionId = stateRepo.currentTeacherSessionId();
+        final String designAnchor = stateRepo.load().designAnchor;
         // The screenshot was already captured and bound to the current execution lease
         // by AgentAccessibilityService. Rotating the lease here would instantly stale
         // that evidence before ChatGPT can answer, making every visual action fail.
@@ -52,7 +55,7 @@ public final class TeacherBridge {
             callback.onFailure("Görüntülü öğretmen için geçerli execution lease bulunamadı.");
             return;
         }
-        final String requestToken = beginRequest();
+        final String requestToken = beginRequest(designAnchor);
         Intent share = new Intent(Intent.ACTION_SEND);
         share.setPackage(AgentConstants.CHATGPT_PACKAGE);
         share.setType("image/png");
@@ -159,25 +162,31 @@ public final class TeacherBridge {
         }, 1000);
     }
 
-    private synchronized String beginRequest() {
+    private synchronized String beginRequest(String designAnchor) {
         activeRequestToken = UUID.randomUUID().toString();
+        activeRequestDesignAnchor = designAnchor == null ? "" : designAnchor;
         return activeRequestToken;
     }
 
     private boolean isRequestCurrent(String expectedSessionId, String requestToken) {
         TaskState state = stateRepo.load();
+        String activeToken = activeRequestToken;
+        String requestDesignAnchor = activeRequestDesignAnchor;
         return TeacherRequestPolicy.isCurrent(
                 expectedSessionId,
                 stateRepo.currentTeacherSessionId(),
                 state.mode,
                 requestToken,
-                activeRequestToken
+                activeToken,
+                requestDesignAnchor,
+                state.designAnchor
         );
     }
 
     private synchronized boolean consumeIfCurrent(String expectedSessionId, String requestToken) {
         if (!isRequestCurrent(expectedSessionId, requestToken)) return false;
         activeRequestToken = "";
+        activeRequestDesignAnchor = "";
         return true;
     }
 
@@ -259,7 +268,7 @@ public final class TeacherBridge {
         return x != null && x.performAction(AccessibilityNodeInfo.ACTION_CLICK);
     }
 
-    private static String text(CharSequence s) {
-        return s == null ? "" : s.toString();
+    private static String text(CharSequence value) {
+        return value == null ? "" : value.toString();
     }
 }
