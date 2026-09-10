@@ -11,11 +11,22 @@ import org.junit.Test;
 
 public final class PersistenceHardHoldInvariantTest {
     private static String serviceSource() throws Exception {
-        Path path=Paths.get("app/src/main/java/com/emrah/canvaapprentice/AgentAccessibilityService.java");
-        if(!Files.isRegularFile(path)){
-            path=Paths.get("canva_apprentice/app/src/main/java/com/emrah/canvaapprentice/AgentAccessibilityService.java");
+        Path cursor=Paths.get("").toAbsolutePath().normalize();
+        Path path=null;
+        while(cursor!=null){
+            Path direct=cursor.resolve("app/src/main/java/com/emrah/canvaapprentice/AgentAccessibilityService.java");
+            if(Files.isRegularFile(direct)){
+                path=direct;
+                break;
+            }
+            Path nested=cursor.resolve("canva_apprentice/app/src/main/java/com/emrah/canvaapprentice/AgentAccessibilityService.java");
+            if(Files.isRegularFile(nested)){
+                path=nested;
+                break;
+            }
+            cursor=cursor.getParent();
         }
-        assertTrue("AgentAccessibilityService source must be available to the safety test",Files.isRegularFile(path));
+        assertTrue("AgentAccessibilityService source must be available to the safety test",path!=null && Files.isRegularFile(path));
         return new String(Files.readAllBytes(path),StandardCharsets.UTF_8);
     }
 
