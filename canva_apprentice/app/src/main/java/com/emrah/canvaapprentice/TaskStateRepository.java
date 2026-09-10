@@ -285,7 +285,7 @@ public final class TaskStateRepository {
             TaskState persisted = load();
             if (persisted.mode != TaskState.Mode.RUNNING
                     || !owner.equals(persisted.designAnchor)
-                    || !hash.equals(persisted.lastSafeHash)
+                    || !hash.equals(persisted.lastSafeSnapshotHash)
                     || !commitSessionId.equals(currentTeacherSessionId())) {
                 return false;
             }
