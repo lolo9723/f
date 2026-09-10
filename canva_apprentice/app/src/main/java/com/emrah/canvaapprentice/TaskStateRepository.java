@@ -63,6 +63,8 @@ public final class TaskStateRepository {
         }
         boolean committed = editor.commit();
         if (!committed) {
+            // A restored runtime must never continue when stale checkpoint/session authority could
+            // still survive on disk. Leave initialization false so every later load retries.
             throw new IllegalStateException("Durable runtime continuity invalidation failed");
         }
         processContinuityInitialized = true;
@@ -140,7 +142,7 @@ public final class TaskStateRepository {
 
     @Deprecated
     public void markSafe(String hash) {
-        final String expectedHash = hash == null ?"":hash.trim();
+        final String expectedHash = hash == null ? "" : hash.trim();
         if (expectedHash.isEmpty()) return;
         final TaskState state;
         final String expectedAnchor;
@@ -207,6 +209,9 @@ public final class TaskStateRepository {
             return false;
         }
 
+        // Persistence-boundary TOCTOU guard: the UI may change after screenshot recapture but before
+        // this synchronized commit begins. Re-observe the live Canva tree immediately before writing
+        // continuity authority. Old pixels/tree evidence must never be able to overwrite a newer UI.
         AgentAccessibilityService service = AgentAccessibilityService.INSTANCE;
         if (service == null || !RuntimeOwnerPolicy.isCurrent(service, AgentAccessibilityService.INSTANCE)) return false;
         AccessibilityNodeInfo liveRoot = service.getRootInActiveWindow();
