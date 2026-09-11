@@ -2,11 +2,9 @@ package com.emrah.canvaapprentice;
 
 /**
  * Defines how teacher transport requests interact with the action execution lease.
- * The request marker owns structural-lease rotation because that same lease is bound
- * into CheckpointRequestGuard. Transport must preserve that marker-owning lease rather
- * than rotating it a second time after the marker has already been created.
- * Visual requests are similar: their screenshot evidence is captured and bound before
- * ChatGPT is opened, so the transport preserves that already-current lease too.
+ * Structural and visual requests each receive their own request-scoped execution lease.
+ * Transport must preserve the lease carried by the immutable request authority rather
+ * than re-reading whichever global lease happens to be current later.
  */
 public final class TeacherRequestLeasePolicy {
     private TeacherRequestLeasePolicy() {}
@@ -16,18 +14,19 @@ public final class TeacherRequestLeasePolicy {
     }
 
     /**
+     * Visual teacher escalation starts a fresh execution chain. Rotating here revokes
+     * the structural action that requested a screenshot, so delayed structural callbacks
+     * cannot coexist with or borrow authority from the visual request.
+     */
+    public static String beginVisualRequest() {
+        return TeacherExecutionLease.beginGlobal();
+    }
+
+    /**
      * Returns the lease already bound to the structural request marker. Empty means the
      * caller has no marker-owned structural execution authority and must fail closed.
      */
     public static String currentStructuralRequestLease() {
-        return TeacherExecutionLease.currentGlobalToken();
-    }
-
-    /**
-     * Returns the lease that already owns the screenshot evidence. Empty means the
-     * visual request has no valid execution owner and must fail closed.
-     */
-    public static String currentVisualRequestLease() {
         return TeacherExecutionLease.currentGlobalToken();
     }
 
