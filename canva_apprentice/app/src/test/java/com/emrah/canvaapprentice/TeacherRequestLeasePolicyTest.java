@@ -10,14 +10,15 @@ public class TeacherRequestLeasePolicyTest {
         TeacherExecutionLease.invalidateGlobal();
     }
 
-    @Test public void visualTeacherRequestPreservesScreenshotOwningLease() {
-        String screenshotOwner = TeacherExecutionLease.beginGlobal();
-        assertFalse(screenshotOwner.isEmpty());
+    @Test public void visualTeacherRequestGetsFreshLeaseAndRevokesStructuralOwner() {
+        String structuralOwner = TeacherExecutionLease.beginGlobal();
 
-        String preserved = TeacherRequestLeasePolicy.currentVisualRequestLease();
+        String visualOwner = TeacherRequestLeasePolicy.beginVisualRequest();
 
-        assertEquals(screenshotOwner, preserved);
-        assertTrue(TeacherExecutionLease.isGlobalCurrent(screenshotOwner));
+        assertFalse(visualOwner.isEmpty());
+        assertNotEquals(structuralOwner, visualOwner);
+        assertFalse(TeacherExecutionLease.isGlobalCurrent(structuralOwner));
+        assertTrue(TeacherExecutionLease.isGlobalCurrent(visualOwner));
     }
 
     @Test public void structuralTeacherRequestSupersedesPreviousActionLease() {
@@ -42,11 +43,6 @@ public class TeacherRequestLeasePolicyTest {
     @Test public void structuralTeacherRequestWithoutMarkerOwnerFailsClosedAsEmpty() {
         TeacherExecutionLease.invalidateGlobal();
         assertEquals("", TeacherRequestLeasePolicy.currentStructuralRequestLease());
-    }
-
-    @Test public void visualTeacherRequestWithoutOwnerFailsClosedAsEmpty() {
-        TeacherExecutionLease.invalidateGlobal();
-        assertEquals("", TeacherRequestLeasePolicy.currentVisualRequestLease());
     }
 
     @Test public void delayedTransportCannotBorrowNewerLease() {
