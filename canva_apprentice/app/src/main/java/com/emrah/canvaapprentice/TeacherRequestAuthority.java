@@ -72,10 +72,10 @@ public final class TeacherRequestAuthority {
     }
 
     /**
-     * Starts a screenshot-backed teacher request with a fresh execution lease. Unlike a
-     * structural request, visual authority is not stored in CheckpointRequestGuard: the
-     * screenshot evidence itself is bound to this exact lease by the service before the
-     * request is transported to ChatGPT.
+     * Starts a screenshot-backed teacher request with a fresh execution lease and binds the
+     * reply marker to the exact screenshot/UI-tree snapshot before transport. Visual replies
+     * are parsed through CheckpointRequestGuard too, so leaving this marker unbound would
+     * make every otherwise-valid visual reply fail closed and lose its execution authority.
      */
     public static TeacherRequestAuthority beginVisual(String requestId, String snapshotFingerprint) {
         String id = normalize(requestId);
@@ -87,12 +87,18 @@ public final class TeacherRequestAuthority {
         if (lease == null || lease.isEmpty()) {
             return invalid(id, fingerprint);
         }
+        String marker = "CAA1_REPLY_" + id + "|";
+        CheckpointRequestGuard.bind(marker, lease);
+        if (!CheckpointRequestGuard.bindSnapshot(marker, fingerprint)) {
+            TeacherExecutionLease.invalidateGlobal();
+            return invalid(id, fingerprint);
+        }
         return new TeacherRequestAuthority(
                 id,
-                "CAA1_REPLY_" + id + "|",
+                marker,
                 lease,
                 fingerprint,
-                false
+                true
         );
     }
 
@@ -111,7 +117,7 @@ public final class TeacherRequestAuthority {
             return true;
         }
 
-        // Structural authority is only valid while the exact marker -> lease -> snapshot
+        // Guard-bound authority is only valid while the exact marker -> lease -> snapshot
         // tuple we captured is still the current checkpoint binding. This prevents a
         // delayed request from remaining executable if the guard entry is replaced,
         // consumed, or advanced while the same global lease happens to remain current.
