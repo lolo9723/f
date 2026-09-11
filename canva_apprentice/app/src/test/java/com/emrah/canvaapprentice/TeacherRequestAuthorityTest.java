@@ -170,6 +170,19 @@ public final class TeacherRequestAuthorityTest {
         assertTrue(TeacherExecutionLease.isGlobalCurrent(lease));
     }
 
+    @Test public void embeddedWhitespaceOrControlCannotBecomeSnapshotAuthorityOrRotateLease() {
+        TeacherRequestAuthority current = TeacherRequestAuthority.begin("safe-before", "snapshot-safe");
+        assertTrue(current.stillOwnsTransport());
+        String lease = current.executionLeaseToken;
+
+        assertFalse(TeacherRequestAuthority.begin("bad-snapshot-1", "snapshot\nother").isValid());
+        assertFalse(TeacherRequestAuthority.beginVisual("bad-snapshot-2", "snapshot\tother").isValid());
+        assertFalse(TeacherRequestAuthority.begin("bad-snapshot-3", "snapshot\u0000other").isValid());
+
+        assertTrue(current.stillOwnsTransport());
+        assertTrue(TeacherExecutionLease.isGlobalCurrent(lease));
+    }
+
     @Test public void requestIdLengthIsBoundedBeforeAnyExecutionLeaseRotation() {
         TeacherRequestAuthority current = TeacherRequestAuthority.begin("safe-before", "snapshot-safe");
         assertTrue(current.stillOwnsTransport());
