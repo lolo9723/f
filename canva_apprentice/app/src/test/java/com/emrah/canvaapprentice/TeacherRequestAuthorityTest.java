@@ -63,9 +63,6 @@ public final class TeacherRequestAuthorityTest {
         TeacherRequestAuthority authority = TeacherRequestAuthority.begin("rebind1", "snapshot-A");
         assertTrue(authority.stillOwnsTransport());
 
-        // A different snapshot for the same marker is deliberately rejected and poisons
-        // the binding. The assertion must preserve that fail-closed contract instead of
-        // expecting an unsafe rebinding to succeed.
         assertFalse(CheckpointRequestGuard.bindSnapshot(authority.marker, "snapshot-B"));
         assertTrue(TeacherRequestLeasePolicy.transportStillOwns(authority.executionLeaseToken));
 
@@ -140,6 +137,34 @@ public final class TeacherRequestAuthorityTest {
         assertFalse(TeacherRequestAuthority.beginVisual("", "snapshot").isValid());
         assertFalse(TeacherRequestAuthority.beginVisual("request", "").isValid());
         assertFalse(TeacherRequestAuthority.fromBoundStructural("bad-marker").isValid());
+    }
+
+    @Test public void unsafeRequestIdsCannotInjectProtocolMarkersOrRotateExistingAuthority() {
+        TeacherRequestAuthority current = TeacherRequestAuthority.begin("safe_123", "snapshot-safe");
+        assertTrue(current.isValid());
+        assertTrue(current.stillOwnsTransport());
+        String lease = current.executionLeaseToken;
+
+        assertFalse(TeacherRequestAuthority.begin("evil|NOOP", "snapshot-evil").isValid());
+        assertFalse(TeacherRequestAuthority.begin("evil\nDONE", "snapshot-evil").isValid());
+        assertFalse(TeacherRequestAuthority.beginVisual("evil request", "snapshot-evil").isValid());
+        assertFalse(TeacherRequestAuthority.fromBoundStructural("CAA1_REPLY_evil|NOOP|").isValid());
+
+        assertEquals(lease, current.executionLeaseToken);
+        assertTrue(current.stillOwnsTransport());
+        assertTrue(TeacherExecutionLease.isGlobalCurrent(lease));
+    }
+
+    @Test public void requestIdLengthIsBoundedBeforeAnyExecutionLeaseRotation() {
+        TeacherRequestAuthority current = TeacherRequestAuthority.begin("safe-before", "snapshot-safe");
+        assertTrue(current.stillOwnsTransport());
+        String lease = current.executionLeaseToken;
+        StringBuilder tooLong = new StringBuilder();
+        for (int i = 0; i < 65; i++) tooLong.append('a');
+
+        assertFalse(TeacherRequestAuthority.begin(tooLong.toString(), "snapshot-long").isValid());
+        assertTrue(current.stillOwnsTransport());
+        assertTrue(TeacherExecutionLease.isGlobalCurrent(lease));
     }
 
     @Test public void invalidationRevokesTransportAuthority() {
