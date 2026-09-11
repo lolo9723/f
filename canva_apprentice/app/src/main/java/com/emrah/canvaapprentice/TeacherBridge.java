@@ -32,11 +32,14 @@ public final class TeacherBridge {
     public void ask(String prompt, String awaitingMarker, ReplyCallback callback) {
         final String sessionId = stateRepo.currentTeacherSessionId();
         final String designAnchor = stateRepo.load().designAnchor;
-        final String structuralExecutionToken = CheckpointRequestGuard.currentBoundExecutionLease(awaitingMarker);
-        if (!TeacherRequestLeasePolicy.transportStillOwns(structuralExecutionToken)) {
-            callback.onFailure("Yapısal öğretmen için geçerli marker execution lease bulunamadı.");
+        final TeacherRequestAuthority authority =
+                TeacherRequestAuthority.fromBoundStructural(awaitingMarker);
+        if (!authority.isValid() || !authority.stillOwnsTransport()) {
+            callback.onFailure("Yapısal öğretmen için geçerli immutable request authority bulunamadı.");
             return;
         }
+        final String structuralMarker = authority.marker;
+        final String structuralExecutionToken = authority.executionLeaseToken;
         final String requestToken = beginRequest(designAnchor);
         Intent launch = service.getPackageManager().getLaunchIntentForPackage(AgentConstants.CHATGPT_PACKAGE);
         if (launch == null) {
@@ -46,7 +49,7 @@ public final class TeacherBridge {
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
         service.startActivity(launch);
         handler.postDelayed(() -> submitPromptOnCurrentChat(
-                prompt, awaitingMarker, sessionId, requestToken, structuralExecutionToken, callback), 1000);
+                prompt, structuralMarker, sessionId, requestToken, structuralExecutionToken, callback), 1000);
     }
 
     public void askWithScreenshot(String prompt, Uri screenshotUri, TeacherRequestAuthority authority,
