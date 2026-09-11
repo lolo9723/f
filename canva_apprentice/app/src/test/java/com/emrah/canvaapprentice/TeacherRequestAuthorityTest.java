@@ -32,6 +32,27 @@ public final class TeacherRequestAuthorityTest {
         assertEquals("snapshot-A", consumed.snapshotFingerprint);
     }
 
+    @Test public void visualAuthorityOwnsFreshLeaseAndExactSnapshot() {
+        String structural = TeacherExecutionLease.beginGlobal();
+
+        TeacherRequestAuthority visual = TeacherRequestAuthority.beginVisual("visual1", "snapshot-V");
+
+        assertTrue(visual.isValid());
+        assertEquals("CAA1_REPLY_visual1|", visual.marker);
+        assertEquals("snapshot-V", visual.snapshotFingerprint);
+        assertNotEquals(structural, visual.executionLeaseToken);
+        assertFalse(TeacherExecutionLease.isGlobalCurrent(structural));
+        assertTrue(visual.stillOwnsTransport());
+    }
+
+    @Test public void newerVisualAuthorityImmediatelyRevokesOlderVisualTransport() {
+        TeacherRequestAuthority oldVisual = TeacherRequestAuthority.beginVisual("oldv", "snapshot-old");
+        TeacherRequestAuthority newVisual = TeacherRequestAuthority.beginVisual("newv", "snapshot-new");
+
+        assertFalse(oldVisual.stillOwnsTransport());
+        assertTrue(newVisual.stillOwnsTransport());
+    }
+
     @Test public void newerAuthorityImmediatelyRevokesOlderTransport() {
         TeacherRequestAuthority oldAuthority = TeacherRequestAuthority.begin("old", "snapshot-old");
         TeacherRequestAuthority newAuthority = TeacherRequestAuthority.begin("new", "snapshot-new");
@@ -45,6 +66,8 @@ public final class TeacherRequestAuthorityTest {
         assertFalse(TeacherRequestAuthority.begin("request", "").isValid());
         assertFalse(TeacherRequestAuthority.begin(null, "snapshot").isValid());
         assertFalse(TeacherRequestAuthority.begin("request", null).isValid());
+        assertFalse(TeacherRequestAuthority.beginVisual("", "snapshot").isValid());
+        assertFalse(TeacherRequestAuthority.beginVisual("request", "").isValid());
     }
 
     @Test public void invalidationRevokesTransportAuthority() {
