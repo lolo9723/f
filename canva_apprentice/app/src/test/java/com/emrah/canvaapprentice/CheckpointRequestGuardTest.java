@@ -11,10 +11,12 @@ import org.junit.Test;
 public final class CheckpointRequestGuardTest {
     @Before public void setUp() {
         CheckpointRequestGuard.resetForTest();
+        TeacherExecutionLease.invalidateGlobal();
     }
 
     @After public void tearDown() {
         CheckpointRequestGuard.resetForTest();
+        TeacherExecutionLease.invalidateGlobal();
     }
 
     @Test public void requestRemainsCurrentWhenNoCheckpointCommits() {
@@ -125,5 +127,54 @@ public final class CheckpointRequestGuardTest {
         assertTrue(fresh.checkpointCurrent);
         assertEquals("lease-fresh", fresh.executionLeaseToken);
         assertEquals(1L, fresh.checkpointGeneration);
+    }
+
+    @Test public void exactSnapshotAuthorityMatchesOnlyOnce() {
+        String token = TeacherExecutionLease.beginGlobal();
+        CheckpointRequestGuard.bind("CAA1_REPLY_exact|", token);
+        assertTrue(CheckpointRequestGuard.bindSnapshot("CAA1_REPLY_exact|", "fp-exact"));
+
+        CheckpointRequestGuard.RequestLease lease = CheckpointRequestGuard.consume("CAA1_REPLY_exact|");
+        assertTrue(lease.checkpointCurrent);
+        assertEquals("fp-exact", lease.snapshotFingerprint);
+        assertEquals(1, CheckpointRequestGuard.consumedSnapshotCountForTest());
+
+        assertTrue(CheckpointRequestGuard.consumeExecutionSnapshotIfMatches(token, "fp-exact"));
+        assertEquals(0, CheckpointRequestGuard.consumedSnapshotCountForTest());
+        assertFalse(CheckpointRequestGuard.consumeExecutionSnapshotIfMatches(token, "fp-exact"));
+    }
+
+    @Test public void snapshotMismatchBurnsOldAuthorityInsteadOfAllowingLaterReplay() {
+        String token = TeacherExecutionLease.beginGlobal();
+        CheckpointRequestGuard.bind("CAA1_REPLY_drift|", token);
+        assertTrue(CheckpointRequestGuard.bindSnapshot("CAA1_REPLY_drift|", "fp-before"));
+        CheckpointRequestGuard.consume("CAA1_REPLY_drift|");
+
+        assertFalse(CheckpointRequestGuard.consumeExecutionSnapshotIfMatches(token, "fp-after"));
+        assertEquals(0, CheckpointRequestGuard.consumedSnapshotCountForTest());
+        assertFalse(CheckpointRequestGuard.consumeExecutionSnapshotIfMatches(token, "fp-before"));
+    }
+
+    @Test public void differentSnapshotRebindPoisonsPendingMarker() {
+        String token = TeacherExecutionLease.beginGlobal();
+        CheckpointRequestGuard.bind("CAA1_REPLY_rebind|", token);
+        assertTrue(CheckpointRequestGuard.bindSnapshot("CAA1_REPLY_rebind|", "fp-a"));
+        assertFalse(CheckpointRequestGuard.bindSnapshot("CAA1_REPLY_rebind|", "fp-b"));
+
+        CheckpointRequestGuard.RequestLease lease = CheckpointRequestGuard.consume("CAA1_REPLY_rebind|");
+        assertFalse(lease.checkpointCurrent);
+        assertEquals("", lease.executionLeaseToken);
+        assertEquals("", lease.snapshotFingerprint);
+    }
+
+    @Test public void newerExecutionLeaseCannotBorrowOlderSnapshotAuthority() {
+        String oldToken = TeacherExecutionLease.beginGlobal();
+        CheckpointRequestGuard.bind("CAA1_REPLY_old_snapshot|", oldToken);
+        assertTrue(CheckpointRequestGuard.bindSnapshot("CAA1_REPLY_old_snapshot|", "fp-old"));
+        CheckpointRequestGuard.consume("CAA1_REPLY_old_snapshot|");
+
+        String newToken = TeacherExecutionLease.beginGlobal();
+        assertFalse(CheckpointRequestGuard.consumeExecutionSnapshotIfMatches(oldToken, "fp-old"));
+        assertFalse(CheckpointRequestGuard.consumeExecutionSnapshotIfMatches(newToken, "fp-old"));
     }
 }
