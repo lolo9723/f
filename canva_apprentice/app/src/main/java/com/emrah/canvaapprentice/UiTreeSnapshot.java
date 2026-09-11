@@ -133,7 +133,10 @@ public final class UiTreeSnapshot {
                     .append(n.editable ? 'E' : '-')
                     .append(n.enabled ? 'N' : 'D')
                     .append('|').append(quantizedBounds(n.bounds));
-            if (++kept >= 120) break;
+            // The teacher can target compact rows 0..219. Fingerprint every row the teacher
+            // can observe so drift in a late exact-node target cannot hide beyond the old
+            // 120-node fingerprint horizon and then execute against a stale UI generation.
+            if (++kept >= 220) break;
         }
         return sha256(b.toString());
     }
