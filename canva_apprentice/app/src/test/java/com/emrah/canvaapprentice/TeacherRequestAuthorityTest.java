@@ -63,7 +63,10 @@ public final class TeacherRequestAuthorityTest {
         TeacherRequestAuthority authority = TeacherRequestAuthority.begin("rebind1", "snapshot-A");
         assertTrue(authority.stillOwnsTransport());
 
-        assertTrue(CheckpointRequestGuard.bindSnapshot(authority.marker, "snapshot-B"));
+        // A different snapshot for the same marker is deliberately rejected and poisons
+        // the binding. The assertion must preserve that fail-closed contract instead of
+        // expecting an unsafe rebinding to succeed.
+        assertFalse(CheckpointRequestGuard.bindSnapshot(authority.marker, "snapshot-B"));
         assertTrue(TeacherRequestLeasePolicy.transportStillOwns(authority.executionLeaseToken));
 
         assertFalse(authority.stillOwnsTransport());
