@@ -30,6 +30,20 @@ public class TeacherRequestLeasePolicyTest {
         assertTrue(TeacherExecutionLease.isGlobalCurrent(structural));
     }
 
+    @Test public void structuralTransportPreservesMarkerOwningLease() {
+        String markerOwner = TeacherRequestLeasePolicy.beginStructuralRequest();
+
+        String preserved = TeacherRequestLeasePolicy.currentStructuralRequestLease();
+
+        assertEquals(markerOwner, preserved);
+        assertTrue(TeacherExecutionLease.isGlobalCurrent(markerOwner));
+    }
+
+    @Test public void structuralTeacherRequestWithoutMarkerOwnerFailsClosedAsEmpty() {
+        TeacherExecutionLease.invalidateGlobal();
+        assertEquals("", TeacherRequestLeasePolicy.currentStructuralRequestLease());
+    }
+
     @Test public void visualTeacherRequestWithoutOwnerFailsClosedAsEmpty() {
         TeacherExecutionLease.invalidateGlobal();
         assertEquals("", TeacherRequestLeasePolicy.currentVisualRequestLease());
