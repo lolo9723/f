@@ -46,11 +46,12 @@ public final class ActionExecutor {
         boolean anchorVisible = !state.designAnchor.isEmpty() && snap.containsText(state.designAnchor);
         String currentSnapshotHash = snap.stableFingerprint();
 
-        // Exact-node indexes/labels/classes/bounds are meaningful only for the exact compact
-        // tree that the teacher saw. Consume that request-scoped authority once here. A UI
-        // drift mismatch also burns the authority so an old action cannot wait for the screen
-        // to later return to a similar snapshot and replay against it.
-        if (action.isNodeAction()
+        // Structural target resolution is meaningful only for the exact compact tree that
+        // the teacher saw. This includes fallback CLICK_TEXT/SET_TEXT: uniqueness alone is
+        // not authority if the same label disappeared/reappeared on another control. Consume
+        // the request-scoped snapshot once before any structural target lookup. A mismatch
+        // burns the authority so a stale action cannot wait for the UI to drift back later.
+        if (action.requiresTeacherSnapshotAuthority()
                 && !CheckpointRequestGuard.consumeExecutionSnapshotIfMatches(
                         action.executionLeaseToken, currentSnapshotHash)) {
             return false;
