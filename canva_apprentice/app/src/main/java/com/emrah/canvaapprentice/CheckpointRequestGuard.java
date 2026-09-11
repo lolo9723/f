@@ -48,6 +48,38 @@ public final class CheckpointRequestGuard {
     }
 
     /**
+     * Creates the marker -> execution lease -> teacher-visible snapshot tuple in one
+     * synchronized operation. New authority paths should use this instead of bind() followed
+     * by bindSnapshot(), because a checkpoint commit or competing marker reuse between those
+     * calls would otherwise expose a transient partially-grounded request.
+     */
+    public static synchronized boolean bindFullyGrounded(
+            String marker,
+            String executionLeaseToken,
+            String snapshotFingerprint) {
+        String m = normalize(marker);
+        String token = normalize(executionLeaseToken);
+        String fingerprint = normalize(snapshotFingerprint);
+        if (m.isEmpty() || token.isEmpty() || fingerprint.isEmpty()) return false;
+
+        if (REQUESTS.containsKey(m)) {
+            REQUESTS.remove(m);
+            REQUESTS.put(m, new RequestLease(-1L, "", "", false));
+            evictOldestPendingRequests();
+            return false;
+        }
+
+        REQUESTS.put(m, new RequestLease(
+                checkpointGeneration,
+                token,
+                fingerprint,
+                true
+        ));
+        evictOldestPendingRequests();
+        return true;
+    }
+
+    /**
      * Attaches the exact teacher-visible UI snapshot to an already-bound request marker.
      * Rebinding to a different snapshot is ambiguous and poisons the marker rather than
      * allowing a reply to borrow authority from a newer screen.
