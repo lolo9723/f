@@ -48,6 +48,27 @@ public final class TeacherRequestAuthorityTest {
         assertEquals(originalLease, CheckpointRequestGuard.currentBoundExecutionLease(marker));
     }
 
+    @Test public void structuralAuthorityStopsOwningTransportAfterBindingIsConsumed() {
+        TeacherRequestAuthority authority = TeacherRequestAuthority.begin("consume1", "snapshot-C");
+        assertTrue(authority.stillOwnsTransport());
+
+        CheckpointRequestGuard.RequestLease consumed = CheckpointRequestGuard.consume(authority.marker);
+        assertTrue(consumed.checkpointCurrent);
+        assertTrue(TeacherRequestLeasePolicy.transportStillOwns(authority.executionLeaseToken));
+
+        assertFalse(authority.stillOwnsTransport());
+    }
+
+    @Test public void structuralAuthorityRejectsSnapshotRebindingEvenWithSameExecutionLease() {
+        TeacherRequestAuthority authority = TeacherRequestAuthority.begin("rebind1", "snapshot-A");
+        assertTrue(authority.stillOwnsTransport());
+
+        assertTrue(CheckpointRequestGuard.bindSnapshot(authority.marker, "snapshot-B"));
+        assertTrue(TeacherRequestLeasePolicy.transportStillOwns(authority.executionLeaseToken));
+
+        assertFalse(authority.stillOwnsTransport());
+    }
+
     @Test public void adoptionFailsClosedForUngroundedOrStaleStructuralMarker() {
         String marker = TeacherProtocol.markerFor("ungrounded");
         assertFalse(TeacherRequestAuthority.fromBoundStructural(marker).isValid());
