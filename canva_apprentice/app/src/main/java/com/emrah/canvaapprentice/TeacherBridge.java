@@ -32,11 +32,10 @@ public final class TeacherBridge {
     public void ask(String prompt, String awaitingMarker, ReplyCallback callback) {
         final String sessionId = stateRepo.currentTeacherSessionId();
         final String designAnchor = stateRepo.load().designAnchor;
-        // The protocol marker was created immediately before this call and already rotated
-        // + bound the structural execution lease into CheckpointRequestGuard. Rotating again
-        // here would stale that marker before ChatGPT even receives the request. Preserve the
-        // marker-owning lease and fail closed if no such lease exists.
-        final String structuralExecutionToken = TeacherRequestLeasePolicy.currentStructuralRequestLease();
+        // Transport authority must come from this exact marker, not from whichever global
+        // execution lease happens to be current when this delayed call begins. Otherwise
+        // stale marker A could borrow newer marker B's authority after a teacher rotation.
+        final String structuralExecutionToken = CheckpointRequestGuard.currentBoundExecutionLease(awaitingMarker);
         if (!TeacherRequestLeasePolicy.transportStillOwns(structuralExecutionToken)) {
             callback.onFailure("Yapısal öğretmen için geçerli marker execution lease bulunamadı.");
             return;
