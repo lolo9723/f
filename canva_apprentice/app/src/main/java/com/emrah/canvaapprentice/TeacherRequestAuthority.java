@@ -11,13 +11,16 @@ public final class TeacherRequestAuthority {
     public final String marker;
     public final String executionLeaseToken;
     public final String snapshotFingerprint;
+    private final boolean structuralBound;
 
     private TeacherRequestAuthority(String requestId, String marker,
-                                    String executionLeaseToken, String snapshotFingerprint) {
+                                    String executionLeaseToken, String snapshotFingerprint,
+                                    boolean structuralBound) {
         this.requestId = requestId;
         this.marker = marker;
         this.executionLeaseToken = executionLeaseToken;
         this.snapshotFingerprint = snapshotFingerprint;
+        this.structuralBound = structuralBound;
     }
 
     public static TeacherRequestAuthority begin(String requestId, String snapshotFingerprint) {
@@ -38,7 +41,7 @@ public final class TeacherRequestAuthority {
             TeacherExecutionLease.invalidateGlobal();
             return invalid(id, fingerprint);
         }
-        return new TeacherRequestAuthority(id, marker, lease, fingerprint);
+        return new TeacherRequestAuthority(id, marker, lease, fingerprint, true);
     }
 
     /**
@@ -63,7 +66,8 @@ public final class TeacherRequestAuthority {
                 id,
                 normalizedMarker,
                 lease.executionLeaseToken,
-                lease.snapshotFingerprint
+                lease.snapshotFingerprint,
+                true
         );
     }
 
@@ -87,7 +91,8 @@ public final class TeacherRequestAuthority {
                 id,
                 "CAA1_REPLY_" + id + "|",
                 lease,
-                fingerprint
+                fingerprint,
+                false
         );
     }
 
@@ -99,12 +104,27 @@ public final class TeacherRequestAuthority {
     }
 
     public boolean stillOwnsTransport() {
-        return isValid() && TeacherRequestLeasePolicy.transportStillOwns(executionLeaseToken);
+        if (!isValid() || !TeacherRequestLeasePolicy.transportStillOwns(executionLeaseToken)) {
+            return false;
+        }
+        if (!structuralBound) {
+            return true;
+        }
+
+        // Structural authority is only valid while the exact marker -> lease -> snapshot
+        // tuple we captured is still the current checkpoint binding. This prevents a
+        // delayed request from remaining executable if the guard entry is replaced,
+        // consumed, or advanced while the same global lease happens to remain current.
+        CheckpointRequestGuard.RequestLease current =
+                CheckpointRequestGuard.currentBoundRequestLease(marker);
+        return current.checkpointCurrent
+                && executionLeaseToken.equals(current.executionLeaseToken)
+                && snapshotFingerprint.equals(current.snapshotFingerprint);
     }
 
     private static TeacherRequestAuthority invalid(String requestId, String snapshotFingerprint) {
         return new TeacherRequestAuthority(
-                normalize(requestId), "", "", normalize(snapshotFingerprint));
+                normalize(requestId), "", "", normalize(snapshotFingerprint), false);
     }
 
     private static String requestIdFromMarker(String marker) {
