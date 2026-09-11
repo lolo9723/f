@@ -155,6 +155,21 @@ public final class TeacherRequestAuthorityTest {
         assertTrue(TeacherExecutionLease.isGlobalCurrent(lease));
     }
 
+    @Test public void surroundingWhitespaceCannotBeCanonicalizedIntoTeacherAuthority() {
+        TeacherRequestAuthority current = TeacherRequestAuthority.begin("safe-before", "snapshot-safe");
+        assertTrue(current.stillOwnsTransport());
+        String lease = current.executionLeaseToken;
+
+        assertFalse(TeacherRequestAuthority.begin(" safe", "snapshot-leading").isValid());
+        assertFalse(TeacherRequestAuthority.begin("safe ", "snapshot-trailing").isValid());
+        assertFalse(TeacherRequestAuthority.beginVisual("\tsafe", "snapshot-tab").isValid());
+        assertFalse(TeacherRequestAuthority.fromBoundStructural(" CAA1_REPLY_safe-before|").isValid());
+        assertFalse(TeacherRequestAuthority.fromBoundStructural("CAA1_REPLY_safe-before| ").isValid());
+
+        assertTrue(current.stillOwnsTransport());
+        assertTrue(TeacherExecutionLease.isGlobalCurrent(lease));
+    }
+
     @Test public void requestIdLengthIsBoundedBeforeAnyExecutionLeaseRotation() {
         TeacherRequestAuthority current = TeacherRequestAuthority.begin("safe-before", "snapshot-safe");
         assertTrue(current.stillOwnsTransport());
