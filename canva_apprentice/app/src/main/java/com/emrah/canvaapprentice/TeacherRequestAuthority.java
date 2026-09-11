@@ -26,7 +26,7 @@ public final class TeacherRequestAuthority {
     public static TeacherRequestAuthority begin(String requestId, String snapshotFingerprint) {
         String id = normalize(requestId);
         String fingerprint = normalize(snapshotFingerprint);
-        if (id.isEmpty() || fingerprint.isEmpty()) {
+        if (!isSafeRequestId(id) || fingerprint.isEmpty()) {
             return invalid(id, fingerprint);
         }
 
@@ -41,7 +41,13 @@ public final class TeacherRequestAuthority {
             TeacherExecutionLease.invalidateGlobal();
             return invalid(id, fingerprint);
         }
-        return new TeacherRequestAuthority(id, marker, lease, fingerprint, true);
+        TeacherRequestAuthority authority =
+                new TeacherRequestAuthority(id, marker, lease, fingerprint, true);
+        if (!authority.stillOwnsTransport()) {
+            TeacherExecutionLease.invalidateGlobal();
+            return invalid(id, fingerprint);
+        }
+        return authority;
     }
 
     /**
@@ -52,7 +58,7 @@ public final class TeacherRequestAuthority {
     public static TeacherRequestAuthority fromBoundStructural(String marker) {
         String normalizedMarker = normalize(marker);
         String id = requestIdFromMarker(normalizedMarker);
-        if (id.isEmpty()) {
+        if (!isSafeRequestId(id)) {
             return invalid("", "");
         }
         CheckpointRequestGuard.RequestLease lease =
@@ -62,13 +68,16 @@ public final class TeacherRequestAuthority {
                 || lease.snapshotFingerprint.isEmpty()) {
             return invalid(id, lease.snapshotFingerprint);
         }
-        return new TeacherRequestAuthority(
+        TeacherRequestAuthority authority = new TeacherRequestAuthority(
                 id,
                 normalizedMarker,
                 lease.executionLeaseToken,
                 lease.snapshotFingerprint,
                 true
         );
+        return authority.stillOwnsTransport()
+                ? authority
+                : invalid(id, lease.snapshotFingerprint);
     }
 
     /**
@@ -80,7 +89,7 @@ public final class TeacherRequestAuthority {
     public static TeacherRequestAuthority beginVisual(String requestId, String snapshotFingerprint) {
         String id = normalize(requestId);
         String fingerprint = normalize(snapshotFingerprint);
-        if (id.isEmpty() || fingerprint.isEmpty()) {
+        if (!isSafeRequestId(id) || fingerprint.isEmpty()) {
             return invalid(id, fingerprint);
         }
         String lease = TeacherRequestLeasePolicy.beginVisualRequest();
@@ -93,18 +102,24 @@ public final class TeacherRequestAuthority {
             TeacherExecutionLease.invalidateGlobal();
             return invalid(id, fingerprint);
         }
-        return new TeacherRequestAuthority(
+        TeacherRequestAuthority authority = new TeacherRequestAuthority(
                 id,
                 marker,
                 lease,
                 fingerprint,
                 true
         );
+        if (!authority.stillOwnsTransport()) {
+            TeacherExecutionLease.invalidateGlobal();
+            return invalid(id, fingerprint);
+        }
+        return authority;
     }
 
     public boolean isValid() {
-        return !requestId.isEmpty()
+        return isSafeRequestId(requestId)
                 && !marker.isEmpty()
+                && marker.equals("CAA1_REPLY_" + requestId + "|")
                 && !executionLeaseToken.isEmpty()
                 && !snapshotFingerprint.isEmpty();
     }
@@ -138,7 +153,26 @@ public final class TeacherRequestAuthority {
         if (!marker.startsWith(prefix) || !marker.endsWith("|") || marker.length() <= prefix.length() + 1) {
             return "";
         }
-        return normalize(marker.substring(prefix.length(), marker.length() - 1));
+        String id = normalize(marker.substring(prefix.length(), marker.length() - 1));
+        return isSafeRequestId(id) ? id : "";
+    }
+
+    /**
+     * Request ids become part of the line protocol marker, so they must never contain
+     * separators, whitespace, control characters or arbitrary teacher-controlled text.
+     * UUID-derived ids used by the service fit this deliberately narrow grammar.
+     */
+    private static boolean isSafeRequestId(String value) {
+        if (value == null || value.isEmpty() || value.length() > 64) return false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            boolean safe = (c >= 'a' && c <= 'z')
+                    || (c >= 'A' && c <= 'Z')
+                    || (c >= '0' && c <= '9')
+                    || c == '-' || c == '_';
+            if (!safe) return false;
+        }
+        return true;
     }
 
     private static String normalize(String value) {
