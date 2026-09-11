@@ -3,14 +3,21 @@ package com.emrah.canvaapprentice;
 public final class TeacherProtocol {
     private TeacherProtocol() {}
 
+    private static String markerText(String requestId) {
+        return "CAA1_REPLY_" + requestId + "|";
+    }
+
     public static String markerFor(String requestId) {
         String executionLeaseToken = TeacherExecutionLease.beginGlobal();
-        String marker = "CAA1_REPLY_" + requestId + "|";
+        String marker = markerText(requestId);
         CheckpointRequestGuard.bind(marker, executionLeaseToken);
         return marker;
     }
 
     public static String buildRequest(TaskState state, UiTreeSnapshot snapshot, String note, String requestId) {
+        // Bind the exact teacher-visible tree to this request before it leaves the device.
+        // Exact-node execution later consumes this fingerprint one time at the executor.
+        CheckpointRequestGuard.bindSnapshot(markerText(requestId), snapshot.stableFingerprint());
         String continuity = state.designAnchor.isEmpty()
                 ? "DesignAnchor: UNBOUND. If a unique existing design title/name is clearly visible, you MAY bind it with BIND_DESIGN before risky navigation.\n"
                 : "DesignAnchor: " + state.designAnchor + "\n" +
@@ -52,6 +59,9 @@ public final class TeacherProtocol {
 
     public static String buildVisualRequest(TaskState state, UiTreeSnapshot snapshot,
                                             String requestId, String screenshotReason) {
+        // The screenshot and compact UI tree are a single grounding unit. Preserve the
+        // exact structural snapshot as one-shot authority for any returned node action.
+        CheckpointRequestGuard.bindSnapshot(markerText(requestId), snapshot.stableFingerprint());
         String continuity = state.designAnchor.isEmpty()
                 ? "DesignAnchor: UNBOUND\n"
                 : "DesignAnchor: " + state.designAnchor + "\nDESIGN CONTINUITY RULE: preserve this exact existing design.\n";
