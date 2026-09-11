@@ -76,6 +76,25 @@ public final class CheckpointRequestGuard {
         return true;
     }
 
+    /**
+     * Returns only the execution lease owned by this exact, fully-grounded marker.
+     * This is a non-consuming transport check: parsing still consumes the request later.
+     * Never substitute the globally-current lease here; doing so would let delayed
+     * transport for marker A borrow marker B's newer authority.
+     */
+    public static synchronized String currentBoundExecutionLease(String marker) {
+        String m = normalize(marker);
+        RequestLease recorded = REQUESTS.get(m);
+        if (recorded == null
+                || !recorded.checkpointCurrent
+                || recorded.checkpointGeneration != checkpointGeneration
+                || recorded.executionLeaseToken.isEmpty()
+                || recorded.snapshotFingerprint.isEmpty()) {
+            return "";
+        }
+        return recorded.executionLeaseToken;
+    }
+
     public static synchronized RequestLease consume(String marker) {
         String m = normalize(marker);
         RequestLease recorded = REQUESTS.remove(m);
