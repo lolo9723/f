@@ -32,9 +32,6 @@ public final class TeacherBridge {
     public void ask(String prompt, String awaitingMarker, ReplyCallback callback) {
         final String sessionId = stateRepo.currentTeacherSessionId();
         final String designAnchor = stateRepo.load().designAnchor;
-        // Transport authority must come from this exact marker, not from whichever global
-        // execution lease happens to be current when this delayed call begins. Otherwise
-        // stale marker A could borrow newer marker B's authority after a teacher rotation.
         final String structuralExecutionToken = CheckpointRequestGuard.currentBoundExecutionLease(awaitingMarker);
         if (!TeacherRequestLeasePolicy.transportStillOwns(structuralExecutionToken)) {
             callback.onFailure("Yapısal öğretmen için geçerli marker execution lease bulunamadı.");
@@ -52,17 +49,16 @@ public final class TeacherBridge {
                 prompt, awaitingMarker, sessionId, requestToken, structuralExecutionToken, callback), 1000);
     }
 
-    public void askWithScreenshot(String prompt, Uri screenshotUri, String awaitingMarker, ReplyCallback callback) {
+    public void askWithScreenshot(String prompt, Uri screenshotUri, TeacherRequestAuthority authority,
+                                  ReplyCallback callback) {
         final String sessionId = stateRepo.currentTeacherSessionId();
         final String designAnchor = stateRepo.load().designAnchor;
-        // The screenshot was already captured and bound to the current execution lease
-        // by AgentAccessibilityService. Rotating the lease here would instantly stale
-        // that evidence before ChatGPT can answer, making every visual action fail.
-        final String visualExecutionToken = TeacherRequestLeasePolicy.currentVisualRequestLease();
-        if (!TeacherRequestLeasePolicy.transportStillOwns(visualExecutionToken)) {
-            callback.onFailure("Görüntülü öğretmen için geçerli execution lease bulunamadı.");
+        if (authority == null || !authority.isValid() || !authority.stillOwnsTransport()) {
+            callback.onFailure("Görüntülü öğretmen için geçerli request authority bulunamadı.");
             return;
         }
+        final String awaitingMarker = authority.marker;
+        final String visualExecutionToken = authority.executionLeaseToken;
         final String requestToken = beginRequest(designAnchor);
         Intent share = new Intent(Intent.ACTION_SEND);
         share.setPackage(AgentConstants.CHATGPT_PACKAGE);
@@ -132,8 +128,6 @@ public final class TeacherBridge {
             return;
         }
 
-        // Re-check immediately before mutating ChatGPT. STOP/human takeover/resume/new
-        // teacher authority may have invalidated the lease after the delayed callback began.
         if (!isTransportCurrent(sessionId, requestToken, executionLeaseToken)) {
             discardStaleRequest();
             return;
@@ -235,9 +229,6 @@ public final class TeacherBridge {
     }
 
     private void discardStaleRequest() {
-        // A stale callback does not own service-level state. In particular it must not
-        // clear cycleBusy or visual evidence that may belong to a newer teacher request.
-        // Task/session transitions and the current request's callback perform their own cleanup.
     }
 
     private static AccessibilityNodeInfo findEditable(AccessibilityNodeInfo root) {
