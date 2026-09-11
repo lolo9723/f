@@ -36,8 +36,7 @@ public final class TeacherRequestAuthority {
             return invalid(id, fingerprint);
         }
 
-        CheckpointRequestGuard.bind(marker, lease);
-        if (!CheckpointRequestGuard.bindSnapshot(marker, fingerprint)) {
+        if (!CheckpointRequestGuard.bindFullyGrounded(marker, lease, fingerprint)) {
             TeacherExecutionLease.invalidateGlobal();
             return invalid(id, fingerprint);
         }
@@ -97,8 +96,7 @@ public final class TeacherRequestAuthority {
             return invalid(id, fingerprint);
         }
         String marker = "CAA1_REPLY_" + id + "|";
-        CheckpointRequestGuard.bind(marker, lease);
-        if (!CheckpointRequestGuard.bindSnapshot(marker, fingerprint)) {
+        if (!CheckpointRequestGuard.bindFullyGrounded(marker, lease, fingerprint)) {
             TeacherExecutionLease.invalidateGlobal();
             return invalid(id, fingerprint);
         }
