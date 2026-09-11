@@ -461,11 +461,17 @@ public final class AgentAccessibilityService extends AccessibilityService {
         final String expectedDesignAnchor=state.designAnchor;
         final String teacherSessionId=repo.currentTeacherSessionId();
         final String requestId=UUID.randomUUID().toString().replace("-", "").substring(0, 12);
-        final String marker=TeacherProtocol.markerFor(requestId);
-        final String visualExecutionToken=TeacherExecutionLease.currentGlobalToken();
+        final TeacherRequestAuthority visualAuthority=TeacherRequestAuthority.beginVisual(requestId,expectedFingerprint);
+        if(!visualAuthority.isValid() || !visualAuthority.stillOwnsTransport()){
+            pauseForHuman("Görüntülü öğretmen için güvenli request authority oluşturulamadı; ekran görüntüsü gönderilmedi.");
+            cycleBusy.set(false);
+            return;
+        }
+        final String marker=visualAuthority.marker;
+        final String visualExecutionToken=visualAuthority.executionLeaseToken;
         captureScreenshotForDiagnostics(file -> {
             if(persistenceHardHold.get()) return;
-            if(!isTeacherSessionCurrent(teacherSessionId) || !TeacherExecutionLease.isGlobalCurrent(visualExecutionToken)){
+            if(!isTeacherSessionCurrent(teacherSessionId) || !visualAuthority.stillOwnsTransport()){
                 onStaleTeacherRequestDiscarded();
                 return;
             }
@@ -482,10 +488,11 @@ public final class AgentAccessibilityService extends AccessibilityService {
             TaskState liveState=repo.load();
             boolean liveAnchorVisible=liveSnap!=null && !liveState.designAnchor.isEmpty()
                     && liveSnap.containsText(liveState.designAnchor);
-            boolean visualContextCurrent=liveSnap!=null && VisualRequestContextGuard.matches(
+            boolean visualContextCurrent=liveSnap!=null && visualAuthority.snapshotFingerprint.equals(expectedFingerprint)
+                    && VisualRequestContextGuard.matches(
                     expectedPackage,
                     livePackage,
-                    expectedFingerprint,
+                    visualAuthority.snapshotFingerprint,
                     liveSnap.stableFingerprint(),
                     expectedDesignAnchor,
                     liveState.designAnchor,
@@ -511,10 +518,10 @@ public final class AgentAccessibilityService extends AccessibilityService {
                 return;
             }
             String prompt=TeacherProtocol.buildVisualRequest(state,snap,requestId,screenshotReason);
-            teacher.askWithScreenshot(prompt,ScreenshotProvider.uriFor(file),marker,new TeacherBridge.ReplyCallback(){
+            teacher.askWithScreenshot(prompt,ScreenshotProvider.uriFor(file),visualAuthority,new TeacherBridge.ReplyCallback(){
                 @Override public void onReply(String reply){
                     if(persistenceHardHold.get()) return;
-                    if(!isTeacherSessionCurrent(teacherSessionId) || !TeacherExecutionLease.isGlobalCurrent(visualExecutionToken)){
+                    if(!isTeacherSessionCurrent(teacherSessionId) || !visualAuthority.stillOwnsTransport()){
                         onStaleTeacherRequestDiscarded();
                         return;
                     }
@@ -533,12 +540,12 @@ public final class AgentAccessibilityService extends AccessibilityService {
                     if(canva!=null){
                         canva.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);startActivity(canva);}
                     new Handler(Looper.getMainLooper()).postDelayed(
-                            () -> waitForCanvaAndHandle(visualAction,snap.stableFingerprint(),teacherSessionId,0),450);
+                            () -> waitForCanvaAndHandle(visualAction,visualAuthority.snapshotFingerprint,teacherSessionId,0),450);
                 }
 
                 @Override public void onFailure(String reason){
                     if(persistenceHardHold.get()) return;
-                    if(!isTeacherSessionCurrent(teacherSessionId) || !TeacherExecutionLease.isGlobalCurrent(visualExecutionToken)){
+                    if(!isTeacherSessionCurrent(teacherSessionId) || !visualAuthority.stillOwnsTransport()){
                         onStaleTeacherRequestDiscarded();
                         return;
                     }
@@ -644,8 +651,6 @@ public final class AgentAccessibilityService extends AccessibilityService {
     }
 
     public void onStaleTeacherRequestDiscarded(){
-        // Stale callbacks must be side-effect free: they do not own shared runtime state.
-        // The current request/action chain is responsible for clearing its own busy/visual state.
     }
 
     private boolean isTeacherSessionCurrent(String expectedSessionId){
