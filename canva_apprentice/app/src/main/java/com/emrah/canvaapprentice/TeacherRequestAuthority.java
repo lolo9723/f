@@ -42,6 +42,32 @@ public final class TeacherRequestAuthority {
     }
 
     /**
+     * Captures an already-created structural request as one immutable authority object.
+     * Marker, lease and snapshot are read atomically from CheckpointRequestGuard so delayed
+     * transport cannot mix pieces from different checkpoint generations.
+     */
+    public static TeacherRequestAuthority fromBoundStructural(String marker) {
+        String normalizedMarker = normalize(marker);
+        String id = requestIdFromMarker(normalizedMarker);
+        if (id.isEmpty()) {
+            return invalid("", "");
+        }
+        CheckpointRequestGuard.RequestLease lease =
+                CheckpointRequestGuard.currentBoundRequestLease(normalizedMarker);
+        if (!lease.checkpointCurrent
+                || lease.executionLeaseToken.isEmpty()
+                || lease.snapshotFingerprint.isEmpty()) {
+            return invalid(id, lease.snapshotFingerprint);
+        }
+        return new TeacherRequestAuthority(
+                id,
+                normalizedMarker,
+                lease.executionLeaseToken,
+                lease.snapshotFingerprint
+        );
+    }
+
+    /**
      * Starts a screenshot-backed teacher request with a fresh execution lease. Unlike a
      * structural request, visual authority is not stored in CheckpointRequestGuard: the
      * screenshot evidence itself is bound to this exact lease by the service before the
@@ -79,6 +105,14 @@ public final class TeacherRequestAuthority {
     private static TeacherRequestAuthority invalid(String requestId, String snapshotFingerprint) {
         return new TeacherRequestAuthority(
                 normalize(requestId), "", "", normalize(snapshotFingerprint));
+    }
+
+    private static String requestIdFromMarker(String marker) {
+        final String prefix = "CAA1_REPLY_";
+        if (!marker.startsWith(prefix) || !marker.endsWith("|") || marker.length() <= prefix.length() + 1) {
+            return "";
+        }
+        return normalize(marker.substring(prefix.length(), marker.length() - 1));
     }
 
     private static String normalize(String value) {
