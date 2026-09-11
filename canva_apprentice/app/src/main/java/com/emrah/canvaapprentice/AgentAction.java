@@ -49,4 +49,18 @@ public final class AgentAction {
     public boolean isNodeAction() {
         return type == Type.CLICK_NODE || type == Type.SET_NODE_TEXT;
     }
+
+    /**
+     * Structural teacher actions that resolve a target from the UI tree must execute only
+     * against the exact snapshot that was shown to the teacher. Plain text targeting is a
+     * fallback resolver, not weaker authority: a label can disappear/reappear or move to a
+     * different control while still remaining unique. Bind it to the same one-shot snapshot
+     * authority as exact-node actions so stale replies fail closed before target resolution.
+     */
+    public boolean requiresTeacherSnapshotAuthority() {
+        return type == Type.CLICK_NODE
+                || type == Type.SET_NODE_TEXT
+                || type == Type.CLICK_TEXT
+                || type == Type.SET_TEXT;
+    }
 }
