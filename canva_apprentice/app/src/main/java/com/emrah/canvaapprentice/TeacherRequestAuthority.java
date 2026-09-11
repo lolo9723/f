@@ -123,22 +123,22 @@ public final class TeacherRequestAuthority {
     }
 
     public boolean stillOwnsTransport() {
-        if (!isValid() || !TeacherRequestLeasePolicy.transportStillOwns(executionLeaseToken)) {
-            return false;
-        }
+        if (!isValid()) return false;
         if (!structuralBound) {
-            return true;
+            return TeacherRequestLeasePolicy.transportStillOwns(executionLeaseToken);
         }
 
-        // Guard-bound authority is only valid while the exact marker -> lease -> snapshot
-        // tuple we captured is still the current checkpoint binding. This prevents a
-        // delayed request from remaining executable if the guard entry is replaced,
-        // consumed, or advanced while the same global lease happens to remain current.
-        CheckpointRequestGuard.RequestLease current =
-                CheckpointRequestGuard.currentBoundRequestLease(marker);
-        return current.checkpointCurrent
-                && executionLeaseToken.equals(current.executionLeaseToken)
-                && snapshotFingerprint.equals(current.snapshotFingerprint);
+        // Hold the execution-lease monitor while validating the marker -> lease -> snapshot
+        // tuple. Without this atomic boundary a newer teacher request could rotate the global
+        // lease after the old token was checked but before the checkpoint tuple was read,
+        // briefly allowing delayed transport from the stale request to pass both checks.
+        return TeacherExecutionLease.withGlobalCurrent(executionLeaseToken, false, () -> {
+            CheckpointRequestGuard.RequestLease current =
+                    CheckpointRequestGuard.currentBoundRequestLease(marker);
+            return current.checkpointCurrent
+                    && executionLeaseToken.equals(current.executionLeaseToken)
+                    && snapshotFingerprint.equals(current.snapshotFingerprint);
+        });
     }
 
     private static TeacherRequestAuthority invalid(String requestId, String snapshotFingerprint) {
