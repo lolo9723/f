@@ -175,12 +175,17 @@ public final class TeacherRequestAuthority {
 
     /**
      * Snapshot fingerprints are identity-bearing authority, not user-facing text. Never
-     * silently trim/canonicalize them: a fingerprint that differs by whitespace must be
-     * rejected before any execution lease rotates, otherwise transport and execution can
-     * disagree about which exact teacher-visible snapshot was authorized.
+     * silently trim/canonicalize them and never accept embedded whitespace/control bytes.
+     * Production fingerprints are SHA-derived opaque tokens, so whitespace has no legitimate
+     * meaning here; accepting it would let different layers disagree about exact identity.
      */
     private static boolean isCanonicalSnapshotFingerprint(String value) {
-        return value != null && !value.isEmpty() && value.equals(value.trim());
+        if (value == null || value.isEmpty() || !value.equals(value.trim())) return false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (Character.isWhitespace(c) || Character.isISOControl(c)) return false;
+        }
+        return true;
     }
 
     private static String exactRequestId(String value) {
