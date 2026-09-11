@@ -32,6 +32,32 @@ public final class TeacherRequestAuthorityTest {
         assertEquals("snapshot-A", consumed.snapshotFingerprint);
     }
 
+    @Test public void adoptsExistingStructuralMarkerWithoutRotatingLease() {
+        String marker = TeacherProtocol.markerFor("legacy123");
+        assertTrue(CheckpointRequestGuard.bindSnapshot(marker, "snapshot-L"));
+        String originalLease = CheckpointRequestGuard.currentBoundExecutionLease(marker);
+
+        TeacherRequestAuthority adopted = TeacherRequestAuthority.fromBoundStructural(marker);
+
+        assertTrue(adopted.isValid());
+        assertEquals("legacy123", adopted.requestId);
+        assertEquals(marker, adopted.marker);
+        assertEquals(originalLease, adopted.executionLeaseToken);
+        assertEquals("snapshot-L", adopted.snapshotFingerprint);
+        assertTrue(adopted.stillOwnsTransport());
+        assertEquals(originalLease, CheckpointRequestGuard.currentBoundExecutionLease(marker));
+    }
+
+    @Test public void adoptionFailsClosedForUngroundedOrStaleStructuralMarker() {
+        String marker = TeacherProtocol.markerFor("ungrounded");
+        assertFalse(TeacherRequestAuthority.fromBoundStructural(marker).isValid());
+
+        assertTrue(CheckpointRequestGuard.bindSnapshot(marker, "snapshot-U"));
+        CheckpointRequestGuard.onCheckpointCommitted();
+
+        assertFalse(TeacherRequestAuthority.fromBoundStructural(marker).isValid());
+    }
+
     @Test public void visualAuthorityOwnsFreshLeaseAndExactSnapshot() {
         String structural = TeacherExecutionLease.beginGlobal();
 
@@ -68,6 +94,7 @@ public final class TeacherRequestAuthorityTest {
         assertFalse(TeacherRequestAuthority.begin("request", null).isValid());
         assertFalse(TeacherRequestAuthority.beginVisual("", "snapshot").isValid());
         assertFalse(TeacherRequestAuthority.beginVisual("request", "").isValid());
+        assertFalse(TeacherRequestAuthority.fromBoundStructural("bad-marker").isValid());
     }
 
     @Test public void invalidationRevokesTransportAuthority() {
