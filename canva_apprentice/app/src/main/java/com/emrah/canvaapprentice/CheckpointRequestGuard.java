@@ -77,12 +77,11 @@ public final class CheckpointRequestGuard {
     }
 
     /**
-     * Returns only the execution lease owned by this exact, fully-grounded marker.
-     * This is a non-consuming transport check: parsing still consumes the request later.
-     * Never substitute the globally-current lease here; doing so would let delayed
-     * transport for marker A borrow marker B's newer authority.
+     * Atomically snapshots the complete authority owned by one exact structural marker.
+     * Transport must capture this object once before any asynchronous work begins; reading
+     * marker, lease and snapshot through separate calls would permit a checkpoint/race gap.
      */
-    public static synchronized String currentBoundExecutionLease(String marker) {
+    public static synchronized RequestLease currentBoundRequestLease(String marker) {
         String m = normalize(marker);
         RequestLease recorded = REQUESTS.get(m);
         if (recorded == null
@@ -90,9 +89,24 @@ public final class CheckpointRequestGuard {
                 || recorded.checkpointGeneration != checkpointGeneration
                 || recorded.executionLeaseToken.isEmpty()
                 || recorded.snapshotFingerprint.isEmpty()) {
-            return "";
+            return new RequestLease(-1L, "", "", false);
         }
-        return recorded.executionLeaseToken;
+        return new RequestLease(
+                recorded.checkpointGeneration,
+                recorded.executionLeaseToken,
+                recorded.snapshotFingerprint,
+                true
+        );
+    }
+
+    /**
+     * Returns only the execution lease owned by this exact, fully-grounded marker.
+     * This is a non-consuming transport check: parsing still consumes the request later.
+     * Never substitute the globally-current lease here; doing so would let delayed
+     * transport for marker A borrow marker B's newer authority.
+     */
+    public static synchronized String currentBoundExecutionLease(String marker) {
+        return currentBoundRequestLease(marker).executionLeaseToken;
     }
 
     public static synchronized RequestLease consume(String marker) {
