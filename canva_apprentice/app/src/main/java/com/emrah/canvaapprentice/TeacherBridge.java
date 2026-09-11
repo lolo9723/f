@@ -18,6 +18,9 @@ public final class TeacherBridge {
         void onFailure(String reason);
     }
 
+    private static final String STRUCTURAL_HEADER = "CANVA_APPRENTICE_TEACHER_REQUEST";
+    private static final String VISUAL_HEADER = "CANVA_APPRENTICE_VISUAL_TEACHER_REQUEST";
+
     private final AccessibilityService service;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final TaskStateRepository stateRepo;
@@ -40,6 +43,10 @@ public final class TeacherBridge {
             callback.onFailure("Yapısal öğretmen için geçerli immutable request authority bulunamadı.");
             return;
         }
+        if (!promptMatchesAuthority(prompt, authority, false)) {
+            callback.onFailure("Yapısal öğretmen promptu request authority ile birebir eşleşmiyor.");
+            return;
+        }
         final String requestToken = beginRequest(designAnchor);
         Intent launch = service.getPackageManager().getLaunchIntentForPackage(AgentConstants.CHATGPT_PACKAGE);
         if (launch == null) {
@@ -58,6 +65,10 @@ public final class TeacherBridge {
         final String designAnchor = stateRepo.load().designAnchor;
         if (authority == null || !authority.isValid() || !authority.stillOwnsTransport()) {
             callback.onFailure("Görüntülü öğretmen için geçerli request authority bulunamadı.");
+            return;
+        }
+        if (!promptMatchesAuthority(prompt, authority, true)) {
+            callback.onFailure("Görüntülü öğretmen promptu request authority ile birebir eşleşmiyor.");
             return;
         }
         final String requestToken = beginRequest(designAnchor);
@@ -90,7 +101,7 @@ public final class TeacherBridge {
             AccessibilityNodeInfo editor = findEditable(root);
             if (editor != null) {
                 String existing = text(editor.getText());
-                if (!existing.contains("CANVA_APPRENTICE_VISUAL_TEACHER_REQUEST")) {
+                if (!existing.contains(VISUAL_HEADER)) {
                     Bundle args = new Bundle();
                     args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, prompt);
                     editor.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args);
@@ -108,6 +119,22 @@ public final class TeacherBridge {
             }
             pollReply(authority, sessionId, requestToken, callback, 0);
         }, 1400);
+    }
+
+    static boolean promptMatchesAuthority(String prompt, TeacherRequestAuthority authority, boolean visual) {
+        if (prompt == null || authority == null || !authority.isValid()) return false;
+        String expectedHeader = visual ? VISUAL_HEADER : STRUCTURAL_HEADER;
+        if (!prompt.startsWith(expectedHeader + "\n")) return false;
+
+        String expectedRequestLine = "RequestId: " + authority.requestId;
+        int requestLines = 0;
+        for (String line : prompt.split("\\R", -1)) {
+            if (line.startsWith("RequestId:")) {
+                requestLines++;
+                if (!expectedRequestLine.equals(line)) return false;
+            }
+        }
+        return requestLines == 1;
     }
 
     private void submitPromptOnCurrentChat(String prompt, TeacherRequestAuthority authority,
