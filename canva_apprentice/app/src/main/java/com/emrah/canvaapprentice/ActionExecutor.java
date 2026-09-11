@@ -45,6 +45,17 @@ public final class ActionExecutor {
         UiTreeSnapshot snap = UiTreeSnapshot.capture(root);
         boolean anchorVisible = !state.designAnchor.isEmpty() && snap.containsText(state.designAnchor);
         String currentSnapshotHash = snap.stableFingerprint();
+
+        // Exact-node indexes/labels/classes/bounds are meaningful only for the exact compact
+        // tree that the teacher saw. Consume that request-scoped authority once here. A UI
+        // drift mismatch also burns the authority so an old action cannot wait for the screen
+        // to later return to a similar snapshot and replay against it.
+        if (action.isNodeAction()
+                && !CheckpointRequestGuard.consumeExecutionSnapshotIfMatches(
+                        action.executionLeaseToken, currentSnapshotHash)) {
+            return false;
+        }
+
         boolean matchesLastSafeEditorSnapshot = !state.lastSafeSnapshotHash.isEmpty()
                 && state.lastSafeSnapshotHash.equals(currentSnapshotHash);
         if (!DesignContinuityPolicy.allows(
