@@ -24,7 +24,7 @@ public final class TeacherRequestAuthority {
     }
 
     public static TeacherRequestAuthority begin(String requestId, String snapshotFingerprint) {
-        String id = normalize(requestId);
+        String id = exactRequestId(requestId);
         String fingerprint = normalize(snapshotFingerprint);
         if (!isSafeRequestId(id) || fingerprint.isEmpty()) {
             return invalid(id, fingerprint);
@@ -55,13 +55,13 @@ public final class TeacherRequestAuthority {
      * transport cannot mix pieces from different checkpoint generations.
      */
     public static TeacherRequestAuthority fromBoundStructural(String marker) {
-        String normalizedMarker = normalize(marker);
-        String id = requestIdFromMarker(normalizedMarker);
+        String exactMarker = marker == null ? "" : marker;
+        String id = requestIdFromMarker(exactMarker);
         if (!isSafeRequestId(id)) {
             return invalid("", "");
         }
         CheckpointRequestGuard.RequestLease lease =
-                CheckpointRequestGuard.currentBoundRequestLease(normalizedMarker);
+                CheckpointRequestGuard.currentBoundRequestLease(exactMarker);
         if (!lease.checkpointCurrent
                 || lease.executionLeaseToken.isEmpty()
                 || lease.snapshotFingerprint.isEmpty()) {
@@ -69,7 +69,7 @@ public final class TeacherRequestAuthority {
         }
         TeacherRequestAuthority authority = new TeacherRequestAuthority(
                 id,
-                normalizedMarker,
+                exactMarker,
                 lease.executionLeaseToken,
                 lease.snapshotFingerprint,
                 true
@@ -86,7 +86,7 @@ public final class TeacherRequestAuthority {
      * make every otherwise-valid visual reply fail closed and lose its execution authority.
      */
     public static TeacherRequestAuthority beginVisual(String requestId, String snapshotFingerprint) {
-        String id = normalize(requestId);
+        String id = exactRequestId(requestId);
         String fingerprint = normalize(snapshotFingerprint);
         if (!isSafeRequestId(id) || fingerprint.isEmpty()) {
             return invalid(id, fingerprint);
@@ -143,7 +143,7 @@ public final class TeacherRequestAuthority {
 
     private static TeacherRequestAuthority invalid(String requestId, String snapshotFingerprint) {
         return new TeacherRequestAuthority(
-                normalize(requestId), "", "", normalize(snapshotFingerprint), false);
+                exactRequestId(requestId), "", "", normalize(snapshotFingerprint), false);
     }
 
     private static String requestIdFromMarker(String marker) {
@@ -151,7 +151,7 @@ public final class TeacherRequestAuthority {
         if (!marker.startsWith(prefix) || !marker.endsWith("|") || marker.length() <= prefix.length() + 1) {
             return "";
         }
-        String id = normalize(marker.substring(prefix.length(), marker.length() - 1));
+        String id = marker.substring(prefix.length(), marker.length() - 1);
         return isSafeRequestId(id) ? id : "";
     }
 
@@ -171,6 +171,10 @@ public final class TeacherRequestAuthority {
             if (!safe) return false;
         }
         return true;
+    }
+
+    private static String exactRequestId(String value) {
+        return value == null ? "" : value;
     }
 
     private static String normalize(String value) {
