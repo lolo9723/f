@@ -30,4 +30,16 @@ public final class TeacherRequestLeasePolicy {
     public static String currentVisualRequestLease() {
         return TeacherExecutionLease.currentGlobalToken();
     }
+
+    /**
+     * Teacher transport is allowed to touch ChatGPT UI only while the exact execution
+     * lease captured when the request was issued is still globally current. Re-reading
+     * "whatever token is current now" would let a stale delayed transport borrow a newer
+     * request's authority after STOP, human takeover, resume, or another teacher turn.
+     */
+    public static boolean transportStillOwns(String expectedExecutionLease) {
+        return expectedExecutionLease != null
+                && !expectedExecutionLease.isEmpty()
+                && TeacherExecutionLease.isGlobalCurrent(expectedExecutionLease);
+    }
 }
