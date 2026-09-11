@@ -37,8 +37,7 @@ public final class TeacherBridge {
         // here would stale that marker before ChatGPT even receives the request. Preserve the
         // marker-owning lease and fail closed if no such lease exists.
         final String structuralExecutionToken = TeacherRequestLeasePolicy.currentStructuralRequestLease();
-        if (structuralExecutionToken.isEmpty()
-                || !TeacherExecutionLease.isGlobalCurrent(structuralExecutionToken)) {
+        if (!TeacherRequestLeasePolicy.transportStillOwns(structuralExecutionToken)) {
             callback.onFailure("Yapısal öğretmen için geçerli marker execution lease bulunamadı.");
             return;
         }
@@ -50,7 +49,8 @@ public final class TeacherBridge {
         }
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
         service.startActivity(launch);
-        handler.postDelayed(() -> submitPromptOnCurrentChat(prompt, awaitingMarker, sessionId, requestToken, callback), 1000);
+        handler.postDelayed(() -> submitPromptOnCurrentChat(
+                prompt, awaitingMarker, sessionId, requestToken, structuralExecutionToken, callback), 1000);
     }
 
     public void askWithScreenshot(String prompt, Uri screenshotUri, String awaitingMarker, ReplyCallback callback) {
@@ -60,7 +60,7 @@ public final class TeacherBridge {
         // by AgentAccessibilityService. Rotating the lease here would instantly stale
         // that evidence before ChatGPT can answer, making every visual action fail.
         final String visualExecutionToken = TeacherRequestLeasePolicy.currentVisualRequestLease();
-        if (visualExecutionToken.isEmpty()) {
+        if (!TeacherRequestLeasePolicy.transportStillOwns(visualExecutionToken)) {
             callback.onFailure("Görüntülü öğretmen için geçerli execution lease bulunamadı.");
             return;
         }
@@ -81,8 +81,7 @@ public final class TeacherBridge {
 
         service.startActivity(share);
         handler.postDelayed(() -> {
-            if (!isRequestCurrent(sessionId, requestToken) ||
-                    !TeacherExecutionLease.isGlobalCurrent(visualExecutionToken)) {
+            if (!isTransportCurrent(sessionId, requestToken, visualExecutionToken)) {
                 discardStaleRequest();
                 return;
             }
@@ -102,8 +101,7 @@ public final class TeacherBridge {
                 }
             }
 
-            if (!isRequestCurrent(sessionId, requestToken) ||
-                    !TeacherExecutionLease.isGlobalCurrent(visualExecutionToken)) {
+            if (!isTransportCurrent(sessionId, requestToken, visualExecutionToken)) {
                 discardStaleRequest();
                 return;
             }
@@ -112,13 +110,17 @@ public final class TeacherBridge {
                 failCurrentRequest(sessionId, requestToken, callback, "ChatGPT görüntülü mesaj gönder düğmesi bulunamadı.");
                 return;
             }
-            pollReply(awaitingMarker, sessionId, requestToken, callback, 0);
+            pollReply(awaitingMarker, sessionId, requestToken, visualExecutionToken, callback, 0);
         }, 1400);
     }
 
     private void submitPromptOnCurrentChat(String prompt, String awaitingMarker, String sessionId,
-                                           String requestToken, ReplyCallback callback) {
-        if (!isRequestCurrent(sessionId, requestToken)) { discardStaleRequest(); return; }
+                                           String requestToken, String executionLeaseToken,
+                                           ReplyCallback callback) {
+        if (!isTransportCurrent(sessionId, requestToken, executionLeaseToken)) {
+            discardStaleRequest();
+            return;
+        }
         AccessibilityNodeInfo root = service.getRootInActiveWindow();
         if (!AgentConstants.CHATGPT_PACKAGE.equals(packageOf(root))) {
             failCurrentRequest(sessionId, requestToken, callback, "ChatGPT aktif pencere olarak doğrulanamadı.");
@@ -131,6 +133,12 @@ public final class TeacherBridge {
             return;
         }
 
+        // Re-check immediately before mutating ChatGPT. STOP/human takeover/resume/new
+        // teacher authority may have invalidated the lease after the delayed callback began.
+        if (!isTransportCurrent(sessionId, requestToken, executionLeaseToken)) {
+            discardStaleRequest();
+            return;
+        }
         Bundle args = new Bundle();
         args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, prompt);
         if (!editor.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
@@ -138,35 +146,48 @@ public final class TeacherBridge {
             return;
         }
 
-        if (!isRequestCurrent(sessionId, requestToken)) { discardStaleRequest(); return; }
+        if (!isTransportCurrent(sessionId, requestToken, executionLeaseToken)) {
+            discardStaleRequest();
+            return;
+        }
         AccessibilityNodeInfo send = findSend(service.getRootInActiveWindow());
         if (send == null || !clickNodeOrParent(send)) {
             failCurrentRequest(sessionId, requestToken, callback, "ChatGPT gönder düğmesi bulunamadı.");
             return;
         }
-        pollReply(awaitingMarker, sessionId, requestToken, callback, 0);
+        pollReply(awaitingMarker, sessionId, requestToken, executionLeaseToken, callback, 0);
     }
 
     private void pollReply(String awaitingMarker, String sessionId, String requestToken,
-                           ReplyCallback callback, int attempt) {
-        if (!isRequestCurrent(sessionId, requestToken)) { discardStaleRequest(); return; }
+                           String executionLeaseToken, ReplyCallback callback, int attempt) {
+        if (!isTransportCurrent(sessionId, requestToken, executionLeaseToken)) {
+            discardStaleRequest();
+            return;
+        }
         if (attempt > 60) {
             failCurrentRequest(sessionId, requestToken, callback, "Öğretmen yanıtı zaman aşımına uğradı.");
             return;
         }
         handler.postDelayed(() -> {
-            if (!isRequestCurrent(sessionId, requestToken)) { discardStaleRequest(); return; }
+            if (!isTransportCurrent(sessionId, requestToken, executionLeaseToken)) {
+                discardStaleRequest();
+                return;
+            }
             AccessibilityNodeInfo root = service.getRootInActiveWindow();
             if (!AgentConstants.CHATGPT_PACKAGE.equals(packageOf(root))) {
-                pollReply(awaitingMarker, sessionId, requestToken, callback, attempt + 1);
+                pollReply(awaitingMarker, sessionId, requestToken, executionLeaseToken, callback, attempt + 1);
                 return;
             }
             String found = latestTextContaining(root, awaitingMarker);
             if (found != null) {
-                if (!consumeIfCurrent(sessionId, requestToken)) { discardStaleRequest(); return; }
+                if (!isTransportCurrent(sessionId, requestToken, executionLeaseToken)
+                        || !consumeIfCurrent(sessionId, requestToken)) {
+                    discardStaleRequest();
+                    return;
+                }
                 callback.onReply(found);
             } else {
-                pollReply(awaitingMarker, sessionId, requestToken, callback, attempt + 1);
+                pollReply(awaitingMarker, sessionId, requestToken, executionLeaseToken, callback, attempt + 1);
             }
         }, 1000);
     }
@@ -190,6 +211,12 @@ public final class TeacherBridge {
                 requestDesignAnchor,
                 state.designAnchor
         );
+    }
+
+    private boolean isTransportCurrent(String expectedSessionId, String requestToken,
+                                       String expectedExecutionLease) {
+        return isRequestCurrent(expectedSessionId, requestToken)
+                && TeacherRequestLeasePolicy.transportStillOwns(expectedExecutionLease);
     }
 
     private synchronized boolean consumeIfCurrent(String expectedSessionId, String requestToken) {
