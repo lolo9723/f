@@ -133,6 +133,34 @@ public final class CheckpointRequestGuard {
     }
 
     /**
+     * Parser boundary for teacher replies. A reply is executable only if the marker still
+     * owns the same checkpoint generation, execution lease AND a non-empty teacher-visible
+     * snapshot. Legacy/partial bindings are consumed and stripped of execution authority so
+     * they cannot turn into a runnable action or borrow the current global lease later.
+     */
+    public static synchronized RequestLease consumeFullyGrounded(String marker) {
+        String m = normalize(marker);
+        RequestLease recorded = REQUESTS.remove(m);
+        if (recorded == null) {
+            return new RequestLease(-1L, "", "", false);
+        }
+        boolean current = recorded.checkpointGeneration == checkpointGeneration
+                && recorded.checkpointGeneration >= 0L
+                && !recorded.executionLeaseToken.isEmpty()
+                && !recorded.snapshotFingerprint.isEmpty();
+        if (current) {
+            rememberConsumedSnapshot(recorded.executionLeaseToken, recorded.snapshotFingerprint);
+            return new RequestLease(
+                    recorded.checkpointGeneration,
+                    recorded.executionLeaseToken,
+                    recorded.snapshotFingerprint,
+                    true
+            );
+        }
+        return new RequestLease(recorded.checkpointGeneration, "", "", false);
+    }
+
+    /**
      * One-shot exact-node authority. A mismatch consumes the authority too, so an action
      * cannot wait for the UI to later drift back to an old fingerprint and then replay.
      */

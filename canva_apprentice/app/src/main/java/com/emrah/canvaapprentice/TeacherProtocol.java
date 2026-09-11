@@ -98,11 +98,11 @@ public final class TeacherProtocol {
     public static AgentAction parse(String raw, String marker) { return parse(raw, marker, false); }
 
     public static AgentAction parse(String raw, String marker, boolean visualGrounded) {
-        CheckpointRequestGuard.RequestLease requestLease = CheckpointRequestGuard.consume(marker);
+        CheckpointRequestGuard.RequestLease requestLease = CheckpointRequestGuard.consumeFullyGrounded(marker);
         final String executionLeaseToken = requestLease.executionLeaseToken;
         if (!requestLease.checkpointCurrent) {
             return action(AgentAction.Type.NOOP,"","",1.0,
-                    "safe checkpoint advanced while teacher request was in flight; refresh from current state",
+                    "teacher request lost fully-grounded checkpoint authority; refresh from current state",
                     visualGrounded,executionLeaseToken);
         }
         if (raw == null) return action(AgentAction.Type.NOOP,"","",0,"empty teacher reply",visualGrounded,executionLeaseToken);
