@@ -16,18 +16,30 @@ public final class AgentAction {
     public final String reason;
     public final boolean visualGrounded;
     public final String executionLeaseToken;
+    /**
+     * Snapshot authority captured when the teacher response is accepted. Exact-node actions
+     * must carry this value all the way to ActionExecutor so a structurally similar node from
+     * another UI generation cannot be mutated merely because index/label/bounds still match.
+     */
+    public final String expectedSnapshotFingerprint;
 
     public AgentAction(Type type, String target, String value, double confidence, String reason) {
-        this(type,target,value,confidence,reason,false,TeacherExecutionLease.currentGlobalToken());
+        this(type,target,value,confidence,reason,false,TeacherExecutionLease.currentGlobalToken(),"");
     }
 
     public AgentAction(Type type, String target, String value, double confidence,
                        String reason, boolean visualGrounded) {
-        this(type,target,value,confidence,reason,visualGrounded,TeacherExecutionLease.currentGlobalToken());
+        this(type,target,value,confidence,reason,visualGrounded,TeacherExecutionLease.currentGlobalToken(),"");
     }
 
     AgentAction(Type type, String target, String value, double confidence,
                 String reason, boolean visualGrounded, String executionLeaseToken) {
+        this(type,target,value,confidence,reason,visualGrounded,executionLeaseToken,"");
+    }
+
+    AgentAction(Type type, String target, String value, double confidence,
+                String reason, boolean visualGrounded, String executionLeaseToken,
+                String expectedSnapshotFingerprint) {
         this.type = type;
         this.target = target == null ? "" : target;
         this.value = value == null ? "" : value;
@@ -40,6 +52,13 @@ public final class AgentAction {
         this.reason = reason == null ? "" : reason;
         this.visualGrounded = visualGrounded;
         this.executionLeaseToken = executionLeaseToken == null ? "" : executionLeaseToken;
+        this.expectedSnapshotFingerprint = expectedSnapshotFingerprint == null
+                ? "" : expectedSnapshotFingerprint;
+    }
+
+    public AgentAction withExpectedSnapshotFingerprint(String fingerprint) {
+        return new AgentAction(type,target,value,confidence,reason,visualGrounded,
+                executionLeaseToken,fingerprint);
     }
 
     public boolean isCoordinateGesture() {
