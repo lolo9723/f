@@ -66,6 +66,22 @@ public class ExactNodeStructuralEvidenceTest {
         assertFalse(ActionExecutor.exactNodeBoundsUsable(null));
     }
 
+    @Test public void exactNodeIndexIgnoresHiddenTeacherInvisibleNodes() {
+        assertFalse(ActionExecutor.compactIndexEligible(
+                false, "Hidden stale target", "", true, false));
+        assertTrue(ActionExecutor.compactIndexEligible(
+                true, "Visible target", "", true, false));
+        assertTrue(ActionExecutor.compactIndexEligible(
+                true, "", "", false, true));
+    }
+
+    @Test public void exactNodeIndexIgnoresVisibleButMeaninglessContainers() {
+        assertFalse(ActionExecutor.compactIndexEligible(
+                true, "", "", false, false));
+        assertFalse(ActionExecutor.compactIndexEligible(
+                true, "   ", "   ", false, false));
+    }
+
     private static Rect rect(int left, int top, int right, int bottom) {
         Rect r = new Rect();
         r.left = left;
