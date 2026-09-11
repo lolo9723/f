@@ -25,8 +25,8 @@ public final class TeacherRequestAuthority {
 
     public static TeacherRequestAuthority begin(String requestId, String snapshotFingerprint) {
         String id = exactRequestId(requestId);
-        String fingerprint = normalize(snapshotFingerprint);
-        if (!isSafeRequestId(id) || fingerprint.isEmpty()) {
+        String fingerprint = exactSnapshotFingerprint(snapshotFingerprint);
+        if (!isSafeRequestId(id) || !isCanonicalSnapshotFingerprint(fingerprint)) {
             return invalid(id, fingerprint);
         }
 
@@ -64,7 +64,7 @@ public final class TeacherRequestAuthority {
                 CheckpointRequestGuard.currentBoundRequestLease(exactMarker);
         if (!lease.checkpointCurrent
                 || lease.executionLeaseToken.isEmpty()
-                || lease.snapshotFingerprint.isEmpty()) {
+                || !isCanonicalSnapshotFingerprint(lease.snapshotFingerprint)) {
             return invalid(id, lease.snapshotFingerprint);
         }
         TeacherRequestAuthority authority = new TeacherRequestAuthority(
@@ -87,8 +87,8 @@ public final class TeacherRequestAuthority {
      */
     public static TeacherRequestAuthority beginVisual(String requestId, String snapshotFingerprint) {
         String id = exactRequestId(requestId);
-        String fingerprint = normalize(snapshotFingerprint);
-        if (!isSafeRequestId(id) || fingerprint.isEmpty()) {
+        String fingerprint = exactSnapshotFingerprint(snapshotFingerprint);
+        if (!isSafeRequestId(id) || !isCanonicalSnapshotFingerprint(fingerprint)) {
             return invalid(id, fingerprint);
         }
         String lease = TeacherRequestLeasePolicy.beginVisualRequest();
@@ -119,7 +119,7 @@ public final class TeacherRequestAuthority {
                 && !marker.isEmpty()
                 && marker.equals("CAA1_REPLY_" + requestId + "|")
                 && !executionLeaseToken.isEmpty()
-                && !snapshotFingerprint.isEmpty();
+                && isCanonicalSnapshotFingerprint(snapshotFingerprint);
     }
 
     public boolean stillOwnsTransport() {
@@ -143,7 +143,7 @@ public final class TeacherRequestAuthority {
 
     private static TeacherRequestAuthority invalid(String requestId, String snapshotFingerprint) {
         return new TeacherRequestAuthority(
-                exactRequestId(requestId), "", "", normalize(snapshotFingerprint), false);
+                exactRequestId(requestId), "", "", exactSnapshotFingerprint(snapshotFingerprint), false);
     }
 
     private static String requestIdFromMarker(String marker) {
@@ -173,11 +173,21 @@ public final class TeacherRequestAuthority {
         return true;
     }
 
+    /**
+     * Snapshot fingerprints are identity-bearing authority, not user-facing text. Never
+     * silently trim/canonicalize them: a fingerprint that differs by whitespace must be
+     * rejected before any execution lease rotates, otherwise transport and execution can
+     * disagree about which exact teacher-visible snapshot was authorized.
+     */
+    private static boolean isCanonicalSnapshotFingerprint(String value) {
+        return value != null && !value.isEmpty() && value.equals(value.trim());
+    }
+
     private static String exactRequestId(String value) {
         return value == null ? "" : value;
     }
 
-    private static String normalize(String value) {
-        return value == null ? "" : value.trim();
+    private static String exactSnapshotFingerprint(String value) {
+        return value == null ? "" : value;
     }
 }
