@@ -6,7 +6,7 @@ import static org.junit.Assert.*;
 
 public class ExactNodeStructuralEvidenceTest {
     @Test public void structuralTeacherClickCarriesFullRowEvidence() {
-        String marker = TeacherProtocol.markerFor("abc123");
+        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
         AgentAction a = TeacherProtocol.parse(
                 marker + "CLICK_NODE|17|Elements|android.widget.TextView|24 180 260 236|C-|0.997|same current row",
                 marker
@@ -28,7 +28,7 @@ public class ExactNodeStructuralEvidenceTest {
     }
 
     @Test public void structuralSetTextCarriesEditableFlagAndValue() {
-        String marker = TeacherProtocol.markerFor("abc123");
+        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
         AgentAction a = TeacherProtocol.parse(
                 marker + "SET_NODE_TEXT|31|Title|android.widget.EditText|40 300 700 380|-E|New heading|0.999|same editable row",
                 marker

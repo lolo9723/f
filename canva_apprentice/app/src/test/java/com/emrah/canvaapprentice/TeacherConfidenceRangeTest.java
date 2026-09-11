@@ -7,7 +7,7 @@ import org.junit.Test;
 
 public final class TeacherConfidenceRangeTest {
     @Test public void aboveOneClickConfidenceFailsClosedToZero() {
-        String marker = TeacherProtocol.markerFor("confidence-click-high");
+        String marker = TeacherProtocolTestFixture.groundedMarker("confidence-click-high");
         AgentAction action = TeacherProtocol.parse(
                 marker + "CLICK_TEXT|Share|1.01|bad confidence",
                 marker
@@ -17,7 +17,7 @@ public final class TeacherConfidenceRangeTest {
     }
 
     @Test public void negativeConfidenceFailsClosedToZero() {
-        String marker = TeacherProtocol.markerFor("confidence-set-negative");
+        String marker = TeacherProtocolTestFixture.groundedMarker("confidence-set-negative");
         AgentAction action = TeacherProtocol.parse(
                 marker + "SET_TEXT|Title|Hello|-0.01|bad confidence",
                 marker
@@ -27,7 +27,7 @@ public final class TeacherConfidenceRangeTest {
     }
 
     @Test public void aboveOneDoneCannotBypassFinalQaThreshold() {
-        String marker = TeacherProtocol.markerFor("confidence-done-high");
+        String marker = TeacherProtocolTestFixture.groundedMarker("confidence-done-high");
         AgentAction action = TeacherProtocol.parse(
                 marker + "DONE|||1.01|looks done",
                 marker,
@@ -39,7 +39,7 @@ public final class TeacherConfidenceRangeTest {
     }
 
     @Test public void validUnitIntervalConfidenceIsPreserved() {
-        String marker = TeacherProtocol.markerFor("confidence-click-valid");
+        String marker = TeacherProtocolTestFixture.groundedMarker("confidence-click-valid");
         AgentAction action = TeacherProtocol.parse(
                 marker + "CLICK_TEXT|Share|0.99|valid",
                 marker

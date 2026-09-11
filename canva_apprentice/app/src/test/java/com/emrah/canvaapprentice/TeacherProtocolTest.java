@@ -5,7 +5,7 @@ import static org.junit.Assert.*;
 
 public class TeacherProtocolTest {
     @Test public void ignoresReplyWithWrongRequestMarker() {
-        String marker = TeacherProtocol.markerFor("abc123");
+        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
         AgentAction a = TeacherProtocol.parse(
                 "CAA1_REPLY_other|CLICK_TEXT|Share|0.99|wrong request",
                 marker
@@ -15,7 +15,7 @@ public class TeacherProtocolTest {
     }
 
     @Test public void rejectsDuplicateMatchingMarkersInsteadOfChoosingOne() {
-        String marker = TeacherProtocol.markerFor("abc123");
+        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
         AgentAction a = TeacherProtocol.parse(
                 marker+"CLICK_TEXT|Elements|0.99|first action\n"+
                 marker+"CLICK_TEXT|Share|0.99|second action",
@@ -27,7 +27,7 @@ public class TeacherProtocolTest {
     }
 
     @Test public void parsesStructuralClickAsNonVisual() {
-        String marker = TeacherProtocol.markerFor("abc123");
+        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
         AgentAction a = TeacherProtocol.parse(
                 marker+"CLICK_TEXT|Elements|0.99|open elements",
                 marker
@@ -38,7 +38,7 @@ public class TeacherProtocolTest {
     }
 
     @Test public void parsesExactNodeClick() {
-        String marker = TeacherProtocol.markerFor("abc123");
+        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
         AgentAction a = TeacherProtocol.parse(
                 marker+"CLICK_NODE|17|Elements|0.997|unique current UI row",
                 marker
@@ -50,7 +50,7 @@ public class TeacherProtocolTest {
     }
 
     @Test public void parsesExactNodeSetText() {
-        String marker = TeacherProtocol.markerFor("abc123");
+        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
         AgentAction a = TeacherProtocol.parse(
                 marker+"SET_NODE_TEXT|31|Title|New heading|0.998|exact editable row",
                 marker
@@ -63,7 +63,7 @@ public class TeacherProtocolTest {
     }
 
     @Test public void exactNodeSetTextCanTargetUnlabelledEditableRow() {
-        String marker = TeacherProtocol.markerFor("abc123");
+        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
         AgentAction a = TeacherProtocol.parse(
                 marker+"SET_NODE_TEXT|4||Body text|0.999|unlabelled editable current row",
                 marker
@@ -75,7 +75,7 @@ public class TeacherProtocolTest {
     }
 
     @Test public void rejectsOutOfRangeExactNodeIndex() {
-        String marker = TeacherProtocol.markerFor("abc123");
+        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
         AgentAction a = TeacherProtocol.parse(
                 marker+"CLICK_NODE|999|Share|0.999|invented index",
                 marker
@@ -106,7 +106,7 @@ public class TeacherProtocolTest {
     }
 
     @Test public void parsesVisualTapAsVisualGrounded() {
-        String marker = TeacherProtocol.markerFor("abc123");
+        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
         AgentAction a = TeacherProtocol.parse(
                 marker+"TAP_NORM|520,410|0.995|select photo",
                 marker,
@@ -118,7 +118,7 @@ public class TeacherProtocolTest {
     }
 
     @Test public void parsesVisualDrag() {
-        String marker = TeacherProtocol.markerFor("abc123");
+        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
         AgentAction a = TeacherProtocol.parse(
                 marker+"DRAG_NORM|500,500,700,500,450|0.998|move logo right",
                 marker,
@@ -129,7 +129,7 @@ public class TeacherProtocolTest {
     }
 
     @Test public void parsesDesignBinding() {
-        String marker = TeacherProtocol.markerFor("abc123");
+        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
         AgentAction a = TeacherProtocol.parse(
                 marker+"BIND_DESIGN|30 Ağustos Fakülte Afişi|0.99|unique top title",
                 marker
@@ -139,7 +139,7 @@ public class TeacherProtocolTest {
     }
 
     @Test public void parsesScreenshotFallback() {
-        String marker = TeacherProtocol.markerFor("abc123");
+        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
         AgentAction a = TeacherProtocol.parse(
                 marker+"SCREENSHOT|||1.0|canvas objects have no labels",
                 marker
@@ -192,7 +192,7 @@ public class TeacherProtocolTest {
     }
 
     @Test public void parsesEscapedMultilineSetText() {
-        String marker = TeacherProtocol.markerFor("abc123");
+        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
         AgentAction a = TeacherProtocol.parse(
                 marker+"SET_TEXT|Title|Hello\\|World\\nLine 2|0.99|write requested text",
                 marker
@@ -203,7 +203,7 @@ public class TeacherProtocolTest {
     }
 
     @Test public void preservesEscapedLiteralBackslash() {
-        String marker = TeacherProtocol.markerFor("abc123");
+        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
         AgentAction a = TeacherProtocol.parse(
                 marker+"SET_TEXT|Path|C:\\\\Temp|0.99|write path",
                 marker
@@ -214,7 +214,7 @@ public class TeacherProtocolTest {
     }
 
     @Test public void nonFiniteConfidenceFailsClosed() {
-        String marker = TeacherProtocol.markerFor("abc123");
+        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
         AgentAction nan = TeacherProtocol.parse(
                 marker+"CLICK_TEXT|Elements|NaN|must not bypass threshold",
                 marker
@@ -222,7 +222,7 @@ public class TeacherProtocolTest {
         assertEquals(AgentAction.Type.CLICK_TEXT,nan.type);
         assertEquals(0.0,nan.confidence,0.0001);
 
-        marker = TeacherProtocol.markerFor("def456");
+        marker = TeacherProtocolTestFixture.groundedMarker("def456");
         AgentAction inf = TeacherProtocol.parse(
                 marker+"TAP_NORM|520,410|Infinity|must not bypass threshold",
                 marker,

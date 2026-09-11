@@ -5,7 +5,7 @@ import static org.junit.Assert.*;
 
 public class FinalDoneConfidenceTest {
     @Test public void lowConfidenceVisualDoneFailsClosed() {
-        String marker = TeacherProtocol.markerFor("final001");
+        String marker = TeacherProtocolTestFixture.groundedMarker("final001");
         AgentAction action = TeacherProtocol.parse(
                 marker + "DONE|||0.80|looks mostly complete but uncertain",
                 marker,
@@ -18,7 +18,7 @@ public class FinalDoneConfidenceTest {
     }
 
     @Test public void malformedVisualDoneFailsClosed() {
-        String marker = TeacherProtocol.markerFor("final002");
+        String marker = TeacherProtocolTestFixture.groundedMarker("final002");
         AgentAction action = TeacherProtocol.parse(
                 marker + "DONE|||NaN|cannot certify final quality",
                 marker,
@@ -29,7 +29,7 @@ public class FinalDoneConfidenceTest {
     }
 
     @Test public void highConfidenceVisualDonePreservesReportedConfidence() {
-        String marker = TeacherProtocol.markerFor("final003");
+        String marker = TeacherProtocolTestFixture.groundedMarker("final003");
         AgentAction action = TeacherProtocol.parse(
                 marker + "DONE|||0.999|goal and final visual quality verified",
                 marker,

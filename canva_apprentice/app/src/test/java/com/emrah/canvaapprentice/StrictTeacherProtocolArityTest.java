@@ -5,7 +5,7 @@ import static org.junit.Assert.*;
 
 public class StrictTeacherProtocolArityTest {
     @Test public void rejectsExtraUnescapedFieldOnClickText() {
-        String marker = TeacherProtocol.markerFor("arity01");
+        String marker = TeacherProtocolTestFixture.groundedMarker("arity01");
         AgentAction action = TeacherProtocol.parse(
                 marker + "CLICK_TEXT|Elements|0.99|open elements|unexpected extra field",
                 marker
@@ -17,7 +17,7 @@ public class StrictTeacherProtocolArityTest {
     }
 
     @Test public void rejectsExtraUnescapedFieldOnExactNodeMutation() {
-        String marker = TeacherProtocol.markerFor("arity02");
+        String marker = TeacherProtocolTestFixture.groundedMarker("arity02");
         AgentAction action = TeacherProtocol.parse(
                 marker + "CLICK_NODE|17|Elements|android.view.View|0 0 100 100|C-|0.999|reason|extra",
                 marker
@@ -29,7 +29,7 @@ public class StrictTeacherProtocolArityTest {
     }
 
     @Test public void escapedPipeRemainsValidSingleField() {
-        String marker = TeacherProtocol.markerFor("arity03");
+        String marker = TeacherProtocolTestFixture.groundedMarker("arity03");
         AgentAction action = TeacherProtocol.parse(
                 marker + "CLICK_TEXT|Elements|0.99|open elements\\|from sidebar",
                 marker
