@@ -30,16 +30,16 @@ public final class TeacherBridge {
     }
 
     public void ask(String prompt, String awaitingMarker, ReplyCallback callback) {
+        ask(prompt, TeacherRequestAuthority.fromBoundStructural(awaitingMarker), callback);
+    }
+
+    public void ask(String prompt, TeacherRequestAuthority authority, ReplyCallback callback) {
         final String sessionId = stateRepo.currentTeacherSessionId();
         final String designAnchor = stateRepo.load().designAnchor;
-        final TeacherRequestAuthority authority =
-                TeacherRequestAuthority.fromBoundStructural(awaitingMarker);
-        if (!authority.isValid() || !authority.stillOwnsTransport()) {
+        if (authority == null || !authority.isValid() || !authority.stillOwnsTransport()) {
             callback.onFailure("Yapısal öğretmen için geçerli immutable request authority bulunamadı.");
             return;
         }
-        final String structuralMarker = authority.marker;
-        final String structuralExecutionToken = authority.executionLeaseToken;
         final String requestToken = beginRequest(designAnchor);
         Intent launch = service.getPackageManager().getLaunchIntentForPackage(AgentConstants.CHATGPT_PACKAGE);
         if (launch == null) {
@@ -49,7 +49,7 @@ public final class TeacherBridge {
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
         service.startActivity(launch);
         handler.postDelayed(() -> submitPromptOnCurrentChat(
-                prompt, structuralMarker, sessionId, requestToken, structuralExecutionToken, callback), 1000);
+                prompt, authority, sessionId, requestToken, callback), 1000);
     }
 
     public void askWithScreenshot(String prompt, Uri screenshotUri, TeacherRequestAuthority authority,
@@ -60,8 +60,6 @@ public final class TeacherBridge {
             callback.onFailure("Görüntülü öğretmen için geçerli request authority bulunamadı.");
             return;
         }
-        final String awaitingMarker = authority.marker;
-        final String visualExecutionToken = authority.executionLeaseToken;
         final String requestToken = beginRequest(designAnchor);
         Intent share = new Intent(Intent.ACTION_SEND);
         share.setPackage(AgentConstants.CHATGPT_PACKAGE);
@@ -79,7 +77,7 @@ public final class TeacherBridge {
 
         service.startActivity(share);
         handler.postDelayed(() -> {
-            if (!isTransportCurrent(sessionId, requestToken, visualExecutionToken)) {
+            if (!isTransportCurrent(sessionId, requestToken, authority)) {
                 discardStaleRequest();
                 return;
             }
@@ -99,7 +97,7 @@ public final class TeacherBridge {
                 }
             }
 
-            if (!isTransportCurrent(sessionId, requestToken, visualExecutionToken)) {
+            if (!isTransportCurrent(sessionId, requestToken, authority)) {
                 discardStaleRequest();
                 return;
             }
@@ -108,14 +106,14 @@ public final class TeacherBridge {
                 failCurrentRequest(sessionId, requestToken, callback, "ChatGPT görüntülü mesaj gönder düğmesi bulunamadı.");
                 return;
             }
-            pollReply(awaitingMarker, sessionId, requestToken, visualExecutionToken, callback, 0);
+            pollReply(authority, sessionId, requestToken, callback, 0);
         }, 1400);
     }
 
-    private void submitPromptOnCurrentChat(String prompt, String awaitingMarker, String sessionId,
-                                           String requestToken, String executionLeaseToken,
+    private void submitPromptOnCurrentChat(String prompt, TeacherRequestAuthority authority,
+                                           String sessionId, String requestToken,
                                            ReplyCallback callback) {
-        if (!isTransportCurrent(sessionId, requestToken, executionLeaseToken)) {
+        if (!isTransportCurrent(sessionId, requestToken, authority)) {
             discardStaleRequest();
             return;
         }
@@ -131,7 +129,7 @@ public final class TeacherBridge {
             return;
         }
 
-        if (!isTransportCurrent(sessionId, requestToken, executionLeaseToken)) {
+        if (!isTransportCurrent(sessionId, requestToken, authority)) {
             discardStaleRequest();
             return;
         }
@@ -142,7 +140,7 @@ public final class TeacherBridge {
             return;
         }
 
-        if (!isTransportCurrent(sessionId, requestToken, executionLeaseToken)) {
+        if (!isTransportCurrent(sessionId, requestToken, authority)) {
             discardStaleRequest();
             return;
         }
@@ -151,12 +149,12 @@ public final class TeacherBridge {
             failCurrentRequest(sessionId, requestToken, callback, "ChatGPT gönder düğmesi bulunamadı.");
             return;
         }
-        pollReply(awaitingMarker, sessionId, requestToken, executionLeaseToken, callback, 0);
+        pollReply(authority, sessionId, requestToken, callback, 0);
     }
 
-    private void pollReply(String awaitingMarker, String sessionId, String requestToken,
-                           String executionLeaseToken, ReplyCallback callback, int attempt) {
-        if (!isTransportCurrent(sessionId, requestToken, executionLeaseToken)) {
+    private void pollReply(TeacherRequestAuthority authority, String sessionId, String requestToken,
+                           ReplyCallback callback, int attempt) {
+        if (!isTransportCurrent(sessionId, requestToken, authority)) {
             discardStaleRequest();
             return;
         }
@@ -165,25 +163,25 @@ public final class TeacherBridge {
             return;
         }
         handler.postDelayed(() -> {
-            if (!isTransportCurrent(sessionId, requestToken, executionLeaseToken)) {
+            if (!isTransportCurrent(sessionId, requestToken, authority)) {
                 discardStaleRequest();
                 return;
             }
             AccessibilityNodeInfo root = service.getRootInActiveWindow();
             if (!AgentConstants.CHATGPT_PACKAGE.equals(packageOf(root))) {
-                pollReply(awaitingMarker, sessionId, requestToken, executionLeaseToken, callback, attempt + 1);
+                pollReply(authority, sessionId, requestToken, callback, attempt + 1);
                 return;
             }
-            String found = latestTextContaining(root, awaitingMarker);
+            String found = latestTextContaining(root, authority.marker);
             if (found != null) {
-                if (!isTransportCurrent(sessionId, requestToken, executionLeaseToken)
+                if (!isTransportCurrent(sessionId, requestToken, authority)
                         || !consumeIfCurrent(sessionId, requestToken)) {
                     discardStaleRequest();
                     return;
                 }
                 callback.onReply(found);
             } else {
-                pollReply(awaitingMarker, sessionId, requestToken, executionLeaseToken, callback, attempt + 1);
+                pollReply(authority, sessionId, requestToken, callback, attempt + 1);
             }
         }, 1000);
     }
@@ -210,9 +208,10 @@ public final class TeacherBridge {
     }
 
     private boolean isTransportCurrent(String expectedSessionId, String requestToken,
-                                       String expectedExecutionLease) {
+                                       TeacherRequestAuthority authority) {
         return isRequestCurrent(expectedSessionId, requestToken)
-                && TeacherRequestLeasePolicy.transportStillOwns(expectedExecutionLease);
+                && authority != null
+                && authority.stillOwnsTransport();
     }
 
     private synchronized boolean consumeIfCurrent(String expectedSessionId, String requestToken) {
