@@ -39,8 +39,16 @@ public final class HumanTakeoverOverlay {
                 hide();
                 return;
             }
-            // A durable resume failure must remain visibly and operationally fail-closed. Do not
-            // remove the takeover surface or re-enable DEVAM ET against an uncertain persisted state.
+            // A failed durable resume may have partially exposed RUNNING state before its
+            // postcondition failed. Convert that uncertainty into an explicit durable STOP using
+            // the owning service. stopTask() itself is fail-closed: if STOP cannot be persisted it
+            // enters the non-resumable persistence hard hold. Never leave a failed DEVAM ET path
+            // dependent only on this overlay staying visible while accessibility events continue.
+            if (service instanceof AgentAccessibilityService) {
+                ((AgentAccessibilityService) service).stopTask();
+            }
+            // Keep the takeover surface visibly non-resumable. If stopTask() entered hard hold it
+            // has already replaced this view; changing these detached widgets is harmless.
             text.setText("Ajan güvenli olarak durdu: DEVAM ET durumu kalıcılaştırılamadı. " +
                     "Ajan işlem yapmayacak; erişilebilirlik servisini yeniden başlatıp tekrar dene.  ");
             resume.setText("DURDU");
