@@ -207,10 +207,30 @@ public final class ActionExecutor {
     }
 
     private static boolean isMeaningful(AccessibilityNodeInfo node) {
-        return !raw(node.getText()).trim().isEmpty()
-                || !raw(node.getContentDescription()).trim().isEmpty()
-                || node.isClickable()
-                || node.isEditable();
+        return compactIndexEligible(
+                node != null && node.isVisibleToUser(),
+                node == null ? null : node.getText(),
+                node == null ? null : node.getContentDescription(),
+                node != null && node.isClickable(),
+                node != null && node.isEditable());
+    }
+
+    /**
+     * Must stay equivalent to UiTreeSnapshot.compactForTeacher() admission rules.
+     * Exact-node indexes are copied from that teacher-visible compact tree, so hidden/stale
+     * accessibility nodes must never consume an index here or a structurally correct target
+     * can resolve to a different live node at execution time.
+     */
+    static boolean compactIndexEligible(boolean visibleToUser,
+                                        CharSequence text,
+                                        CharSequence description,
+                                        boolean clickable,
+                                        boolean editable) {
+        if (!visibleToUser) return false;
+        return !raw(text).trim().isEmpty()
+                || !raw(description).trim().isEmpty()
+                || clickable
+                || editable;
     }
 
     private boolean clickByTextOrDescription(AccessibilityNodeInfo root, String target) {
