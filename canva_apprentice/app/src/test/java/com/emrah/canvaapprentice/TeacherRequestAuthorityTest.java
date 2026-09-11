@@ -95,6 +95,27 @@ public final class TeacherRequestAuthorityTest {
         assertTrue(visual.stillOwnsTransport());
     }
 
+    @Test public void visualReplyConsumesItsOwnBoundLeaseAndSnapshot() {
+        TeacherRequestAuthority visual = TeacherRequestAuthority.beginVisual("visualreply", "snapshot-VR");
+        assertTrue(visual.stillOwnsTransport());
+
+        AgentAction parsed = TeacherProtocol.parse(
+                visual.marker + "NOOP|||1.0|visual target unclear",
+                visual.marker,
+                true
+        );
+
+        assertEquals(AgentAction.Type.NOOP, parsed.type);
+        assertTrue(parsed.visualGrounded);
+        assertEquals(visual.executionLeaseToken, parsed.executionLeaseToken);
+        assertFalse(parsed.executionLeaseToken.isEmpty());
+        assertFalse(visual.stillOwnsTransport());
+        assertTrue(CheckpointRequestGuard.consumeExecutionSnapshotIfMatches(
+                parsed.executionLeaseToken,
+                "snapshot-VR"
+        ));
+    }
+
     @Test public void newerVisualAuthorityImmediatelyRevokesOlderVisualTransport() {
         TeacherRequestAuthority oldVisual = TeacherRequestAuthority.beginVisual("oldv", "snapshot-old");
         TeacherRequestAuthority newVisual = TeacherRequestAuthority.beginVisual("newv", "snapshot-new");
