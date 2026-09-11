@@ -35,12 +35,34 @@ public final class TeacherRequestAuthority {
 
         CheckpointRequestGuard.bind(marker, lease);
         if (!CheckpointRequestGuard.bindSnapshot(marker, fingerprint)) {
-            // Never leave a half-created request authority live. Invalidate globally so
-            // any delayed work carrying this lease fails closed at its next boundary.
             TeacherExecutionLease.invalidateGlobal();
             return invalid(id, fingerprint);
         }
         return new TeacherRequestAuthority(id, marker, lease, fingerprint);
+    }
+
+    /**
+     * Starts a screenshot-backed teacher request with a fresh execution lease. Unlike a
+     * structural request, visual authority is not stored in CheckpointRequestGuard: the
+     * screenshot evidence itself is bound to this exact lease by the service before the
+     * request is transported to ChatGPT.
+     */
+    public static TeacherRequestAuthority beginVisual(String requestId, String snapshotFingerprint) {
+        String id = normalize(requestId);
+        String fingerprint = normalize(snapshotFingerprint);
+        if (id.isEmpty() || fingerprint.isEmpty()) {
+            return invalid(id, fingerprint);
+        }
+        String lease = TeacherRequestLeasePolicy.beginVisualRequest();
+        if (lease == null || lease.isEmpty()) {
+            return invalid(id, fingerprint);
+        }
+        return new TeacherRequestAuthority(
+                id,
+                "CAA1_REPLY_" + id + "|",
+                lease,
+                fingerprint
+        );
     }
 
     public boolean isValid() {
