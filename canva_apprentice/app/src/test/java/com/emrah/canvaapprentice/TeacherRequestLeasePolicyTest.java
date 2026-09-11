@@ -36,7 +36,7 @@ public class TeacherRequestLeasePolicyTest {
         String preserved = TeacherRequestLeasePolicy.currentStructuralRequestLease();
 
         assertEquals(markerOwner, preserved);
-        assertTrue(TeacherExecutionLease.isGlobalCurrent(markerOwner));
+        assertTrue(TeacherRequestLeasePolicy.transportStillOwns(preserved));
     }
 
     @Test public void structuralTeacherRequestWithoutMarkerOwnerFailsClosedAsEmpty() {
@@ -47,5 +47,22 @@ public class TeacherRequestLeasePolicyTest {
     @Test public void visualTeacherRequestWithoutOwnerFailsClosedAsEmpty() {
         TeacherExecutionLease.invalidateGlobal();
         assertEquals("", TeacherRequestLeasePolicy.currentVisualRequestLease());
+    }
+
+    @Test public void delayedTransportCannotBorrowNewerLease() {
+        String oldRequest = TeacherExecutionLease.beginGlobal();
+        String newerRequest = TeacherExecutionLease.beginGlobal();
+
+        assertFalse(TeacherRequestLeasePolicy.transportStillOwns(oldRequest));
+        assertTrue(TeacherRequestLeasePolicy.transportStillOwns(newerRequest));
+    }
+
+    @Test public void invalidatedTransportFailsClosed() {
+        String request = TeacherExecutionLease.beginGlobal();
+        TeacherExecutionLease.invalidateGlobal();
+
+        assertFalse(TeacherRequestLeasePolicy.transportStillOwns(request));
+        assertFalse(TeacherRequestLeasePolicy.transportStillOwns(""));
+        assertFalse(TeacherRequestLeasePolicy.transportStillOwns(null));
     }
 }
