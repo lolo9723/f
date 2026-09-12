@@ -195,6 +195,19 @@ public final class TeacherRequestAuthorityTest {
         assertTrue(TeacherExecutionLease.isGlobalCurrent(lease));
     }
 
+    @Test public void snapshotFingerprintLengthIsBoundedBeforeAnyExecutionLeaseRotation() {
+        TeacherRequestAuthority current = TeacherRequestAuthority.begin("safe-before", "snapshot-safe");
+        assertTrue(current.stillOwnsTransport());
+        String lease = current.executionLeaseToken;
+        StringBuilder tooLong = new StringBuilder();
+        for (int i = 0; i < 257; i++) tooLong.append('a');
+
+        assertFalse(TeacherRequestAuthority.begin("oversized-structural", tooLong.toString()).isValid());
+        assertFalse(TeacherRequestAuthority.beginVisual("oversized-visual", tooLong.toString()).isValid());
+        assertTrue(current.stillOwnsTransport());
+        assertTrue(TeacherExecutionLease.isGlobalCurrent(lease));
+    }
+
     @Test public void invalidationRevokesTransportAuthority() {
         TeacherRequestAuthority authority = TeacherRequestAuthority.begin("abc123", "snapshot-A");
         TeacherExecutionLease.invalidateGlobal();
