@@ -23,11 +23,14 @@ public final class TeacherRequestLeasePolicy {
     }
 
     /**
-     * Returns the lease already bound to the structural request marker. Empty means the
-     * caller has no marker-owned structural execution authority and must fail closed.
+     * Returns only the execution lease owned by this exact fully-grounded structural marker.
+     * Empty means the caller has no marker-owned structural execution authority and must fail
+     * closed. Never fall back to the globally-current token here: a delayed request could then
+     * borrow a newer teacher turn's authority after its own marker became stale.
      */
-    public static String currentStructuralRequestLease() {
-        return TeacherExecutionLease.currentGlobalToken();
+    public static String currentStructuralRequestLease(String marker) {
+        if (marker == null || marker.isEmpty()) return "";
+        return CheckpointRequestGuard.currentBoundExecutionLease(marker);
     }
 
     /**
