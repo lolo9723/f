@@ -18,9 +18,8 @@ public final class SafeSnapshotPolicy {
     public static boolean shouldMarkSafe(String boundAnchor,
                                          boolean anchorVisible,
                                          boolean canvaHomeVisible) {
-        String anchor = normalize(boundAnchor);
         if (canvaHomeVisible) return false;
-        if (anchor.isEmpty()) return false;
+        if (!isCanonicalAnchor(boundAnchor)) return false;
         return anchorVisible;
     }
 
@@ -28,9 +27,8 @@ public final class SafeSnapshotPolicy {
                                          boolean anchorVisible,
                                          boolean canvaHomeVisible,
                                          boolean sameObservationVisualVerified) {
-        String anchor = boundAnchor == null ? "" : boundAnchor.trim();
         if (canvaHomeVisible) return false;
-        if (anchor.isEmpty()) return false;
+        if (!isCanonicalAnchor(boundAnchor)) return false;
         if (!anchorVisible) return false;
         return sameObservationVisualVerified;
     }
@@ -59,19 +57,15 @@ public final class SafeSnapshotPolicy {
                                                       String visualFingerprint) {
         if (!mayPersistCheckpoint(mode, currentBoundAnchor, structuralFingerprint)) return false;
 
-        String currentAnchor = normalize(currentBoundAnchor);
-        String expectedAnchor = normalize(expectedBoundAnchor);
-        String currentSession = normalize(currentTeacherSessionId);
-        String expectedSession = normalize(expectedTeacherSessionId);
-        String before = normalize(structuralFingerprint);
-        String after = normalize(recapturedFingerprint);
-        String visual = normalize(visualFingerprint);
-
-        if (expectedAnchor.isEmpty() || !currentAnchor.equals(expectedAnchor)) return false;
-        if (currentSession.isEmpty() || expectedSession.isEmpty() || !currentSession.equals(expectedSession)) return false;
-        if (before.isEmpty() || after.isEmpty() || !before.equals(after)) return false;
+        if (!isCanonicalAnchor(expectedBoundAnchor)
+                || !currentBoundAnchor.equals(expectedBoundAnchor)) return false;
+        if (!isCanonicalOpaqueIdentity(currentTeacherSessionId)
+                || !isCanonicalOpaqueIdentity(expectedTeacherSessionId)
+                || !currentTeacherSessionId.equals(expectedTeacherSessionId)) return false;
+        if (!isCanonicalOpaqueIdentity(recapturedFingerprint)
+                || !structuralFingerprint.equals(recapturedFingerprint)) return false;
         if (!recapturedAnchorVisible || recapturedCanvaHomeVisible) return false;
-        return isUsableVisualFingerprint(visual);
+        return isUsableVisualFingerprint(visualFingerprint);
     }
 
     /**
@@ -84,10 +78,9 @@ public final class SafeSnapshotPolicy {
                                                      String liveFingerprint,
                                                      boolean liveAnchorVisible,
                                                      boolean liveCanvaHomeVisible) {
-        String recaptured = normalize(recapturedFingerprint);
-        String live = normalize(liveFingerprint);
-        if (recaptured.isEmpty() || live.isEmpty()) return false;
-        if (!recaptured.equals(live)) return false;
+        if (!isCanonicalOpaqueIdentity(recapturedFingerprint)
+                || !isCanonicalOpaqueIdentity(liveFingerprint)) return false;
+        if (!recapturedFingerprint.equals(liveFingerprint)) return false;
         if (!liveAnchorVisible || liveCanvaHomeVisible) return false;
         return true;
     }
@@ -96,8 +89,8 @@ public final class SafeSnapshotPolicy {
                                                String boundAnchor,
                                                String snapshotHash) {
         if (mode != TaskState.Mode.RUNNING) return false;
-        if (boundAnchor == null || boundAnchor.trim().isEmpty()) return false;
-        return snapshotHash != null && !snapshotHash.trim().isEmpty();
+        if (!isCanonicalAnchor(boundAnchor)) return false;
+        return isCanonicalOpaqueIdentity(snapshotHash);
     }
 
     public static boolean mayRestoreCheckpoint(TaskState.Mode mode,
@@ -111,15 +104,15 @@ public final class SafeSnapshotPolicy {
     public static boolean mayRestoreCheckpoint(String currentBoundAnchor,
                                                String checkpointAnchor,
                                                String snapshotHash) {
-        String current = normalize(currentBoundAnchor);
-        String owner = normalize(checkpointAnchor);
-        String hash = normalize(snapshotHash);
-        if (current.isEmpty() || owner.isEmpty() || hash.isEmpty()) return false;
-        return current.equals(owner);
+        if (!isCanonicalAnchor(currentBoundAnchor)
+                || !isCanonicalAnchor(checkpointAnchor)
+                || !isCanonicalOpaqueIdentity(snapshotHash)) return false;
+        return currentBoundAnchor.equals(checkpointAnchor);
     }
 
     private static boolean isUsableVisualFingerprint(String value) {
-        if (value == null || value.length() != VISUAL_FINGERPRINT_HEX_LENGTH) return false;
+        if (!isCanonicalOpaqueIdentity(value)
+                || value.length() != VISUAL_FINGERPRINT_HEX_LENGTH) return false;
         char first = value.charAt(0);
         boolean hasDifferentBucket = false;
         for (int i = 0; i < value.length(); i++) {
@@ -129,7 +122,30 @@ public final class SafeSnapshotPolicy {
         return hasDifferentBucket;
     }
 
-    private static String normalize(String value) {
-        return value == null ? "" : value.trim();
+    /**
+     * Design anchors are user-visible identity, so internal ordinary spaces are legitimate.
+     * Outer whitespace and control characters are not: silently trimming them would let two
+     * layers disagree about which exact persisted design owns a continuity checkpoint.
+     */
+    private static boolean isCanonicalAnchor(String value) {
+        if (value == null || value.isEmpty() || !value.equals(value.trim())) return false;
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.isISOControl(value.charAt(i))) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Session IDs and structural/visual fingerprints are opaque authority-bearing identities.
+     * They must be exact and must never contain whitespace/control bytes or be normalized into
+     * a different identity before comparison.
+     */
+    private static boolean isCanonicalOpaqueIdentity(String value) {
+        if (value == null || value.isEmpty() || !value.equals(value.trim())) return false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (Character.isWhitespace(c) || Character.isISOControl(c)) return false;
+        }
+        return true;
     }
 }
