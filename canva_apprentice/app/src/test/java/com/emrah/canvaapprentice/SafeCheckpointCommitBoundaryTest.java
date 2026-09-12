@@ -33,9 +33,18 @@ public final class SafeCheckpointCommitBoundaryTest {
                 "tree-1", "", true, false));
     }
 
-    @Test public void outerWhitespaceIsNormalizedButIdentityIsExact() {
-        assertTrue(SafeSnapshotPolicy.commitBoundaryStillMatches(
+    @Test public void nonCanonicalFingerprintMustFailClosedWithoutNormalization() {
+        assertFalse(SafeSnapshotPolicy.commitBoundaryStillMatches(
                 " tree-1 ", "tree-1", true, false));
+        assertFalse(SafeSnapshotPolicy.commitBoundaryStillMatches(
+                "tree-1", " tree-1 ", true, false));
+        assertFalse(SafeSnapshotPolicy.commitBoundaryStillMatches(
+                "tree-1\t", "tree-1\t", true, false));
+        assertFalse(SafeSnapshotPolicy.commitBoundaryStillMatches(
+                "tree-1\n", "tree-1\n", true, false));
+    }
+
+    @Test public void canonicalFingerprintIdentityMustStillMatchExactly() {
         assertFalse(SafeSnapshotPolicy.commitBoundaryStillMatches(
                 "tree-1", "tree-2", true, false));
     }
