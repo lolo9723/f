@@ -204,32 +204,66 @@ public final class CheckpointRequestGuard {
     /**
      * Parser boundary for teacher replies. A reply is executable only if the marker still
      * owns the same checkpoint generation, execution lease AND a non-empty teacher-visible
-     * snapshot. Legacy/partial bindings are consumed and stripped of execution authority so
-     * they cannot turn into a runnable action or borrow the current global lease later.
+     * snapshot, and that exact execution lease is still globally current.
+     *
+     * Lock order deliberately matches bindSnapshot/stillOwnsTransport: execution lease first,
+     * then this guard. This closes the race where request A passes a checkpoint-only check,
+     * request B rotates the global lease, and A is nevertheless parsed into an action. Stale
+     * authority is consumed without publishing exact-node snapshot authority.
      */
-    public static synchronized RequestLease consumeFullyGrounded(String marker) {
-        String m = exactIdentity(marker);
+    public static RequestLease consumeFullyGrounded(String marker) {
+        final String m = exactIdentity(marker);
         if (!isCanonicalAuthorityIdentity(m)) {
             return new RequestLease(-1L, "", "", false);
         }
-        RequestLease recorded = REQUESTS.remove(m);
-        if (recorded == null) {
+
+        final String expectedLease;
+        synchronized (CheckpointRequestGuard.class) {
+            RequestLease recorded = REQUESTS.get(m);
+            if (recorded == null
+                    || !recorded.checkpointCurrent
+                    || recorded.checkpointGeneration != checkpointGeneration
+                    || recorded.executionLeaseToken.isEmpty()
+                    || recorded.snapshotFingerprint.isEmpty()) {
+                if (recorded != null) REQUESTS.remove(m);
+                return new RequestLease(-1L, "", "", false);
+            }
+            expectedLease = recorded.executionLeaseToken;
+        }
+
+        return TeacherExecutionLease.withGlobalCurrent(
+                expectedLease,
+                staleAndConsume(m),
+                () -> {
+                    synchronized (CheckpointRequestGuard.class) {
+                        RequestLease recorded = REQUESTS.remove(m);
+                        if (recorded == null
+                                || !recorded.checkpointCurrent
+                                || recorded.checkpointGeneration != checkpointGeneration
+                                || !expectedLease.equals(recorded.executionLeaseToken)
+                                || recorded.snapshotFingerprint.isEmpty()) {
+                            return new RequestLease(-1L, "", "", false);
+                        }
+                        rememberConsumedSnapshot(
+                                recorded.executionLeaseToken,
+                                recorded.snapshotFingerprint
+                        );
+                        return new RequestLease(
+                                recorded.checkpointGeneration,
+                                recorded.executionLeaseToken,
+                                recorded.snapshotFingerprint,
+                                true
+                        );
+                    }
+                }
+        );
+    }
+
+    private static RequestLease staleAndConsume(String marker) {
+        synchronized (CheckpointRequestGuard.class) {
+            REQUESTS.remove(marker);
             return new RequestLease(-1L, "", "", false);
         }
-        boolean current = recorded.checkpointGeneration == checkpointGeneration
-                && recorded.checkpointGeneration >= 0L
-                && !recorded.executionLeaseToken.isEmpty()
-                && !recorded.snapshotFingerprint.isEmpty();
-        if (current) {
-            rememberConsumedSnapshot(recorded.executionLeaseToken, recorded.snapshotFingerprint);
-            return new RequestLease(
-                    recorded.checkpointGeneration,
-                    recorded.executionLeaseToken,
-                    recorded.snapshotFingerprint,
-                    true
-            );
-        }
-        return new RequestLease(recorded.checkpointGeneration, "", "", false);
     }
 
     /**
