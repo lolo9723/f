@@ -24,8 +24,9 @@ public final class CheckpointRequestGuard {
     private CheckpointRequestGuard() {}
 
     public static synchronized void bind(String marker, String executionLeaseToken) {
-        String m = normalizeLegacy(marker);
-        if (m.isEmpty()) return;
+        String m = exactIdentity(marker);
+        String token = exactIdentity(executionLeaseToken);
+        if (!isCanonicalAuthorityIdentity(m) || !isCanonicalAuthorityIdentity(token)) return;
 
         // Marker reuse is ambiguous: an older in-flight teacher reply could arrive after
         // a newer request reused the same marker and otherwise borrow that newer request's
@@ -40,7 +41,7 @@ public final class CheckpointRequestGuard {
 
         REQUESTS.put(m, new RequestLease(
                 checkpointGeneration,
-                normalizeLegacy(executionLeaseToken),
+                token,
                 "",
                 true
         ));
@@ -175,7 +176,10 @@ public final class CheckpointRequestGuard {
     }
 
     public static synchronized RequestLease consume(String marker) {
-        String m = normalizeLegacy(marker);
+        String m = exactIdentity(marker);
+        if (!isCanonicalAuthorityIdentity(m)) {
+            return new RequestLease(-1L, "", "", false);
+        }
         RequestLease recorded = REQUESTS.remove(m);
         if (recorded == null) {
             return new RequestLease(-1L, "", "", false);
@@ -294,10 +298,6 @@ public final class CheckpointRequestGuard {
         REQUESTS.clear();
         CONSUMED_SNAPSHOTS.clear();
         checkpointGeneration = 0L;
-    }
-
-    private static String normalizeLegacy(String value) {
-        return value == null ? "" : value.trim();
     }
 
     private static String exactIdentity(String value) {
