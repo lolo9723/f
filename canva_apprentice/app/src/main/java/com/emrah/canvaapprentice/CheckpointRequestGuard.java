@@ -24,7 +24,7 @@ public final class CheckpointRequestGuard {
     private CheckpointRequestGuard() {}
 
     public static synchronized void bind(String marker, String executionLeaseToken) {
-        String m = normalize(marker);
+        String m = normalizeLegacy(marker);
         if (m.isEmpty()) return;
 
         // Marker reuse is ambiguous: an older in-flight teacher reply could arrive after
@@ -40,7 +40,7 @@ public final class CheckpointRequestGuard {
 
         REQUESTS.put(m, new RequestLease(
                 checkpointGeneration,
-                normalize(executionLeaseToken),
+                normalizeLegacy(executionLeaseToken),
                 "",
                 true
         ));
@@ -52,15 +52,21 @@ public final class CheckpointRequestGuard {
      * synchronized operation. New authority paths should use this instead of bind() followed
      * by bindSnapshot(), because a checkpoint commit or competing marker reuse between those
      * calls would otherwise expose a transient partially-grounded request.
+     *
+     * Authority-bearing identity is exact: never trim or normalize marker/lease/fingerprint.
+     * If any layer supplies whitespace/control-contaminated identity, reject it before any
+     * pending request is created so another layer cannot later interpret a different token.
      */
     public static synchronized boolean bindFullyGrounded(
             String marker,
             String executionLeaseToken,
             String snapshotFingerprint) {
-        String m = normalize(marker);
-        String token = normalize(executionLeaseToken);
-        String fingerprint = normalize(snapshotFingerprint);
-        if (m.isEmpty() || token.isEmpty() || fingerprint.isEmpty()) return false;
+        String m = exactIdentity(marker);
+        String token = exactIdentity(executionLeaseToken);
+        String fingerprint = exactIdentity(snapshotFingerprint);
+        if (!isCanonicalAuthorityIdentity(m)
+                || !isCanonicalAuthorityIdentity(token)
+                || !isCanonicalAuthorityIdentity(fingerprint)) return false;
 
         if (REQUESTS.containsKey(m)) {
             REQUESTS.remove(m);
@@ -85,9 +91,9 @@ public final class CheckpointRequestGuard {
      * allowing a reply to borrow authority from a newer screen.
      */
     public static synchronized boolean bindSnapshot(String marker, String snapshotFingerprint) {
-        String m = normalize(marker);
-        String fingerprint = normalize(snapshotFingerprint);
-        if (m.isEmpty() || fingerprint.isEmpty()) return false;
+        String m = exactIdentity(marker);
+        String fingerprint = exactIdentity(snapshotFingerprint);
+        if (!isCanonicalAuthorityIdentity(m) || !isCanonicalAuthorityIdentity(fingerprint)) return false;
 
         RequestLease recorded = REQUESTS.get(m);
         if (recorded == null || !recorded.checkpointCurrent
@@ -114,7 +120,10 @@ public final class CheckpointRequestGuard {
      * marker, lease and snapshot through separate calls would permit a checkpoint/race gap.
      */
     public static synchronized RequestLease currentBoundRequestLease(String marker) {
-        String m = normalize(marker);
+        String m = exactIdentity(marker);
+        if (!isCanonicalAuthorityIdentity(m)) {
+            return new RequestLease(-1L, "", "", false);
+        }
         RequestLease recorded = REQUESTS.get(m);
         if (recorded == null
                 || !recorded.checkpointCurrent
@@ -142,7 +151,7 @@ public final class CheckpointRequestGuard {
     }
 
     public static synchronized RequestLease consume(String marker) {
-        String m = normalize(marker);
+        String m = normalizeLegacy(marker);
         RequestLease recorded = REQUESTS.remove(m);
         if (recorded == null) {
             return new RequestLease(-1L, "", "", false);
@@ -171,7 +180,10 @@ public final class CheckpointRequestGuard {
      * they cannot turn into a runnable action or borrow the current global lease later.
      */
     public static synchronized RequestLease consumeFullyGrounded(String marker) {
-        String m = normalize(marker);
+        String m = exactIdentity(marker);
+        if (!isCanonicalAuthorityIdentity(m)) {
+            return new RequestLease(-1L, "", "", false);
+        }
         RequestLease recorded = REQUESTS.remove(m);
         if (recorded == null) {
             return new RequestLease(-1L, "", "", false);
@@ -199,9 +211,9 @@ public final class CheckpointRequestGuard {
     public static boolean consumeExecutionSnapshotIfMatches(
             String executionLeaseToken,
             String currentSnapshotFingerprint) {
-        final String token = normalize(executionLeaseToken);
-        final String current = normalize(currentSnapshotFingerprint);
-        if (token.isEmpty() || current.isEmpty()) return false;
+        final String token = exactIdentity(executionLeaseToken);
+        final String current = exactIdentity(currentSnapshotFingerprint);
+        if (!isCanonicalAuthorityIdentity(token) || !isCanonicalAuthorityIdentity(current)) return false;
         return TeacherExecutionLease.withGlobalCurrent(token, false, () -> {
             synchronized (CheckpointRequestGuard.class) {
                 String expected = CONSUMED_SNAPSHOTS.remove(token);
@@ -220,9 +232,9 @@ public final class CheckpointRequestGuard {
     }
 
     private static void rememberConsumedSnapshot(String executionLeaseToken, String snapshotFingerprint) {
-        String token = normalize(executionLeaseToken);
-        String fingerprint = normalize(snapshotFingerprint);
-        if (token.isEmpty() || fingerprint.isEmpty()) return;
+        String token = exactIdentity(executionLeaseToken);
+        String fingerprint = exactIdentity(snapshotFingerprint);
+        if (!isCanonicalAuthorityIdentity(token) || !isCanonicalAuthorityIdentity(fingerprint)) return;
         CONSUMED_SNAPSHOTS.remove(token);
         CONSUMED_SNAPSHOTS.put(token, fingerprint);
         while (CONSUMED_SNAPSHOTS.size() > MAX_CONSUMED_SNAPSHOTS) {
@@ -260,8 +272,21 @@ public final class CheckpointRequestGuard {
         checkpointGeneration = 0L;
     }
 
-    private static String normalize(String value) {
+    private static String normalizeLegacy(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private static String exactIdentity(String value) {
+        return value == null ? "" : value;
+    }
+
+    private static boolean isCanonicalAuthorityIdentity(String value) {
+        if (value == null || value.isEmpty() || !value.equals(value.trim())) return false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (Character.isWhitespace(c) || Character.isISOControl(c)) return false;
+        }
+        return true;
     }
 
     public static final class RequestLease {
