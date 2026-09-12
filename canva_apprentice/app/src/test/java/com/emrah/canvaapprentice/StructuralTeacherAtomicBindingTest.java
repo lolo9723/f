@@ -12,8 +12,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-/** Regression guard: a structural teacher request must never expose a marker/lease pair
- * before the exact teacher-visible snapshot is available. */
+/** Regression guard for end-to-end immutable structural teacher authority. */
 public final class StructuralTeacherAtomicBindingTest {
     @Before public void setUp() {
         TeacherExecutionLease.invalidateGlobal();
@@ -25,27 +24,54 @@ public final class StructuralTeacherAtomicBindingTest {
         CheckpointRequestGuard.resetForTest();
     }
 
-    @Test public void markerFormattingDoesNotPublishPartialAuthority() {
-        String marker = TeacherProtocol.markerFor("atomicstruct1");
+    @Test public void productionStructuralPathCarriesOneAuthorityFromSnapshotToParser() throws Exception {
+        String source = source("AgentAccessibilityService.java");
+        String cycle = section(source,
+                "private void runCanvaCycle(String cycleNote)",
+                "private void waitForCanvaAndHandle(");
 
-        assertEquals("CAA1_REPLY_atomicstruct1|", marker);
-        assertEquals("", TeacherExecutionLease.currentGlobalToken());
-        assertEquals(0, CheckpointRequestGuard.pendingRequestCountForTest());
-        assertFalse(CheckpointRequestGuard.currentBoundRequestLease(marker).checkpointCurrent);
+        int begin = cycle.indexOf("TeacherRequestAuthority.begin(");
+        int build = cycle.indexOf("TeacherProtocol.buildRequest(");
+        int ask = cycle.indexOf("teacher.ask(prompt,structuralAuthority");
+        int parse = cycle.indexOf("TeacherProtocol.parse(reply, structuralAuthority)");
+        assertTrue("structural authority must be created from the captured snapshot", begin >= 0);
+        assertTrue("authority must exist before prompt construction", build > begin);
+        assertTrue("the same immutable authority must be sent through TeacherBridge", ask > build);
+        assertTrue("the same immutable authority must reach the parser boundary", parse > ask);
+        assertFalse("production structural flow must not create a separate marker authority",
+                cycle.contains("TeacherProtocol.markerFor(requestId)"));
+        assertTrue("transport ownership must be revalidated before parsing",
+                cycle.contains("!structuralAuthority.stillOwnsTransport()"));
+        assertTrue("parsed execution lease must match the immutable request authority",
+                cycle.contains("!structuralAuthority.executionLeaseToken.equals(action.executionLeaseToken)"));
+        assertTrue("post-teacher UI drift check must use the authority's exact snapshot",
+                cycle.contains("structuralAuthority.snapshotFingerprint"));
     }
 
-    @Test public void structuralBuildUsesAtomicAuthorityInsteadOfSplitBinding() throws Exception {
-        String source = source("TeacherProtocol.java");
-        String build = section(source,
-                "public static String buildRequest(",
-                "public static String buildVisualRequest(");
+    @Test public void authorityParserPreservesItsExactExecutionLease() {
+        TeacherRequestAuthority authority = TeacherRequestAuthority.begin("atomicstruct1", "snapshot-A");
+        assertTrue(authority.isValid());
 
-        assertTrue("structural build must create the complete immutable authority tuple",
-                build.contains("TeacherRequestAuthority.begin("));
-        assertTrue("invalid atomic authority must fail closed before transport",
-                build.contains("!authority.isValid() || !authority.stillOwnsTransport()"));
-        assertFalse("structural build must not use legacy late snapshot binding",
-                build.contains("CheckpointRequestGuard.bindSnapshot("));
+        AgentAction action = TeacherProtocol.parse(
+                authority.marker + "NOOP|||1.0|safe-noop", authority);
+
+        assertEquals(AgentAction.Type.NOOP, action.type);
+        assertEquals(authority.executionLeaseToken, action.executionLeaseToken);
+    }
+
+    @Test public void staleAuthorityCannotBorrowANewerExecutionLeaseAtParser() {
+        TeacherRequestAuthority stale = TeacherRequestAuthority.begin("atomicstruct2", "snapshot-old");
+        assertTrue(stale.isValid());
+        String newerLease = TeacherExecutionLease.beginGlobal();
+        assertFalse(stale.stillOwnsTransport());
+        assertTrue(TeacherExecutionLease.isGlobalCurrent(newerLease));
+
+        AgentAction action = TeacherProtocol.parse(
+                stale.marker + "NOOP|||1.0|must-not-run", stale);
+
+        assertEquals(AgentAction.Type.NOOP, action.type);
+        assertEquals("", action.executionLeaseToken);
+        assertTrue(TeacherExecutionLease.isGlobalCurrent(newerLease));
     }
 
     private static String source(String fileName) throws Exception {
