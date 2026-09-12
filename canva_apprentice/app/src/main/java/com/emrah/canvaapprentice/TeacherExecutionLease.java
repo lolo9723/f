@@ -87,6 +87,7 @@ public final class TeacherExecutionLease {
     public static String beginGlobal() { return GLOBAL.begin(); }
     public static void invalidateGlobal() { GLOBAL.invalidate(); }
     public static boolean invalidateGlobalIfCurrent(String token) { return GLOBAL.invalidateIfCurrent(token); }
+    public static boolean completeGlobalIfCurrent(String token) { return GLOBAL.completeIfCurrent(token); }
     public static String currentGlobalToken() { return GLOBAL.currentToken(); }
     public static boolean isGlobalCurrent(String token) { return GLOBAL.isCurrent(token); }
 }

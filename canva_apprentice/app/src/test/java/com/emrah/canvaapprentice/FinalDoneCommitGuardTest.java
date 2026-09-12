@@ -29,6 +29,34 @@ public final class FinalDoneCommitGuardTest {
         ));
         assertTrue(learned.get());
         assertTrue(stopped.get());
+        assertFalse(TeacherExecutionLease.isGlobalCurrent(token));
+    }
+
+    @Test public void successfulFinalCommitConsumesLeaseAndRejectsDuplicateDone() {
+        String token = TeacherExecutionLease.beginGlobal();
+        AtomicBoolean learned = new AtomicBoolean(false);
+        AtomicBoolean stopped = new AtomicBoolean(false);
+
+        assertTrue(FinalDoneCommitGuard.commitIfCurrent(
+                token,
+                () -> true,
+                () -> true,
+                () -> learned.set(true),
+                () -> stopped.set(true)
+        ));
+        assertFalse(TeacherExecutionLease.isGlobalCurrent(token));
+
+        learned.set(false);
+        stopped.set(false);
+        assertFalse(FinalDoneCommitGuard.commitIfCurrent(
+                token,
+                () -> true,
+                () -> true,
+                () -> learned.set(true),
+                () -> stopped.set(true)
+        ));
+        assertFalse(learned.get());
+        assertFalse(stopped.get());
     }
 
     @Test public void productionOverloadFailsClosedWithoutRuntimeVisualContext() {

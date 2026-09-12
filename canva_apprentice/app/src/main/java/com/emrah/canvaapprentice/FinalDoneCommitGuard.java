@@ -73,6 +73,14 @@ public final class FinalDoneCommitGuard {
                 // failed and the agent may therefore still be RUNNING.
                 stopMutation.run();
                 verifiedSuccessMutation.run();
+
+                // A successful final commit is terminal for this exact execution chain.
+                // Consume the lease under the same re-entrant monitor before returning
+                // success so delayed duplicate DONE callbacks can never re-run STOP or
+                // verified-success learning with an already-finished authority.
+                if (!TeacherExecutionLease.completeGlobalIfCurrent(executionLeaseToken)) {
+                    return false;
+                }
                 return true;
             });
         } catch (RuntimeException | Error failure) {
