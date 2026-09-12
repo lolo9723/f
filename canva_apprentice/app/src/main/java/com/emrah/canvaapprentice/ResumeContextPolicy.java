@@ -7,12 +7,40 @@ final class ResumeContextPolicy {
     static boolean isCurrent(TaskState.Mode mode, String currentAnchor, String currentSessionId,
                              String expectedAnchor, String expectedSessionId) {
         if (mode != TaskState.Mode.RUNNING) return false;
-        String currentSession=currentSessionId==null?"":currentSessionId.trim();
-        String expectedSession=expectedSessionId==null?"":expectedSessionId.trim();
-        if(expectedSession.isEmpty() || !expectedSession.equals(currentSession)) return false;
-        String current=currentAnchor==null?"":currentAnchor.trim();
-        String expected=expectedAnchor==null?"":expectedAnchor.trim();
-        if(expected.isEmpty() || current.isEmpty()) return false;
-        return expected.equals(current);
+
+        // Resume ownership is identity-bearing authority. Never trim or otherwise normalize
+        // session ids or design anchors here: "session-2" and " session-2 " (or the same
+        // distinction for an anchor) must not be allowed to collapse into one authority.
+        // A corrupted/padded persisted value therefore fails closed instead of silently
+        // re-attaching a DEVAM ET chain to the wrong execution context.
+        String currentSession = exact(currentSessionId);
+        String expectedSession = exact(expectedSessionId);
+        if (!isCanonicalIdentity(expectedSession)
+                || !isCanonicalIdentity(currentSession)
+                || !expectedSession.equals(currentSession)) {
+            return false;
+        }
+
+        String current = exact(currentAnchor);
+        String expected = exact(expectedAnchor);
+        if (!isCanonicalIdentity(expected)
+                || !isCanonicalIdentity(current)
+                || !expected.equals(current)) {
+            return false;
+        }
+        return true;
+    }
+
+    private static String exact(String value) {
+        return value == null ? "" : value;
+    }
+
+    private static boolean isCanonicalIdentity(String value) {
+        if (value == null || value.isEmpty() || !value.equals(value.trim())) return false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (Character.isISOControl(c)) return false;
+        }
+        return true;
     }
 }
