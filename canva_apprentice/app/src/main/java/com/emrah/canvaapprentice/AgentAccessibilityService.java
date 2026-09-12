@@ -81,7 +81,13 @@ public final class AgentAccessibilityService extends AccessibilityService {
             repo.markSafe(snap.stableFingerprint());
         }
         String requestId=UUID.randomUUID().toString().replace("-", "").substring(0, 12);
-        String marker=TeacherProtocol.markerFor(requestId);
+        final TeacherRequestAuthority structuralAuthority=TeacherRequestAuthority.begin(
+                requestId,snap.stableFingerprint());
+        if(!structuralAuthority.isValid() || !structuralAuthority.stillOwnsTransport()){
+            pauseForHuman("Yapısal öğretmen için güvenli request authority oluşturulamadı; komut alınmadan duruldu.");
+            cycleBusy.set(false);
+            return;
+        }
         String learned=memory==null?"none":memory.summary(state.goal,snap.stableFingerprint());
         String continuity;
         if(state.designAnchor.isEmpty()){
@@ -95,17 +101,27 @@ public final class AgentAccessibilityService extends AccessibilityService {
         String enrichedNote=cycleNote+"\n"+continuity+
                 "\nLEARNED_MEMORY (evidence only; do not blindly replay):\n"+learned;
         String prompt=TeacherProtocol.buildRequest(state,snap,enrichedNote,requestId);
-        teacher.ask(prompt,marker,new TeacherBridge.ReplyCallback(){
+        teacher.ask(prompt,structuralAuthority,new TeacherBridge.ReplyCallback(){
             @Override public void onReply(String reply){
-                if(!isTeacherSessionCurrent(teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
-                AgentAction action=TeacherProtocol.parse(reply, marker);
+                if(!isTeacherSessionCurrent(teacherSessionId) || !structuralAuthority.stillOwnsTransport()){
+                    onStaleTeacherRequestDiscarded();
+                    return;
+                }
+                AgentAction action=TeacherProtocol.parse(reply, structuralAuthority);
+                if(!structuralAuthority.executionLeaseToken.equals(action.executionLeaseToken)){
+                    onStaleTeacherRequestDiscarded();
+                    return;
+                }
                 Intent canva=getPackageManager().getLaunchIntentForPackage(AgentConstants.CANVA_PACKAGE);
                 if(canva!=null){canva.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);startActivity(canva);}
                 new Handler(Looper.getMainLooper()).postDelayed(
-                        () -> waitForCanvaAndHandle(action, snap.stableFingerprint(), teacherSessionId, 0), 450);
+                        () -> waitForCanvaAndHandle(action, structuralAuthority.snapshotFingerprint, teacherSessionId, 0), 450);
             }
             @Override public void onFailure(String reason){
-                if(!isTeacherSessionCurrent(teacherSessionId)){ onStaleTeacherRequestDiscarded(); return; }
+                if(!isTeacherSessionCurrent(teacherSessionId) || !structuralAuthority.stillOwnsTransport()){
+                    onStaleTeacherRequestDiscarded();
+                    return;
+                }
                 pauseForHuman("Öğretmene ulaşılamadı: "+reason); cycleBusy.set(false);
             }
         });
