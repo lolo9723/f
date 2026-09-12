@@ -55,4 +55,14 @@ public final class AtomicTeacherAuthorityBindingTest {
         assertTrue(poisoned.executionLeaseToken.isEmpty());
         assertTrue(poisoned.snapshotFingerprint.isEmpty());
     }
+
+    @Test public void staleCleanupCannotInvalidateNewerGlobalLease() {
+        String staleLease = TeacherExecutionLease.beginGlobal();
+        String newerLease = TeacherExecutionLease.beginGlobal();
+
+        assertFalse(TeacherExecutionLease.invalidateGlobalIfCurrent(staleLease));
+        assertEquals(newerLease, TeacherExecutionLease.currentGlobalToken());
+        assertTrue(TeacherExecutionLease.invalidateGlobalIfCurrent(newerLease));
+        assertEquals("", TeacherExecutionLease.currentGlobalToken());
+    }
 }

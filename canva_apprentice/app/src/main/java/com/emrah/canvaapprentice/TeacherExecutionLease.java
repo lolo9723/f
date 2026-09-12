@@ -21,6 +21,16 @@ public final class TeacherExecutionLease {
         activeToken = "";
     }
 
+    /**
+     * Invalidates only if the caller still owns the exact lease. Stale cleanup must never
+     * erase ownership belonging to a newer teacher request that rotated the global token.
+     */
+    public synchronized boolean invalidateIfCurrent(String expectedToken) {
+        if (!isCurrent(expectedToken)) return false;
+        activeToken = "";
+        return true;
+    }
+
     public synchronized boolean isCurrent(String expectedToken) {
         return expectedToken != null
                 && !expectedToken.isEmpty()
@@ -76,6 +86,7 @@ public final class TeacherExecutionLease {
 
     public static String beginGlobal() { return GLOBAL.begin(); }
     public static void invalidateGlobal() { GLOBAL.invalidate(); }
+    public static boolean invalidateGlobalIfCurrent(String token) { return GLOBAL.invalidateIfCurrent(token); }
     public static String currentGlobalToken() { return GLOBAL.currentToken(); }
     public static boolean isGlobalCurrent(String token) { return GLOBAL.isCurrent(token); }
 }

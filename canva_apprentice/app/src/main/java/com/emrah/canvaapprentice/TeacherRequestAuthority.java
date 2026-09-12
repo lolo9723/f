@@ -37,13 +37,15 @@ public final class TeacherRequestAuthority {
         }
 
         if (!CheckpointRequestGuard.bindFullyGrounded(marker, lease, fingerprint)) {
-            TeacherExecutionLease.invalidateGlobal();
+            // Cleanup is lease-scoped: a racing newer request may already own GLOBAL.
+            TeacherExecutionLease.invalidateGlobalIfCurrent(lease);
             return invalid(id, fingerprint);
         }
         TeacherRequestAuthority authority =
                 new TeacherRequestAuthority(id, marker, lease, fingerprint, true);
         if (!authority.stillOwnsTransport()) {
-            TeacherExecutionLease.invalidateGlobal();
+            // Never let stale authority cleanup invalidate a newer request's lease.
+            TeacherExecutionLease.invalidateGlobalIfCurrent(lease);
             return invalid(id, fingerprint);
         }
         return authority;
@@ -97,7 +99,7 @@ public final class TeacherRequestAuthority {
         }
         String marker = "CAA1_REPLY_" + id + "|";
         if (!CheckpointRequestGuard.bindFullyGrounded(marker, lease, fingerprint)) {
-            TeacherExecutionLease.invalidateGlobal();
+            TeacherExecutionLease.invalidateGlobalIfCurrent(lease);
             return invalid(id, fingerprint);
         }
         TeacherRequestAuthority authority = new TeacherRequestAuthority(
@@ -108,7 +110,7 @@ public final class TeacherRequestAuthority {
                 true
         );
         if (!authority.stillOwnsTransport()) {
-            TeacherExecutionLease.invalidateGlobal();
+            TeacherExecutionLease.invalidateGlobalIfCurrent(lease);
             return invalid(id, fingerprint);
         }
         return authority;
