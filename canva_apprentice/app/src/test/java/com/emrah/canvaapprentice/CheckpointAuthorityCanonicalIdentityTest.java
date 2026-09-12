@@ -46,18 +46,20 @@ public final class CheckpointAuthorityCanonicalIdentityTest {
     }
 
     @Test public void paddedConsumeFailsClosedWithoutConsumingExactRequest() {
+        String token = TeacherExecutionLease.beginGlobal();
         assertTrue(CheckpointRequestGuard.bindFullyGrounded(
-                "CAA1_REPLY_req5|", "lease5", "snapshot5"));
+                "CAA1_REPLY_req5|", token, "snapshot5"));
 
         CheckpointRequestGuard.RequestLease padded =
                 CheckpointRequestGuard.consumeFullyGrounded("CAA1_REPLY_req5| ");
         assertFalse(padded.checkpointCurrent);
         assertTrue(padded.executionLeaseToken.isEmpty());
+        assertTrue(TeacherExecutionLease.isGlobalCurrent(token));
 
         CheckpointRequestGuard.RequestLease exact =
                 CheckpointRequestGuard.consumeFullyGrounded("CAA1_REPLY_req5|");
         assertTrue(exact.checkpointCurrent);
-        assertEquals("lease5", exact.executionLeaseToken);
+        assertEquals(token, exact.executionLeaseToken);
         assertEquals("snapshot5", exact.snapshotFingerprint);
     }
 
