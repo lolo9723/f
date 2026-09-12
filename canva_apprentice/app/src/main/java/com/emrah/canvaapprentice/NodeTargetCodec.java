@@ -18,8 +18,8 @@ public final class NodeTargetCodec {
                 || !isCanonicalField(expectedFlags)) {
             return "";
         }
-        return index + String.valueOf(SEP) + clean(expectedLabel) + SEP +
-                clean(expectedClass) + SEP + clean(expectedBounds) + SEP + clean(expectedFlags);
+        return index + String.valueOf(SEP) + exact(expectedLabel) + SEP +
+                exact(expectedClass) + SEP + exact(expectedBounds) + SEP + exact(expectedFlags);
     }
 
     public static int index(String encoded) {
@@ -48,13 +48,14 @@ public final class NodeTargetCodec {
     }
 
     /**
-     * Exact-node evidence comes from compactForTeacher(), which never emits control bytes or
-     * the internal target separator. Silently rewriting such bytes would let a malformed teacher
-     * reply become a different target identity, so reject it before execution instead.
+     * Exact-node evidence is identity-bearing data copied from compactForTeacher(). Never
+     * normalize it. A padded or control-bearing value may look equivalent to a human while
+     * referring to a different teacher-visible row, so fail closed instead of trimming it into
+     * a valid target. The internal separator is likewise forbidden inside evidence fields.
      */
     private static boolean isCanonicalField(String value) {
         if (value == null) return true;
-        if (value.length() > MAX_FIELD_LENGTH) return false;
+        if (value.length() > MAX_FIELD_LENGTH || !value.equals(value.trim())) return false;
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
             if (c == SEP || Character.isISOControl(c)) return false;
@@ -62,7 +63,7 @@ public final class NodeTargetCodec {
         return true;
     }
 
-    private static String clean(String value) {
-        return value == null ? "" : value.trim();
+    private static String exact(String value) {
+        return value == null ? "" : value;
     }
 }
