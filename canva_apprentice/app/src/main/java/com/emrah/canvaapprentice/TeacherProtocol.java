@@ -7,6 +7,22 @@ public final class TeacherProtocol {
         return "CAA1_REPLY_" + requestId + "|";
     }
 
+    private static TeacherRequestAuthority requireBoundAuthority(
+            UiTreeSnapshot snapshot, String requestId) {
+        if (snapshot == null) {
+            throw new IllegalStateException("teacher prompt requires a current UI snapshot");
+        }
+        TeacherRequestAuthority authority =
+                TeacherRequestAuthority.fromBoundStructural(markerText(requestId));
+        if (!authority.isValid()
+                || !authority.stillOwnsTransport()
+                || !authority.snapshotFingerprint.equals(snapshot.stableFingerprint())) {
+            throw new IllegalStateException(
+                    "teacher prompt authority is missing, stale, or bound to another snapshot");
+        }
+        return authority;
+    }
+
     public static String markerFor(String requestId) {
         String executionLeaseToken = TeacherExecutionLease.beginGlobal();
         String marker = markerText(requestId);
@@ -15,9 +31,10 @@ public final class TeacherProtocol {
     }
 
     public static String buildRequest(TaskState state, UiTreeSnapshot snapshot, String note, String requestId) {
-        // Bind the exact teacher-visible tree to this request before it leaves the device.
-        // Exact-node execution later consumes this fingerprint one time at the executor.
-        CheckpointRequestGuard.bindSnapshot(markerText(requestId), snapshot.stableFingerprint());
+        // Prompt construction must never create/repair authority. Production creates the
+        // fully-grounded immutable authority first; this layer only verifies that the exact
+        // marker -> lease -> teacher-visible snapshot tuple still owns transport.
+        requireBoundAuthority(snapshot, requestId);
         String continuity = state.designAnchor.isEmpty()
                 ? "DesignAnchor: UNBOUND. If a unique existing design title/name is clearly visible, you MAY bind it with BIND_DESIGN before risky navigation.\n"
                 : "DesignAnchor: " + state.designAnchor + "\n" +
@@ -59,9 +76,9 @@ public final class TeacherProtocol {
 
     public static String buildVisualRequest(TaskState state, UiTreeSnapshot snapshot,
                                             String requestId, String screenshotReason) {
-        // The screenshot and compact UI tree are a single grounding unit. Preserve the
-        // exact structural snapshot as one-shot authority for any returned node action.
-        CheckpointRequestGuard.bindSnapshot(markerText(requestId), snapshot.stableFingerprint());
+        // Visual prompt construction is verification-only too. The screenshot request must
+        // already own the exact fully-grounded snapshot authority before text is produced.
+        requireBoundAuthority(snapshot, requestId);
         String continuity = state.designAnchor.isEmpty()
                 ? "DesignAnchor: UNBOUND\n"
                 : "DesignAnchor: " + state.designAnchor + "\nDESIGN CONTINUITY RULE: preserve this exact existing design.\n";
