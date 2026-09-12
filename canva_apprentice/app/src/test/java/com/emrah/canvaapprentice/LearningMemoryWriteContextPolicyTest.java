@@ -25,4 +25,23 @@ public final class LearningMemoryWriteContextPolicyTest {
         assertFalse(LearningMemoryWriteContextPolicy.mayCommit(
                 TaskState.Mode.HUMAN_TAKEOVER,"fp-1","fp-1","My Design"));
     }
+
+    @Test public void rejectsPaddedFingerprintInsteadOfNormalizingAuthority() {
+        assertFalse(LearningMemoryWriteContextPolicy.mayCommit(
+                TaskState.Mode.RUNNING," fp-1","fp-1","My Design"));
+        assertFalse(LearningMemoryWriteContextPolicy.mayCommit(
+                TaskState.Mode.RUNNING,"fp-1","fp-1 ","My Design"));
+    }
+
+    @Test public void rejectsPaddedOrControlCharacterDesignIdentity() {
+        assertFalse(LearningMemoryWriteContextPolicy.mayCommit(
+                TaskState.Mode.RUNNING,"fp-1","fp-1"," My Design"));
+        assertFalse(LearningMemoryWriteContextPolicy.mayCommit(
+                TaskState.Mode.RUNNING,"fp-1","fp-1","My\tDesign"));
+    }
+
+    @Test public void rejectsControlCharacterFingerprintEvenWhenBothSidesMatch() {
+        assertFalse(LearningMemoryWriteContextPolicy.mayCommit(
+                TaskState.Mode.RUNNING,"fp\n1","fp\n1","My Design"));
+    }
 }
