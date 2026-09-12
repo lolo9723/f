@@ -2,6 +2,7 @@ package com.emrah.canvaapprentice;
 
 public final class NodeTargetCodec {
     private static final char SEP = '\u001F';
+    private static final int MAX_FIELD_LENGTH = 1024;
     private NodeTargetCodec() {}
 
     public static String encode(int index, String expectedLabel) {
@@ -10,6 +11,13 @@ public final class NodeTargetCodec {
 
     public static String encode(int index, String expectedLabel,
                                 String expectedClass, String expectedBounds, String expectedFlags) {
+        if (index < 0
+                || !isCanonicalField(expectedLabel)
+                || !isCanonicalField(expectedClass)
+                || !isCanonicalField(expectedBounds)
+                || !isCanonicalField(expectedFlags)) {
+            return "";
+        }
         return index + String.valueOf(SEP) + clean(expectedLabel) + SEP +
                 clean(expectedClass) + SEP + clean(expectedBounds) + SEP + clean(expectedFlags);
     }
@@ -39,8 +47,22 @@ public final class NodeTargetCodec {
         return encoded == null ? new String[0] : encoded.split(String.valueOf(SEP), -1);
     }
 
+    /**
+     * Exact-node evidence comes from compactForTeacher(), which never emits control bytes or
+     * the internal target separator. Silently rewriting such bytes would let a malformed teacher
+     * reply become a different target identity, so reject it before execution instead.
+     */
+    private static boolean isCanonicalField(String value) {
+        if (value == null) return true;
+        if (value.length() > MAX_FIELD_LENGTH) return false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c == SEP || Character.isISOControl(c)) return false;
+        }
+        return true;
+    }
+
     private static String clean(String value) {
-        if (value == null) return "";
-        return value.replace(String.valueOf(SEP), " ").trim();
+        return value == null ? "" : value.trim();
     }
 }
