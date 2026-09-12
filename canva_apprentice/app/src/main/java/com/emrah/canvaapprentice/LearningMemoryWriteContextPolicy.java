@@ -17,7 +17,9 @@ public final class LearningMemoryWriteContextPolicy {
         String verified = exactIdentity(verifiedBeforeFingerprint);
         String liveSafe = exactIdentity(liveSafeFingerprint);
         String anchor = exactIdentity(liveDesignAnchor);
-        if (!isCanonicalIdentity(verified) || !isCanonicalIdentity(liveSafe) || !isCanonicalIdentity(anchor)) {
+        if (!isCanonicalFingerprint(verified)
+                || !isCanonicalFingerprint(liveSafe)
+                || !isCanonicalDesignIdentity(anchor)) {
             return false;
         }
         return verified.equals(liveSafe);
@@ -32,11 +34,26 @@ public final class LearningMemoryWriteContextPolicy {
         return value == null ? "" : value;
     }
 
-    private static boolean isCanonicalIdentity(String value) {
+    /**
+     * Snapshot fingerprints are opaque authority tokens. Production fingerprints have no
+     * legitimate whitespace, so even matching corrupted values such as "fp 1" must fail closed.
+     * Treating fingerprints like display text would let two equally-corrupted delayed values
+     * satisfy exact equality and poison learning memory under a non-canonical checkpoint.
+     */
+    private static boolean isCanonicalFingerprint(String value) {
         if (value == null || value.isEmpty() || value.length() > 512 || !value.equals(value.trim())) return false;
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
-            if (Character.isISOControl(c)) return false;
+            if (Character.isWhitespace(c) || Character.isSpaceChar(c) || Character.isISOControl(c)) return false;
+        }
+        return true;
+    }
+
+    /** Design anchors are user-visible names, so ordinary embedded spaces are legitimate. */
+    private static boolean isCanonicalDesignIdentity(String value) {
+        if (value == null || value.isEmpty() || value.length() > 512 || !value.equals(value.trim())) return false;
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.isISOControl(value.charAt(i))) return false;
         }
         return true;
     }
