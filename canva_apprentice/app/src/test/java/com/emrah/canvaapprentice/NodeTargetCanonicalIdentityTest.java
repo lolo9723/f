@@ -55,6 +55,37 @@ public final class NodeTargetCanonicalIdentityTest {
         ));
     }
 
+    @Test public void paddedStructuralEvidenceFailsClosedInsteadOfBeingNormalized() {
+        assertEquals("", NodeTargetCodec.encode(
+                4,
+                " Share",
+                "android.widget.Button",
+                "10 20 110 70",
+                "C-"
+        ));
+        assertEquals("", NodeTargetCodec.encode(
+                4,
+                "Share",
+                "android.widget.Button ",
+                "10 20 110 70",
+                "C-"
+        ));
+        assertEquals("", NodeTargetCodec.encode(
+                4,
+                "Share",
+                "android.widget.Button",
+                " 10 20 110 70",
+                "C-"
+        ));
+        assertEquals("", NodeTargetCodec.encode(
+                4,
+                "Share",
+                "android.widget.Button",
+                "10 20 110 70",
+                "C- "
+        ));
+    }
+
     @Test public void negativeIndexFailsClosed() {
         assertEquals("", NodeTargetCodec.encode(
                 -1,
