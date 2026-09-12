@@ -304,13 +304,21 @@ public final class TeacherBridge {
         while (!q.isEmpty()) {
             AccessibilityNodeInfo n = q.removeFirst();
             String s = text(n.getText());
-            if (s.contains(marker)) latest = s;
+            if (hasReplyLine(s, marker)) latest = s;
             for (int i = 0; i < n.getChildCount(); i++) {
                 AccessibilityNodeInfo c = n.getChild(i);
                 if (c != null) q.add(c);
             }
         }
         return latest;
+    }
+
+    static boolean hasReplyLine(String value, String marker) {
+        if (value == null || marker == null || marker.isEmpty()) return false;
+        for (String line : value.split("\\R", -1)) {
+            if (line.trim().startsWith(marker)) return true;
+        }
+        return false;
     }
 
     private static String packageOf(AccessibilityNodeInfo root) {
