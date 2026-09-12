@@ -1,10 +1,22 @@
 package com.emrah.canvaapprentice;
 
 import android.graphics.Rect;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class ExactNodeStructuralEvidenceTest {
+    @Before public void setUp() {
+        TeacherExecutionLease.invalidateGlobal();
+        CheckpointRequestGuard.resetForTest();
+    }
+
+    @After public void tearDown() {
+        TeacherExecutionLease.invalidateGlobal();
+        CheckpointRequestGuard.resetForTest();
+    }
+
     @Test public void structuralTeacherClickCarriesFullRowEvidence() {
         String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
         AgentAction a = TeacherProtocol.parse(
@@ -54,9 +66,6 @@ public class ExactNodeStructuralEvidenceTest {
     }
 
     @Test public void exactNodeBoundsMustHavePositiveArea() {
-        // android.jar Rect constructors are mocked/no-op in local JVM tests. Populate the
-        // public edge fields directly so this test exercises the production admission guard
-        // rather than accidentally testing the Android stub implementation.
         Rect valid = rect(24, 180, 260, 236);
         Rect zeroWidth = rect(24, 180, 24, 236);
         Rect zeroHeight = rect(24, 180, 260, 180);
