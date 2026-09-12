@@ -44,7 +44,10 @@ public class ExactNodeStructuralEvidenceTest {
         TaskState state = new TaskState("goal", "", "", "", "", TaskState.Mode.RUNNING, false, 0);
         UiTreeSnapshot snap = new UiTreeSnapshot(AgentConstants.CANVA_PACKAGE,
                 java.util.Collections.emptyList(), 0L);
-        String prompt = TeacherProtocol.buildRequest(state, snap, "note", "abc123");
+        TeacherRequestAuthority authority = TeacherRequestAuthority.begin(
+                "abc123", snap.stableFingerprint());
+        assertTrue(authority.isValid());
+        String prompt = TeacherProtocol.buildRequest(state, snap, "note", authority.requestId);
 
         assertTrue(prompt.contains("index|class|text|description|bounds|flags"));
         assertTrue(prompt.contains("copy index, label, class, bounds, and flags from the SAME row"));
