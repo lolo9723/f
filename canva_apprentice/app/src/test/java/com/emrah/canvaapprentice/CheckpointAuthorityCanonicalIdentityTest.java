@@ -60,4 +60,32 @@ public final class CheckpointAuthorityCanonicalIdentityTest {
         assertEquals("lease5", exact.executionLeaseToken);
         assertEquals("snapshot5", exact.snapshotFingerprint);
     }
+
+    @Test public void legacyBindRejectsPaddedMarkerAndLeaseInsteadOfCanonicalizingThem() {
+        CheckpointRequestGuard.bind(" CAA1_REPLY_legacy1|", "lease1");
+        CheckpointRequestGuard.bind("CAA1_REPLY_legacy2|", "lease2 ");
+
+        assertEquals(0, CheckpointRequestGuard.pendingRequestCountForTest());
+        assertFalse(CheckpointRequestGuard.currentBoundRequestLease(
+                "CAA1_REPLY_legacy1|").checkpointCurrent);
+        assertFalse(CheckpointRequestGuard.currentBoundRequestLease(
+                "CAA1_REPLY_legacy2|").checkpointCurrent);
+    }
+
+    @Test public void legacyPaddedConsumeCannotConsumeCanonicalPendingRequest() {
+        String token = TeacherExecutionLease.beginGlobal();
+        String marker = "CAA1_REPLY_legacy3|";
+        CheckpointRequestGuard.bind(marker, token);
+        assertTrue(CheckpointRequestGuard.bindSnapshot(marker, "snapshot-legacy3"));
+
+        CheckpointRequestGuard.RequestLease padded =
+                CheckpointRequestGuard.consume(" " + marker);
+        assertFalse(padded.checkpointCurrent);
+        assertTrue(padded.executionLeaseToken.isEmpty());
+
+        CheckpointRequestGuard.RequestLease exact = CheckpointRequestGuard.consume(marker);
+        assertTrue(exact.checkpointCurrent);
+        assertEquals(token, exact.executionLeaseToken);
+        assertEquals("snapshot-legacy3", exact.snapshotFingerprint);
+    }
 }
