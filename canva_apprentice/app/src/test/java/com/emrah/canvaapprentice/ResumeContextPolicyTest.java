@@ -21,6 +21,20 @@ public class ResumeContextPolicyTest {
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"","session-2","Design A","session-2"));
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"   ","session-2","   ","session-2"));
     }
+    @Test public void paddedSessionIdentityFailsClosed(){
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A"," session-2","Design A","session-2"));
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","session-2","Design A","session-2 "));
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","\tsession-2","Design A","session-2"));
+    }
+    @Test public void paddedAnchorIdentityFailsClosed(){
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING," Design A","session-2","Design A","session-2"));
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","session-2","Design A ","session-2"));
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design\tA","session-2","Design\tA","session-2"));
+    }
+    @Test public void controlCharactersFailClosedEvenWhenBothSidesMatch(){
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","session\n2","Design A","session\n2"));
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design\u0007A","session-2","Design\u0007A","session-2"));
+    }
     @Test public void nonRunningFails(){
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.HUMAN_TAKEOVER,"Design A","session-2","Design A","session-2"));
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.STOPPED,"Design A","session-2","Design A","session-2"));
