@@ -23,6 +23,16 @@ final class ResumeContextPolicy {
 
         String current = exact(currentAnchor);
         String expected = exact(expectedAnchor);
+
+        // An empty design anchor is a legitimate pre-bind task state: a newly started task may
+        // be RUNNING before a unique existing Canva design has been proven and bound. Service
+        // restoration / DEVAM ET must be able to resume that same unbound state, otherwise a
+        // process restart can strand a valid task forever. Empty is allowed only symmetrically;
+        // one empty and one bound anchor is still a continuity mismatch and fails closed.
+        if (current.isEmpty() || expected.isEmpty()) {
+            return current.isEmpty() && expected.isEmpty();
+        }
+
         if (!isCanonicalIdentity(expected)
                 || !isCanonicalIdentity(current)
                 || !expected.equals(current)) {

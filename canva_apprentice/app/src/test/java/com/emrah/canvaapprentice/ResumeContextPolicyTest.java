@@ -15,8 +15,10 @@ public class ResumeContextPolicyTest {
     @Test public void rotatedAnchorFails(){
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design B","session-2","Design A","session-2"));
     }
-    @Test public void missingAnchorFailsClosed(){
-        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"","session-2","","session-2"));
+    @Test public void exactlyUnboundAnchorCanResumeWithinSameSession(){
+        assertTrue(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"","session-2","","session-2"));
+    }
+    @Test public void unboundAndBoundAnchorNeverCollapseIntoSameResumeContext(){
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","session-2","","session-2"));
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"","session-2","Design A","session-2"));
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"   ","session-2","   ","session-2"));
