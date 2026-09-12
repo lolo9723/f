@@ -14,10 +14,18 @@ public class TeacherBridgeReplyMatchTest {
         ));
     }
 
-    @Test public void exactReplyLineCountsEvenWithUiIndentation() {
+    @Test public void exactReplyLineMustBeginAtPhysicalColumnZero() {
         String marker = "CAA1_REPLY_abc123|";
         assertTrue(TeacherBridge.hasReplyLine(
-                "status\n   " + marker + "CLICK_TEXT|Elements|0.99|safe\nfooter",
+                "status\n" + marker + "CLICK_TEXT|Elements|0.99|safe\nfooter",
+                marker
+        ));
+        assertFalse(TeacherBridge.hasReplyLine(
+                "status\n   " + marker + "CLICK_TEXT|Elements|0.99|indented\nfooter",
+                marker
+        ));
+        assertFalse(TeacherBridge.hasReplyLine(
+                "\t" + marker + "CLICK_TEXT|Elements|0.99|tab-indented",
                 marker
         ));
     }
