@@ -8,21 +8,16 @@ public final class TeacherProtocol {
     }
 
     public static String markerFor(String requestId) {
-        // Marker formatting carries no authority. Publishing marker -> execution lease before
-        // the teacher-visible snapshot exists creates a split-binding window in which a stale
-        // request is only partially grounded. Structural authority is now created atomically
-        // in buildRequest(), once the exact snapshot fingerprint is available.
-        return markerText(requestId);
+        String executionLeaseToken = TeacherExecutionLease.beginGlobal();
+        String marker = markerText(requestId);
+        CheckpointRequestGuard.bind(marker, executionLeaseToken);
+        return marker;
     }
 
     public static String buildRequest(TaskState state, UiTreeSnapshot snapshot, String note, String requestId) {
-        // Publish marker + execution lease + exact teacher-visible snapshot as one immutable
-        // authority tuple. If any identity is malformed, duplicated or stale, fail closed and
-        // let TeacherBridge reject the empty prompt rather than exposing partial authority.
-        TeacherRequestAuthority authority = TeacherRequestAuthority.begin(
-                requestId, snapshot.stableFingerprint());
-        if (!authority.isValid() || !authority.stillOwnsTransport()) return "";
-
+        // Bind the exact teacher-visible tree to this request before it leaves the device.
+        // Exact-node execution later consumes this fingerprint one time at the executor.
+        CheckpointRequestGuard.bindSnapshot(markerText(requestId), snapshot.stableFingerprint());
         String continuity = state.designAnchor.isEmpty()
                 ? "DesignAnchor: UNBOUND. If a unique existing design title/name is clearly visible, you MAY bind it with BIND_DESIGN before risky navigation.\n"
                 : "DesignAnchor: " + state.designAnchor + "\n" +
@@ -101,6 +96,25 @@ public final class TeacherProtocol {
     }
 
     public static AgentAction parse(String raw, String marker) { return parse(raw, marker, false); }
+
+    /** Structural production path: keep the immutable request authority attached all the
+     * way to the parser boundary instead of re-looking up whichever marker happens to be
+     * current. The legacy marker overload remains for compatibility and focused tests. */
+    public static AgentAction parse(String raw, TeacherRequestAuthority authority) {
+        if (authority == null || !authority.isValid() || !authority.stillOwnsTransport()) {
+            return action(AgentAction.Type.NOOP,"","",1.0,
+                    "teacher request lost immutable transport authority; refresh from current state",
+                    false,"");
+        }
+        final String expectedLease = authority.executionLeaseToken;
+        AgentAction parsed = parse(raw, authority.marker, false);
+        if (!expectedLease.equals(parsed.executionLeaseToken)) {
+            return action(AgentAction.Type.NOOP,"","",1.0,
+                    "teacher reply execution lease did not match immutable request authority",
+                    false,"");
+        }
+        return parsed;
+    }
 
     public static AgentAction parse(String raw, String marker, boolean visualGrounded) {
         CheckpointRequestGuard.RequestLease requestLease = CheckpointRequestGuard.consumeFullyGrounded(marker);
