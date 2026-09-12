@@ -231,9 +231,9 @@ public final class CheckpointRequestGuard {
             expectedLease = recorded.executionLeaseToken;
         }
 
-        return TeacherExecutionLease.withGlobalCurrent(
+        RequestLease accepted = TeacherExecutionLease.withGlobalCurrent(
                 expectedLease,
-                staleAndConsume(m),
+                null,
                 () -> {
                     synchronized (CheckpointRequestGuard.class) {
                         RequestLease recorded = REQUESTS.remove(m);
@@ -257,13 +257,12 @@ public final class CheckpointRequestGuard {
                     }
                 }
         );
-    }
+        if (accepted != null) return accepted;
 
-    private static RequestLease staleAndConsume(String marker) {
         synchronized (CheckpointRequestGuard.class) {
-            REQUESTS.remove(marker);
-            return new RequestLease(-1L, "", "", false);
+            REQUESTS.remove(m);
         }
+        return new RequestLease(-1L, "", "", false);
     }
 
     /**
