@@ -44,4 +44,18 @@ public final class LearningMemoryWriteContextPolicyTest {
         assertFalse(LearningMemoryWriteContextPolicy.mayCommit(
                 TaskState.Mode.RUNNING,"fp\n1","fp\n1","My Design"));
     }
+
+    @Test public void rejectsEmbeddedWhitespaceFingerprintEvenWhenBothSidesMatch() {
+        assertFalse(LearningMemoryWriteContextPolicy.mayCommit(
+                TaskState.Mode.RUNNING,"fp 1","fp 1","My Design"));
+        assertFalse(LearningMemoryWriteContextPolicy.mayCommit(
+                TaskState.Mode.RUNNING,"fp\t1","fp\t1","My Design"));
+        assertFalse(LearningMemoryWriteContextPolicy.mayCommit(
+                TaskState.Mode.RUNNING,"fp\u00a01","fp\u00a01","My Design"));
+    }
+
+    @Test public void ordinaryEmbeddedSpacesRemainValidForDisplayDesignNames() {
+        assertTrue(LearningMemoryWriteContextPolicy.mayCommit(
+                TaskState.Mode.RUNNING,"fp-1","fp-1","My Existing Design"));
+    }
 }
