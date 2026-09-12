@@ -96,13 +96,13 @@ public class TeacherProtocolTest {
                 0L
         );
         TeacherRequestAuthority structuralAuthority = TeacherRequestAuthority.begin(
-                "abc123", snap.stableFingerprint());
+                "preferStruct1", snap.stableFingerprint());
         assertTrue(structuralAuthority.isValid());
         String structural = TeacherProtocol.buildRequest(
                 state,snap,"note",structuralAuthority.requestId);
 
         TeacherRequestAuthority visualAuthority = TeacherRequestAuthority.beginVisual(
-                "abc124", snap.stableFingerprint());
+                "preferVisual1", snap.stableFingerprint());
         assertTrue(visualAuthority.isValid());
         String visual = TeacherProtocol.buildVisualRequest(
                 state,snap,visualAuthority.requestId,"need visual");
@@ -168,14 +168,14 @@ public class TeacherProtocolTest {
         );
 
         TeacherRequestAuthority structuralAuthority = TeacherRequestAuthority.begin(
-                "abc123", snap.stableFingerprint());
+                "markerStruct1", snap.stableFingerprint());
         assertTrue(structuralAuthority.isValid());
         String structural = TeacherProtocol.buildRequest(
                 state,snap,"note",structuralAuthority.requestId);
         assertFalse(structural.contains(structuralAuthority.marker));
 
         TeacherRequestAuthority visualAuthority = TeacherRequestAuthority.beginVisual(
-                "abc124", snap.stableFingerprint());
+                "markerVisual1", snap.stableFingerprint());
         assertTrue(visualAuthority.isValid());
         String visual = TeacherProtocol.buildVisualRequest(
                 state,snap,visualAuthority.requestId,"need visual");
@@ -194,7 +194,7 @@ public class TeacherProtocolTest {
         );
 
         TeacherRequestAuthority structuralAuthority = TeacherRequestAuthority.begin(
-                "abc123", snap.stableFingerprint());
+                "continuityStruct1", snap.stableFingerprint());
         assertTrue(structuralAuthority.isValid());
         String structural = TeacherProtocol.buildRequest(
                 state,snap,"Kullanıcı müdahalesi tamamlandı. Önce mevcut durumu yeniden doğrula.",
@@ -202,7 +202,7 @@ public class TeacherProtocolTest {
         );
 
         TeacherRequestAuthority visualAuthority = TeacherRequestAuthority.beginVisual(
-                "abc124", snap.stableFingerprint());
+                "continuityVisual1", snap.stableFingerprint());
         assertTrue(visualAuthority.isValid());
         String visual = TeacherProtocol.buildVisualRequest(
                 state,snap,visualAuthority.requestId,"resume verification");
