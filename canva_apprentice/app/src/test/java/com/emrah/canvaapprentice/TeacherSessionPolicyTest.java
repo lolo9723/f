@@ -21,4 +21,17 @@ public final class TeacherSessionPolicyTest {
     @Test public void emptySessionFailsClosed() {
         assertFalse(TeacherSessionPolicy.isCurrent("", "", TaskState.Mode.RUNNING));
     }
+
+    @Test public void whitespaceOrControlContaminatedSessionFailsClosedEvenWhenBothSidesMatch() {
+        assertFalse(TeacherSessionPolicy.isCurrent(" session-a", " session-a", TaskState.Mode.RUNNING));
+        assertFalse(TeacherSessionPolicy.isCurrent("session-a ", "session-a ", TaskState.Mode.RUNNING));
+        assertFalse(TeacherSessionPolicy.isCurrent("session\ta", "session\ta", TaskState.Mode.RUNNING));
+        assertFalse(TeacherSessionPolicy.isCurrent("session\na", "session\na", TaskState.Mode.RUNNING));
+        assertFalse(TeacherSessionPolicy.isCurrent("session\u0000a", "session\u0000a", TaskState.Mode.RUNNING));
+    }
+
+    @Test public void cleanSessionDoesNotMatchContaminatedVariant() {
+        assertFalse(TeacherSessionPolicy.isCurrent("session-a", "session-a ", TaskState.Mode.RUNNING));
+        assertFalse(TeacherSessionPolicy.isCurrent("session-a\t", "session-a", TaskState.Mode.RUNNING));
+    }
 }
