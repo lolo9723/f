@@ -95,8 +95,17 @@ public class TeacherProtocolTest {
                 java.util.Collections.emptyList(),
                 0L
         );
-        String structural = TeacherProtocol.buildRequest(state,snap,"note","abc123");
-        String visual = TeacherProtocol.buildVisualRequest(state,snap,"abc123","need visual");
+        TeacherRequestAuthority structuralAuthority = TeacherRequestAuthority.begin(
+                "abc123", snap.stableFingerprint());
+        assertTrue(structuralAuthority.isValid());
+        String structural = TeacherProtocol.buildRequest(
+                state,snap,"note",structuralAuthority.requestId);
+
+        TeacherRequestAuthority visualAuthority = TeacherRequestAuthority.beginVisual(
+                "abc124", snap.stableFingerprint());
+        assertTrue(visualAuthority.isValid());
+        String visual = TeacherProtocol.buildVisualRequest(
+                state,snap,visualAuthority.requestId,"need visual");
 
         assertTrue(structural.contains("|CLICK_NODE|<compact node index>"));
         assertTrue(structural.contains("|SET_NODE_TEXT|<compact node index>"));
@@ -148,8 +157,6 @@ public class TeacherProtocolTest {
     }
 
     @Test public void promptsNeverContainTheLiveReplyMarker() {
-        String requestId = "abc123";
-        String marker = "CAA1_REPLY_" + requestId + "|";
         TaskState state = new TaskState(
                 "goal","","","", "",
                 TaskState.Mode.RUNNING,false,0
@@ -160,15 +167,22 @@ public class TeacherProtocolTest {
                 0L
         );
 
-        String structural = TeacherProtocol.buildRequest(state,snap,"note",requestId);
-        String visual = TeacherProtocol.buildVisualRequest(state,snap,requestId,"need visual");
+        TeacherRequestAuthority structuralAuthority = TeacherRequestAuthority.begin(
+                "abc123", snap.stableFingerprint());
+        assertTrue(structuralAuthority.isValid());
+        String structural = TeacherProtocol.buildRequest(
+                state,snap,"note",structuralAuthority.requestId);
+        assertFalse(structural.contains(structuralAuthority.marker));
 
-        assertFalse(structural.contains(marker));
-        assertFalse(visual.contains(marker));
+        TeacherRequestAuthority visualAuthority = TeacherRequestAuthority.beginVisual(
+                "abc124", snap.stableFingerprint());
+        assertTrue(visualAuthority.isValid());
+        String visual = TeacherProtocol.buildVisualRequest(
+                state,snap,visualAuthority.requestId,"need visual");
+        assertFalse(visual.contains(visualAuthority.marker));
     }
 
     @Test public void promptsRequireContinuityRevalidationAfterHumanIntervention() {
-        String requestId = "abc123";
         TaskState state = new TaskState(
                 "edit existing poster","initial-fp","Existing Poster","safe-fp", "",
                 TaskState.Mode.RUNNING,false,7
@@ -179,10 +193,19 @@ public class TeacherProtocolTest {
                 0L
         );
 
+        TeacherRequestAuthority structuralAuthority = TeacherRequestAuthority.begin(
+                "abc123", snap.stableFingerprint());
+        assertTrue(structuralAuthority.isValid());
         String structural = TeacherProtocol.buildRequest(
-                state,snap,"Kullanıcı müdahalesi tamamlandı. Önce mevcut durumu yeniden doğrula.",requestId
+                state,snap,"Kullanıcı müdahalesi tamamlandı. Önce mevcut durumu yeniden doğrula.",
+                structuralAuthority.requestId
         );
-        String visual = TeacherProtocol.buildVisualRequest(state,snap,requestId,"resume verification");
+
+        TeacherRequestAuthority visualAuthority = TeacherRequestAuthority.beginVisual(
+                "abc124", snap.stableFingerprint());
+        assertTrue(visualAuthority.isValid());
+        String visual = TeacherProtocol.buildVisualRequest(
+                state,snap,visualAuthority.requestId,"resume verification");
 
         assertTrue(structural.contains("LastSafeSnapshotFingerprint: safe-fp"));
         assertTrue(structural.contains("current screen as untrusted until continuity is re-established"));
