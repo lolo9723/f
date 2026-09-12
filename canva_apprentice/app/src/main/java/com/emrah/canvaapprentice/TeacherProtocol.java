@@ -8,16 +8,21 @@ public final class TeacherProtocol {
     }
 
     public static String markerFor(String requestId) {
-        String executionLeaseToken = TeacherExecutionLease.beginGlobal();
-        String marker = markerText(requestId);
-        CheckpointRequestGuard.bind(marker, executionLeaseToken);
-        return marker;
+        // Marker formatting carries no authority. Publishing marker -> execution lease before
+        // the teacher-visible snapshot exists creates a split-binding window in which a stale
+        // request is only partially grounded. Structural authority is now created atomically
+        // in buildRequest(), once the exact snapshot fingerprint is available.
+        return markerText(requestId);
     }
 
     public static String buildRequest(TaskState state, UiTreeSnapshot snapshot, String note, String requestId) {
-        // Bind the exact teacher-visible tree to this request before it leaves the device.
-        // Exact-node execution later consumes this fingerprint one time at the executor.
-        CheckpointRequestGuard.bindSnapshot(markerText(requestId), snapshot.stableFingerprint());
+        // Publish marker + execution lease + exact teacher-visible snapshot as one immutable
+        // authority tuple. If any identity is malformed, duplicated or stale, fail closed and
+        // let TeacherBridge reject the empty prompt rather than exposing partial authority.
+        TeacherRequestAuthority authority = TeacherRequestAuthority.begin(
+                requestId, snapshot.stableFingerprint());
+        if (!authority.isValid() || !authority.stillOwnsTransport()) return "";
+
         String continuity = state.designAnchor.isEmpty()
                 ? "DesignAnchor: UNBOUND. If a unique existing design title/name is clearly visible, you MAY bind it with BIND_DESIGN before risky navigation.\n"
                 : "DesignAnchor: " + state.designAnchor + "\n" +
