@@ -31,9 +31,6 @@ public final class TeacherProtocol {
     }
 
     public static String buildRequest(TaskState state, UiTreeSnapshot snapshot, String note, String requestId) {
-        // Prompt construction must never create/repair authority. Production creates the
-        // fully-grounded immutable authority first; this layer only verifies that the exact
-        // marker -> lease -> teacher-visible snapshot tuple still owns transport.
         requireBoundAuthority(snapshot, requestId);
         String continuity = state.designAnchor.isEmpty()
                 ? "DesignAnchor: UNBOUND. If a unique existing design title/name is clearly visible, you MAY bind it with BIND_DESIGN before risky navigation.\n"
@@ -76,8 +73,6 @@ public final class TeacherProtocol {
 
     public static String buildVisualRequest(TaskState state, UiTreeSnapshot snapshot,
                                             String requestId, String screenshotReason) {
-        // Visual prompt construction is verification-only too. The screenshot request must
-        // already own the exact fully-grounded snapshot authority before text is produced.
         requireBoundAuthority(snapshot, requestId);
         String continuity = state.designAnchor.isEmpty()
                 ? "DesignAnchor: UNBOUND\n"
@@ -114,9 +109,6 @@ public final class TeacherProtocol {
 
     public static AgentAction parse(String raw, String marker) { return parse(raw, marker, false); }
 
-    /** Structural production path: keep the immutable request authority attached all the
-     * way to the parser boundary instead of re-looking up whichever marker happens to be
-     * current. The legacy marker overload remains for compatibility and focused tests. */
     public static AgentAction parse(String raw, TeacherRequestAuthority authority) {
         if (authority == null || !authority.isValid() || !authority.stillOwnsTransport()) {
             return action(AgentAction.Type.NOOP,"","",1.0,
@@ -145,13 +137,12 @@ public final class TeacherProtocol {
         String line = null;
         int markerMatches = 0;
         for (String s : raw.split("\\R")) {
-            String t = s.trim();
-            if (t.startsWith(marker)) {
+            if (s.startsWith(marker)) {
                 markerMatches++;
                 if (markerMatches > 1) {
                     return action(AgentAction.Type.NOOP,"","",0,"ambiguous duplicate protocol marker",visualGrounded,executionLeaseToken);
                 }
-                line = t.substring(marker.length());
+                line = s.substring(marker.length());
             }
         }
         if (line == null) return action(AgentAction.Type.NOOP,"","",0,"unique protocol marker missing",visualGrounded,executionLeaseToken);
