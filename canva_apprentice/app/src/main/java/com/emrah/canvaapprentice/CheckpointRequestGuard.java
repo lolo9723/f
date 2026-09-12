@@ -89,29 +89,53 @@ public final class CheckpointRequestGuard {
      * Attaches the exact teacher-visible UI snapshot to an already-bound request marker.
      * Rebinding to a different snapshot is ambiguous and poisons the marker rather than
      * allowing a reply to borrow authority from a newer screen.
+     *
+     * Legacy callers still reach this method through markerFor() -> buildRequest(). They may
+     * only complete that split binding while the marker's original execution lease is still
+     * globally current. A newer teacher request rotating the lease therefore makes the older
+     * partial request permanently fail closed instead of allowing it to become fully grounded
+     * after ownership has already moved on.
      */
-    public static synchronized boolean bindSnapshot(String marker, String snapshotFingerprint) {
-        String m = exactIdentity(marker);
-        String fingerprint = exactIdentity(snapshotFingerprint);
+    public static boolean bindSnapshot(String marker, String snapshotFingerprint) {
+        final String m = exactIdentity(marker);
+        final String fingerprint = exactIdentity(snapshotFingerprint);
         if (!isCanonicalAuthorityIdentity(m) || !isCanonicalAuthorityIdentity(fingerprint)) return false;
 
-        RequestLease recorded = REQUESTS.get(m);
-        if (recorded == null || !recorded.checkpointCurrent
-                || recorded.executionLeaseToken.isEmpty()) {
-            return false;
+        final String expectedLease;
+        synchronized (CheckpointRequestGuard.class) {
+            RequestLease recorded = REQUESTS.get(m);
+            if (recorded == null || !recorded.checkpointCurrent
+                    || recorded.executionLeaseToken.isEmpty()) {
+                return false;
+            }
+            expectedLease = recorded.executionLeaseToken;
         }
-        if (!recorded.snapshotFingerprint.isEmpty()
-                && !recorded.snapshotFingerprint.equals(fingerprint)) {
-            REQUESTS.put(m, new RequestLease(-1L, "", "", false));
-            return false;
-        }
-        REQUESTS.put(m, new RequestLease(
-                recorded.checkpointGeneration,
-                recorded.executionLeaseToken,
-                fingerprint,
-                true
-        ));
-        return true;
+
+        return TeacherExecutionLease.withGlobalCurrent(expectedLease, false, () -> {
+            synchronized (CheckpointRequestGuard.class) {
+                RequestLease recorded = REQUESTS.get(m);
+                if (recorded == null || !recorded.checkpointCurrent
+                        || !expectedLease.equals(recorded.executionLeaseToken)
+                        || recorded.checkpointGeneration != checkpointGeneration) {
+                    if (recorded != null) {
+                        REQUESTS.put(m, new RequestLease(-1L, "", "", false));
+                    }
+                    return false;
+                }
+                if (!recorded.snapshotFingerprint.isEmpty()
+                        && !recorded.snapshotFingerprint.equals(fingerprint)) {
+                    REQUESTS.put(m, new RequestLease(-1L, "", "", false));
+                    return false;
+                }
+                REQUESTS.put(m, new RequestLease(
+                        recorded.checkpointGeneration,
+                        recorded.executionLeaseToken,
+                        fingerprint,
+                        true
+                ));
+                return true;
+            }
+        });
     }
 
     /**
