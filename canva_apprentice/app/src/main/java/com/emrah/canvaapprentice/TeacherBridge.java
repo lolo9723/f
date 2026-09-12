@@ -316,7 +316,9 @@ public final class TeacherBridge {
     static boolean hasReplyLine(String value, String marker) {
         if (value == null || marker == null || marker.isEmpty()) return false;
         for (String line : value.split("\\R", -1)) {
-            if (line.trim().startsWith(marker)) return true;
+            // Protocol authority must begin at physical column zero. Trimming here would
+            // accept indented/quoted/rendered explanatory text as an executable reply.
+            if (line.startsWith(marker)) return true;
         }
         return false;
     }
