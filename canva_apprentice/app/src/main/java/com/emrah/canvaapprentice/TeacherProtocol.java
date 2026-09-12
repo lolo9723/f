@@ -98,14 +98,12 @@ public final class TeacherProtocol {
     public static AgentAction parse(String raw, String marker) { return parse(raw, marker, false); }
 
     public static AgentAction parse(String raw, String marker, boolean visualGrounded) {
-        CheckpointRequestGuard.RequestLease requestLease = CheckpointRequestGuard.consumeFullyGrounded(marker);
-        final String executionLeaseToken = requestLease.executionLeaseToken;
-        if (!requestLease.checkpointCurrent) {
-            return action(AgentAction.Type.NOOP,"","",1.0,
-                    "teacher request lost fully-grounded checkpoint authority; refresh from current state",
-                    visualGrounded,executionLeaseToken);
+        // Validate that transport actually contains one unambiguous reply for this request
+        // before consuming its one-shot checkpoint/execution authority. Unrelated, empty or
+        // duplicate parser input must fail closed without poisoning the still-current request.
+        if (raw == null) {
+            return action(AgentAction.Type.NOOP,"","",0,"empty teacher reply",visualGrounded,"");
         }
-        if (raw == null) return action(AgentAction.Type.NOOP,"","",0,"empty teacher reply",visualGrounded,executionLeaseToken);
         String line = null;
         int markerMatches = 0;
         for (String s : raw.split("\\R")) {
@@ -113,12 +111,24 @@ public final class TeacherProtocol {
             if (t.startsWith(marker)) {
                 markerMatches++;
                 if (markerMatches > 1) {
-                    return action(AgentAction.Type.NOOP,"","",0,"ambiguous duplicate protocol marker",visualGrounded,executionLeaseToken);
+                    return action(AgentAction.Type.NOOP,"","",0,
+                            "ambiguous duplicate protocol marker",visualGrounded,"");
                 }
                 line = t.substring(marker.length());
             }
         }
-        if (line == null) return action(AgentAction.Type.NOOP,"","",0,"unique protocol marker missing",visualGrounded,executionLeaseToken);
+        if (line == null) {
+            return action(AgentAction.Type.NOOP,"","",0,
+                    "unique protocol marker missing",visualGrounded,"");
+        }
+
+        CheckpointRequestGuard.RequestLease requestLease = CheckpointRequestGuard.consumeFullyGrounded(marker);
+        final String executionLeaseToken = requestLease.executionLeaseToken;
+        if (!requestLease.checkpointCurrent) {
+            return action(AgentAction.Type.NOOP,"","",1.0,
+                    "teacher request lost fully-grounded checkpoint authority; refresh from current state",
+                    visualGrounded,executionLeaseToken);
+        }
 
         java.util.List<String> p = ProtocolCodec.splitEscaped(line);
         try {
