@@ -37,9 +37,10 @@ public final class SafeSnapshotPolicyTest {
         assertTrue(SafeSnapshotPolicy.shouldMarkSafe("Annual Report", true, false));
     }
 
-    @Test public void checkpointAttemptGateNormalizesAnchorWhitespace() {
-        assertTrue(SafeSnapshotPolicy.shouldMarkSafe("  Annual Report  ", true, false));
+    @Test public void checkpointAttemptRejectsNonCanonicalAnchorWhitespace() {
+        assertFalse(SafeSnapshotPolicy.shouldMarkSafe("  Annual Report  ", true, false));
         assertFalse(SafeSnapshotPolicy.shouldMarkSafe("   ", true, false));
+        assertFalse(SafeSnapshotPolicy.shouldMarkSafe("Annual\tReport", true, false));
     }
 
     @Test public void dualEvidenceRequiresFreshVisualProof() {
@@ -149,17 +150,27 @@ public final class SafeSnapshotPolicyTest {
                 "tree-fp","tree-fp",true,false,VALID_VISUAL));
     }
 
-    @Test public void observedCheckpointNormalizesOuterWhitespaceButNotIdentity() {
-        assertTrue(SafeSnapshotPolicy.mayCommitObservedCheckpoint(
-                TaskState.Mode.RUNNING,
-                "  Annual Report  ","Annual Report",
-                " session-1 ","session-1",
-                " tree-fp ","tree-fp",true,false," "+VALID_VISUAL+" "));
+    @Test public void observedCheckpointRejectsNonCanonicalAuthorityIdentity() {
         assertFalse(SafeSnapshotPolicy.mayCommitObservedCheckpoint(
                 TaskState.Mode.RUNNING,
-                "Annual  Report","Annual Report",
+                " Annual Report","Annual Report",
                 "session-1","session-1",
                 "tree-fp","tree-fp",true,false,VALID_VISUAL));
+        assertFalse(SafeSnapshotPolicy.mayCommitObservedCheckpoint(
+                TaskState.Mode.RUNNING,
+                "Annual Report","Annual Report",
+                " session-1","session-1",
+                "tree-fp","tree-fp",true,false,VALID_VISUAL));
+        assertFalse(SafeSnapshotPolicy.mayCommitObservedCheckpoint(
+                TaskState.Mode.RUNNING,
+                "Annual Report","Annual Report",
+                "session-1","session-1",
+                " tree-fp","tree-fp",true,false,VALID_VISUAL));
+        assertFalse(SafeSnapshotPolicy.mayCommitObservedCheckpoint(
+                TaskState.Mode.RUNNING,
+                "Annual Report","Annual Report",
+                "session-1","session-1",
+                "tree-fp","tree-fp",true,false," "+VALID_VISUAL));
     }
 
     @Test public void repositoryCheckpointRequiresRunningMode() {
@@ -183,6 +194,8 @@ public final class SafeSnapshotPolicyTest {
                 TaskState.Mode.RUNNING,"Annual Report",""));
         assertFalse(SafeSnapshotPolicy.mayPersistCheckpoint(
                 TaskState.Mode.RUNNING,"Annual Report","   "));
+        assertFalse(SafeSnapshotPolicy.mayPersistCheckpoint(
+                TaskState.Mode.RUNNING,"Annual Report"," fp-1"));
     }
 
     @Test public void repositoryCheckpointAcceptsOnlyRunningBoundNonEmptyState() {
@@ -227,10 +240,23 @@ public final class SafeSnapshotPolicyTest {
                 "Annual Report","Annual Report",""));
     }
 
-    @Test public void restoreComparisonNormalizesOuterWhitespaceOnly() {
-        assertTrue(SafeSnapshotPolicy.mayRestoreCheckpoint(
-                "  Annual Report  ","Annual Report"," fp-1 "));
+    @Test public void restoreComparisonRejectsOuterWhitespaceInsteadOfNormalizingIdentity() {
+        assertFalse(SafeSnapshotPolicy.mayRestoreCheckpoint(
+                "  Annual Report  ","Annual Report","fp-1"));
+        assertFalse(SafeSnapshotPolicy.mayRestoreCheckpoint(
+                "Annual Report","Annual Report"," fp-1 "));
         assertFalse(SafeSnapshotPolicy.mayRestoreCheckpoint(
                 "Annual  Report","Annual Report","fp-1"));
+    }
+
+    @Test public void commitBoundaryRejectsPaddedOrControlContaminatedFingerprints() {
+        assertFalse(SafeSnapshotPolicy.commitBoundaryStillMatches(
+                " tree-fp","tree-fp",true,false));
+        assertFalse(SafeSnapshotPolicy.commitBoundaryStillMatches(
+                "tree-fp","tree-fp ",true,false));
+        assertFalse(SafeSnapshotPolicy.commitBoundaryStillMatches(
+                "tree\tfp","tree\tfp",true,false));
+        assertTrue(SafeSnapshotPolicy.commitBoundaryStillMatches(
+                "tree-fp","tree-fp",true,false));
     }
 }
