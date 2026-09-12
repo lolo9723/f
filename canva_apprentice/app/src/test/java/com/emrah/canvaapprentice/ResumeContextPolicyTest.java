@@ -28,6 +28,14 @@ public class ResumeContextPolicyTest {
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","session-2","Design A","session-2 "));
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","\tsession-2","Design A","session-2"));
     }
+    @Test public void embeddedWhitespaceSessionIdentityFailsClosedEvenWhenBothSidesMatch(){
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","session 2","Design A","session 2"));
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","session\t2","Design A","session\t2"));
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","session\u00A02","Design A","session\u00A02"));
+    }
+    @Test public void ordinaryInteriorSpacesRemainValidInsideDesignAnchor(){
+        assertTrue(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"My Design A","session-2","My Design A","session-2"));
+    }
     @Test public void paddedAnchorIdentityFailsClosed(){
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING," Design A","session-2","Design A","session-2"));
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","session-2","Design A ","session-2"));

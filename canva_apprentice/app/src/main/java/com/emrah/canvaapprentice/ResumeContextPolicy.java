@@ -15,8 +15,8 @@ final class ResumeContextPolicy {
         // re-attaching a DEVAM ET chain to the wrong execution context.
         String currentSession = exact(currentSessionId);
         String expectedSession = exact(expectedSessionId);
-        if (!isCanonicalIdentity(expectedSession)
-                || !isCanonicalIdentity(currentSession)
+        if (!isCanonicalSessionIdentity(expectedSession)
+                || !isCanonicalSessionIdentity(currentSession)
                 || !expectedSession.equals(currentSession)) {
             return false;
         }
@@ -33,8 +33,8 @@ final class ResumeContextPolicy {
             return current.isEmpty() && expected.isEmpty();
         }
 
-        if (!isCanonicalIdentity(expected)
-                || !isCanonicalIdentity(current)
+        if (!isCanonicalAnchorIdentity(expected)
+                || !isCanonicalAnchorIdentity(current)
                 || !expected.equals(current)) {
             return false;
         }
@@ -45,7 +45,18 @@ final class ResumeContextPolicy {
         return value == null ? "" : value;
     }
 
-    private static boolean isCanonicalIdentity(String value) {
+    private static boolean isCanonicalSessionIdentity(String value) {
+        if (value == null || value.isEmpty() || !value.equals(value.trim())) return false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (Character.isISOControl(c) || Character.isWhitespace(c) || Character.isSpaceChar(c)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isCanonicalAnchorIdentity(String value) {
         if (value == null || value.isEmpty() || !value.equals(value.trim())) return false;
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
