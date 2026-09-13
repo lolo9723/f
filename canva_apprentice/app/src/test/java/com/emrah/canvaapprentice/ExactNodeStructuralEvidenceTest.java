@@ -59,7 +59,7 @@ public class ExactNodeStructuralEvidenceTest {
         TeacherRequestAuthority authority = TeacherRequestAuthority.begin(
                 "abc123", snap.stableFingerprint());
         assertTrue(authority.isValid());
-        String prompt = TeacherProtocol.buildRequest(state, snap, "note", authority.requestId);
+        String prompt = TeacherProtocol.buildRequest(state, snap, "note", authority);
 
         assertTrue(prompt.contains("index|class|text|description|bounds|flags"));
         assertTrue(prompt.contains("copy index, label, class, bounds, and flags from the SAME row"));
