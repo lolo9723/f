@@ -51,17 +51,6 @@ public final class TeacherRequestAuthority {
         return authority;
     }
 
-    /**
-     * Legacy package-local compatibility surface. Reconstructing authority from a marker
-     * breaks the invariant that delayed work must carry the exact immutable authority
-     * created for its snapshot. Keep the symbol only so old package-local callers fail
-     * closed while they are removed; never synthesize authority from ambient checkpoint state.
-     */
-    @Deprecated
-    static TeacherRequestAuthority fromBoundStructural(String marker) {
-        return invalid("", "");
-    }
-
     public static TeacherRequestAuthority beginVisual(String requestId, String snapshotFingerprint) {
         String id = exactRequestId(requestId);
         String fingerprint = exactSnapshotFingerprint(snapshotFingerprint);
