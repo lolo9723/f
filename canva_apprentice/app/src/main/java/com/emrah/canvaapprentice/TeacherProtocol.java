@@ -120,12 +120,6 @@ public final class TeacherProtocol {
                 "Never create a new design unless NewDesignAllowed=true.";
     }
 
-    /** Legacy package-local structural parsing only. Production must parse through immutable authority. */
-    @Deprecated
-    static AgentAction parse(String raw, String marker) {
-        return parseBound(raw, marker, false);
-    }
-
     public static AgentAction parse(String raw, TeacherRequestAuthority authority) {
         final boolean visualGrounded = authority != null && authority.isVisualGrounded();
         if (authority == null || !authority.isValid() || !authority.stillOwnsTransport()) {
@@ -147,12 +141,6 @@ public final class TeacherProtocol {
                     false, expectedLease);
         }
         return parsed;
-    }
-
-    /** Legacy package-local test compatibility only. Production visual parsing must use immutable authority. */
-    @Deprecated
-    static AgentAction parse(String raw, String marker, boolean visualGrounded) {
-        return parseBound(raw, marker, visualGrounded);
     }
 
     private static AgentAction parseBound(String raw, String marker, boolean visualGrounded) {
