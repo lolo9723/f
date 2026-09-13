@@ -31,13 +31,15 @@ public final class StructuralTeacherAtomicBindingTest {
                 "private void waitForCanvaAndHandle(");
 
         int begin = cycle.indexOf("TeacherRequestAuthority.begin(");
-        int build = cycle.indexOf("TeacherProtocol.buildRequest(");
+        int build = cycle.indexOf("TeacherProtocol.buildRequest(state,snap,enrichedNote,structuralAuthority)");
         int ask = cycle.indexOf("teacher.ask(prompt,structuralAuthority");
         int parse = cycle.indexOf("TeacherProtocol.parse(reply, structuralAuthority)");
         assertTrue("structural authority must be created from the captured snapshot", begin >= 0);
-        assertTrue("authority must exist before prompt construction", build > begin);
+        assertTrue("the exact authority must reach prompt construction", build > begin);
         assertTrue("the same immutable authority must be sent through TeacherBridge", ask > build);
         assertTrue("the same immutable authority must reach the parser boundary", parse > ask);
+        assertFalse("production structural flow must not rebuild prompt authority from request id",
+                cycle.contains("buildRequest(state,snap,enrichedNote,requestId)"));
         assertFalse("production structural flow must not create a separate marker authority",
                 cycle.contains("TeacherProtocol.markerFor(requestId)"));
         assertTrue("transport ownership must be revalidated before parsing",
@@ -46,6 +48,22 @@ public final class StructuralTeacherAtomicBindingTest {
                 cycle.contains("!structuralAuthority.executionLeaseToken.equals(action.executionLeaseToken)"));
         assertTrue("post-teacher UI drift check must use the authority's exact snapshot",
                 cycle.contains("structuralAuthority.snapshotFingerprint"));
+    }
+
+    @Test public void productionVisualPromptCarriesItsImmutableAuthority() throws Exception {
+        String source = source("AgentAccessibilityService.java");
+        String visual = section(source,
+                "private void requestVisualTeacher(String screenshotReason)",
+                "public void startTask(");
+
+        int begin = visual.indexOf("TeacherRequestAuthority.beginVisual(");
+        int build = visual.indexOf("TeacherProtocol.buildVisualRequest(state,snap,visualAuthority,screenshotReason)");
+        int ask = visual.indexOf("teacher.askWithScreenshot(prompt,ScreenshotProvider.uriFor(file),visualAuthority");
+        assertTrue("visual authority must be created before screenshot transport", begin >= 0);
+        assertTrue("the exact visual authority must reach prompt construction", build > begin);
+        assertTrue("the same visual authority must reach TeacherBridge", ask > build);
+        assertFalse("production visual flow must not rebuild prompt authority from request id",
+                visual.contains("buildVisualRequest(state,snap,requestId,screenshotReason)"));
     }
 
     @Test public void authorityParserPreservesItsExactExecutionLease() {
