@@ -124,7 +124,9 @@ public final class TeacherProtocol {
                 "Never create a new design unless NewDesignAllowed=true.";
     }
 
-    public static AgentAction parse(String raw, String marker) { return parse(raw, marker, false); }
+    public static AgentAction parse(String raw, String marker) {
+        return parseBound(raw, marker, false);
+    }
 
     public static AgentAction parse(String raw, TeacherRequestAuthority authority) {
         final boolean visualGrounded = authority != null && authority.isVisualGrounded();
@@ -134,16 +136,28 @@ public final class TeacherProtocol {
                     visualGrounded,"");
         }
         final String expectedLease = authority.executionLeaseToken;
-        AgentAction parsed = parse(raw, authority.marker, visualGrounded);
+        AgentAction parsed = parseBound(raw, authority.marker, visualGrounded);
         if (!expectedLease.equals(parsed.executionLeaseToken)) {
             return action(AgentAction.Type.NOOP,"","",1.0,
                     "teacher reply execution lease did not match immutable request authority",
                     visualGrounded,"");
         }
+        if (!visualGrounded
+                && (parsed.type == AgentAction.Type.TAP_NORM || parsed.type == AgentAction.Type.DRAG_NORM)) {
+            return action(parsed.type, parsed.target, parsed.value, 0.0,
+                    "coordinate command requires immutable visual request authority",
+                    false, expectedLease);
+        }
         return parsed;
     }
 
-    public static AgentAction parse(String raw, String marker, boolean visualGrounded) {
+    /** Legacy package-local test compatibility only. Production visual parsing must use immutable authority. */
+    @Deprecated
+    static AgentAction parse(String raw, String marker, boolean visualGrounded) {
+        return parseBound(raw, marker, visualGrounded);
+    }
+
+    private static AgentAction parseBound(String raw, String marker, boolean visualGrounded) {
         CheckpointRequestGuard.RequestLease requestLease = CheckpointRequestGuard.consumeFullyGrounded(marker);
         final String executionLeaseToken = requestLease.executionLeaseToken;
         if (!requestLease.checkpointCurrent) {
