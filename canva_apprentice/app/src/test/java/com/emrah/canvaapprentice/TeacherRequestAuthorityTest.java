@@ -94,8 +94,7 @@ public final class TeacherRequestAuthorityTest {
 
         AgentAction parsed = TeacherProtocol.parse(
                 visual.marker + "NOOP|||1.0|visual target unclear",
-                visual.marker,
-                true
+                visual
         );
 
         assertEquals(AgentAction.Type.NOOP, parsed.type);
