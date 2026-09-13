@@ -21,4 +21,19 @@ public class TeacherUiPolicyTest {
         assertFalse(TeacherUiPolicy.isExactSendLabel(""));
         assertFalse(TeacherUiPolicy.isExactSendLabel(null));
     }
+
+    @Test public void hiddenOrDisabledEditorsAreNeverUsable() {
+        assertTrue(TeacherUiPolicy.isUsableEditable(true, true, true));
+        assertFalse(TeacherUiPolicy.isUsableEditable(false, true, true));
+        assertFalse(TeacherUiPolicy.isUsableEditable(true, false, true));
+        assertFalse(TeacherUiPolicy.isUsableEditable(true, true, false));
+    }
+
+    @Test public void hiddenOrDisabledSendNodesAreNeverUsableEvenWithExactLabel() {
+        assertTrue(TeacherUiPolicy.isUsableSend(true, true, "Send", ""));
+        assertTrue(TeacherUiPolicy.isUsableSend(true, true, "", "Mesaj gönder"));
+        assertFalse(TeacherUiPolicy.isUsableSend(false, true, "Send", ""));
+        assertFalse(TeacherUiPolicy.isUsableSend(true, false, "Send", ""));
+        assertFalse(TeacherUiPolicy.isUsableSend(true, true, "Send feedback", ""));
+    }
 }
