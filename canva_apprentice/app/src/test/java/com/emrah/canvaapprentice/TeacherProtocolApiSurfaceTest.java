@@ -7,13 +7,14 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class TeacherProtocolApiSurfaceTest {
-    @Test public void legacyMarkerAndParseApisAreNotPublic() throws Exception {
-        Method markerFor = TeacherProtocol.class.getDeclaredMethod("markerFor", String.class);
-        Method legacyParse = TeacherProtocol.class.getDeclaredMethod(
-                "parse", String.class, String.class);
+    @Test public void legacyMarkerParserApisAreRemoved() {
+        assertMissing("parse", String.class, String.class);
+        assertMissing("parse", String.class, String.class, boolean.class);
+    }
 
+    @Test public void markerCreationRemainsNonPublicCompatibilityOnly() throws Exception {
+        Method markerFor = TeacherProtocol.class.getDeclaredMethod("markerFor", String.class);
         assertFalse(Modifier.isPublic(markerFor.getModifiers()));
-        assertFalse(Modifier.isPublic(legacyParse.getModifiers()));
     }
 
     @Test public void requestIdPromptBuildersAreRemoved() {
@@ -39,9 +40,9 @@ public class TeacherProtocolApiSurfaceTest {
     private static void assertMissing(String name, Class<?>... parameterTypes) {
         try {
             TeacherProtocol.class.getDeclaredMethod(name, parameterTypes);
-            fail("legacy prompt-builder surface must stay removed: " + name);
+            fail("legacy teacher protocol surface must stay removed: " + name);
         } catch (NoSuchMethodException expected) {
-            // Expected: prompt creation must carry immutable TeacherRequestAuthority.
+            // Expected: prompt creation and reply parsing must carry immutable TeacherRequestAuthority.
         }
     }
 }
