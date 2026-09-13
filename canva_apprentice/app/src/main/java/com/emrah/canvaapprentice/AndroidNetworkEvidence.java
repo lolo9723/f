@@ -20,7 +20,7 @@ public final class AndroidNetworkEvidence {
             NetworkCapabilities caps = cm.getNetworkCapabilities(network);
             if (caps == null) return Boolean.FALSE;
             return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
-        } catch (SecurityException | RuntimeException e) {
+        } catch (RuntimeException e) {
             return null;
         }
     }
