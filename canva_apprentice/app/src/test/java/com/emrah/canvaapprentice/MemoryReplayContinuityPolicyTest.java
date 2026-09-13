@@ -28,4 +28,18 @@ public final class MemoryReplayContinuityPolicyTest {
         assertFalse(MemoryReplayContinuityPolicy.mayRead(
                 TaskState.Mode.STOPPED, "screen-A", "screen-A"));
     }
+
+    @Test public void rejectsWhitespacePaddedFingerprintInsteadOfTrimmingIntoAuthority() {
+        assertFalse(MemoryReplayContinuityPolicy.mayRead(
+                TaskState.Mode.RUNNING, " screen-A", "screen-A"));
+        assertFalse(MemoryReplayContinuityPolicy.mayRead(
+                TaskState.Mode.RUNNING, "screen-A", "screen-A "));
+    }
+
+    @Test public void rejectsFormatAndControlCharactersInReplayIdentity() {
+        assertFalse(MemoryReplayContinuityPolicy.mayRead(
+                TaskState.Mode.RUNNING, "screen\u200BA", "screen\u200BA"));
+        assertFalse(MemoryReplayContinuityPolicy.mayRead(
+                TaskState.Mode.RUNNING, "screen\nA", "screen\nA"));
+    }
 }

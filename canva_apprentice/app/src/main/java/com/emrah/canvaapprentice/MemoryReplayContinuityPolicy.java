@@ -15,12 +15,20 @@ public final class MemoryReplayContinuityPolicy {
                                   String lastSafeSnapshotHash,
                                   String currentSnapshotHash) {
         if (mode != TaskState.Mode.RUNNING) return false;
-        String safe = normalize(lastSafeSnapshotHash);
-        String current = normalize(currentSnapshotHash);
-        return !safe.isEmpty() && safe.equals(current);
+        if (!isCanonicalIdentity(lastSafeSnapshotHash)
+                || !isCanonicalIdentity(currentSnapshotHash)) return false;
+        return lastSafeSnapshotHash.equals(currentSnapshotHash);
     }
 
-    private static String normalize(String value) {
-        return value == null ? "" : value.trim();
+    private static boolean isCanonicalIdentity(String value) {
+        if (value == null || value.isEmpty() || !value.equals(value.trim())) return false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (Character.isWhitespace(c)
+                    || Character.isSpaceChar(c)
+                    || Character.isISOControl(c)
+                    || Character.getType(c) == Character.FORMAT) return false;
+        }
+        return true;
     }
 }
