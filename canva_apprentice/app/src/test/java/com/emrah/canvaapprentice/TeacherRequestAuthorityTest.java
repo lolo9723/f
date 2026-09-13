@@ -38,10 +38,8 @@ public final class TeacherRequestAuthorityTest {
         String originalLease = CheckpointRequestGuard.currentBoundExecutionLease(marker);
         assertFalse(originalLease.isEmpty());
 
-        TeacherRequestAuthority adopted = TeacherRequestAuthority.fromBoundStructural(marker);
+        assertLegacyReconstructionRemoved();
 
-        assertFalse(adopted.isValid());
-        assertFalse(adopted.stillOwnsTransport());
         assertEquals(originalLease, CheckpointRequestGuard.currentBoundExecutionLease(marker));
         assertTrue(TeacherExecutionLease.isGlobalCurrent(originalLease));
     }
@@ -67,14 +65,14 @@ public final class TeacherRequestAuthorityTest {
         assertFalse(authority.stillOwnsTransport());
     }
 
-    @Test public void adoptionFailsClosedForUngroundedOrStaleStructuralMarker() {
+    @Test public void legacyReconstructionSurfaceStaysAbsentForUngroundedAndStaleMarkers() {
         String marker = TeacherProtocol.markerFor("ungrounded");
-        assertFalse(TeacherRequestAuthority.fromBoundStructural(marker).isValid());
+        assertLegacyReconstructionRemoved();
 
         assertTrue(CheckpointRequestGuard.bindSnapshot(marker, "snapshot-U"));
         CheckpointRequestGuard.onCheckpointCommitted();
 
-        assertFalse(TeacherRequestAuthority.fromBoundStructural(marker).isValid());
+        assertLegacyReconstructionRemoved();
     }
 
     @Test public void visualAuthorityOwnsFreshLeaseAndExactSnapshot() {
@@ -134,7 +132,7 @@ public final class TeacherRequestAuthorityTest {
         assertFalse(TeacherRequestAuthority.begin("request", null).isValid());
         assertFalse(TeacherRequestAuthority.beginVisual("", "snapshot").isValid());
         assertFalse(TeacherRequestAuthority.beginVisual("request", "").isValid());
-        assertFalse(TeacherRequestAuthority.fromBoundStructural("bad-marker").isValid());
+        assertLegacyReconstructionRemoved();
     }
 
     @Test public void unsafeRequestIdsCannotInjectProtocolMarkersOrRotateExistingAuthority() {
@@ -146,7 +144,7 @@ public final class TeacherRequestAuthorityTest {
         assertFalse(TeacherRequestAuthority.begin("evil|NOOP", "snapshot-evil").isValid());
         assertFalse(TeacherRequestAuthority.begin("evil\nDONE", "snapshot-evil").isValid());
         assertFalse(TeacherRequestAuthority.beginVisual("evil request", "snapshot-evil").isValid());
-        assertFalse(TeacherRequestAuthority.fromBoundStructural("CAA1_REPLY_evil|NOOP|").isValid());
+        assertLegacyReconstructionRemoved();
 
         assertEquals(lease, current.executionLeaseToken);
         assertTrue(current.stillOwnsTransport());
@@ -161,8 +159,7 @@ public final class TeacherRequestAuthorityTest {
         assertFalse(TeacherRequestAuthority.begin(" safe", "snapshot-leading").isValid());
         assertFalse(TeacherRequestAuthority.begin("safe ", "snapshot-trailing").isValid());
         assertFalse(TeacherRequestAuthority.beginVisual("\tsafe", "snapshot-tab").isValid());
-        assertFalse(TeacherRequestAuthority.fromBoundStructural(" CAA1_REPLY_safe-before|").isValid());
-        assertFalse(TeacherRequestAuthority.fromBoundStructural("CAA1_REPLY_safe-before| ").isValid());
+        assertLegacyReconstructionRemoved();
 
         assertTrue(current.stillOwnsTransport());
         assertTrue(TeacherExecutionLease.isGlobalCurrent(lease));
@@ -211,5 +208,14 @@ public final class TeacherRequestAuthorityTest {
         TeacherExecutionLease.invalidateGlobal();
 
         assertFalse(authority.stillOwnsTransport());
+    }
+
+    private static void assertLegacyReconstructionRemoved() {
+        try {
+            TeacherRequestAuthority.class.getDeclaredMethod("fromBoundStructural", String.class);
+            fail("legacy marker-based authority reconstruction surface must stay removed");
+        } catch (NoSuchMethodException expected) {
+            // No marker-only path may synthesize immutable teacher authority.
+        }
     }
 }
