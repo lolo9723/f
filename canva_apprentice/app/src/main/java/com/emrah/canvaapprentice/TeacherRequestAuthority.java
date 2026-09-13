@@ -177,17 +177,21 @@ public final class TeacherRequestAuthority {
 
     /**
      * Snapshot fingerprints are identity-bearing authority, not user-facing text. Never
-     * silently trim/canonicalize them and never accept embedded whitespace/control bytes.
-     * Production fingerprints are SHA-derived opaque tokens, so whitespace has no legitimate
-     * meaning here; accepting it would let different layers disagree about exact identity.
-     * Bound the token as well: authority data is retained across asynchronous transport and
-     * must never accept an attacker-sized or corrupted fingerprint before rotating a lease.
+     * silently trim/canonicalize them and never accept embedded whitespace, Unicode space,
+     * invisible format, or control characters. Production fingerprints are SHA-derived
+     * opaque tokens, so these characters have no legitimate meaning here; accepting them
+     * would let different layers disagree about exact identity. Bound the token as well:
+     * authority data is retained across asynchronous transport and must never accept an
+     * attacker-sized or corrupted fingerprint before rotating a lease.
      */
     private static boolean isCanonicalSnapshotFingerprint(String value) {
         if (value == null || value.isEmpty() || value.length() > 256 || !value.equals(value.trim())) return false;
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
-            if (Character.isWhitespace(c) || Character.isISOControl(c)) return false;
+            if (Character.isWhitespace(c)
+                    || Character.isSpaceChar(c)
+                    || Character.isISOControl(c)
+                    || Character.getType(c) == Character.FORMAT) return false;
         }
         return true;
     }
