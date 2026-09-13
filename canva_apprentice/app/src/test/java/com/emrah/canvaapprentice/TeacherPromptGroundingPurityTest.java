@@ -49,7 +49,7 @@ public final class TeacherPromptGroundingPurityTest {
     @Test(expected = IllegalStateException.class)
     public void structuralPromptCannotRepairMissingAuthority() {
         TeacherProtocol.buildRequest(state(), snapshot(AgentConstants.CANVA_PACKAGE),
-                "note", "unbound1");
+                "note", (TeacherRequestAuthority) null);
     }
 
     @Test(expected = IllegalStateException.class)
@@ -60,7 +60,7 @@ public final class TeacherPromptGroundingPurityTest {
         assertTrue(authority.isValid());
 
         TeacherProtocol.buildRequest(state(), snapshot("different.package"),
-                "note", authority.requestId);
+                "note", authority);
     }
 
     @Test public void visualPromptOnlyVerifiesExistingAuthority() {
