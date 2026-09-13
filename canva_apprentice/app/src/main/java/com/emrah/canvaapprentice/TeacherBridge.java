@@ -125,6 +125,7 @@ public final class TeacherBridge {
 
     static boolean promptMatchesAuthority(String prompt, TeacherRequestAuthority authority, boolean visual) {
         if (prompt == null || authority == null || !authority.isValid()) return false;
+        if (visual != authority.isVisualGrounded()) return false;
         String expectedHeader = visual ? VISUAL_HEADER : STRUCTURAL_HEADER;
         if (!prompt.startsWith(expectedHeader + "\n")) return false;
 
