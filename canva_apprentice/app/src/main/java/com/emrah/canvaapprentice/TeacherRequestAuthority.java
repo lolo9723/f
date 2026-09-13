@@ -12,15 +12,17 @@ public final class TeacherRequestAuthority {
     public final String executionLeaseToken;
     public final String snapshotFingerprint;
     private final boolean structuralBound;
+    private final boolean visualGrounded;
 
     private TeacherRequestAuthority(String requestId, String marker,
                                     String executionLeaseToken, String snapshotFingerprint,
-                                    boolean structuralBound) {
+                                    boolean structuralBound, boolean visualGrounded) {
         this.requestId = requestId;
         this.marker = marker;
         this.executionLeaseToken = executionLeaseToken;
         this.snapshotFingerprint = snapshotFingerprint;
         this.structuralBound = structuralBound;
+        this.visualGrounded = visualGrounded;
     }
 
     public static TeacherRequestAuthority begin(String requestId, String snapshotFingerprint) {
@@ -42,7 +44,7 @@ public final class TeacherRequestAuthority {
             return invalid(id, fingerprint);
         }
         TeacherRequestAuthority authority =
-                new TeacherRequestAuthority(id, marker, lease, fingerprint, true);
+                new TeacherRequestAuthority(id, marker, lease, fingerprint, true, false);
         if (!authority.stillOwnsTransport()) {
             // Never let stale authority cleanup invalidate a newer request's lease.
             TeacherExecutionLease.invalidateGlobalIfCurrent(lease);
@@ -74,7 +76,8 @@ public final class TeacherRequestAuthority {
                 exactMarker,
                 lease.executionLeaseToken,
                 lease.snapshotFingerprint,
-                true
+                true,
+                false
         );
         return authority.stillOwnsTransport()
                 ? authority
@@ -107,6 +110,7 @@ public final class TeacherRequestAuthority {
                 marker,
                 lease,
                 fingerprint,
+                true,
                 true
         );
         if (!authority.stillOwnsTransport()) {
@@ -122,6 +126,15 @@ public final class TeacherRequestAuthority {
                 && marker.equals("CAA1_REPLY_" + requestId + "|")
                 && !executionLeaseToken.isEmpty()
                 && isCanonicalSnapshotFingerprint(snapshotFingerprint);
+    }
+
+    /**
+     * Whether this immutable authority was created from screenshot-backed visual evidence.
+     * Parser/executor layers must derive coordinate permission from this bit instead of a
+     * separate caller-supplied boolean that can drift away from the bound request.
+     */
+    public boolean isVisualGrounded() {
+        return isValid() && visualGrounded;
     }
 
     public boolean stillOwnsTransport() {
@@ -145,7 +158,7 @@ public final class TeacherRequestAuthority {
 
     private static TeacherRequestAuthority invalid(String requestId, String snapshotFingerprint) {
         return new TeacherRequestAuthority(
-                exactRequestId(requestId), "", "", exactSnapshotFingerprint(snapshotFingerprint), false);
+                exactRequestId(requestId), "", "", exactSnapshotFingerprint(snapshotFingerprint), false, false);
     }
 
     private static String requestIdFromMarker(String marker) {
