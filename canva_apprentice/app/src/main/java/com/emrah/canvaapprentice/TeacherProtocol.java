@@ -127,17 +127,18 @@ public final class TeacherProtocol {
     public static AgentAction parse(String raw, String marker) { return parse(raw, marker, false); }
 
     public static AgentAction parse(String raw, TeacherRequestAuthority authority) {
+        final boolean visualGrounded = authority != null && authority.isVisualGrounded();
         if (authority == null || !authority.isValid() || !authority.stillOwnsTransport()) {
             return action(AgentAction.Type.NOOP,"","",1.0,
                     "teacher request lost immutable transport authority; refresh from current state",
-                    false,"");
+                    visualGrounded,"");
         }
         final String expectedLease = authority.executionLeaseToken;
-        AgentAction parsed = parse(raw, authority.marker, false);
+        AgentAction parsed = parse(raw, authority.marker, visualGrounded);
         if (!expectedLease.equals(parsed.executionLeaseToken)) {
             return action(AgentAction.Type.NOOP,"","",1.0,
                     "teacher reply execution lease did not match immutable request authority",
-                    false,"");
+                    visualGrounded,"");
         }
         return parsed;
     }
