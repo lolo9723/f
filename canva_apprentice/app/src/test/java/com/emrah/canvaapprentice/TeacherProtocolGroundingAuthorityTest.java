@@ -1,6 +1,7 @@
 package com.emrah.canvaapprentice;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.After;
@@ -18,10 +19,11 @@ public final class TeacherProtocolGroundingAuthorityTest {
         TeacherExecutionLease.invalidateGlobal();
     }
 
-    @Test public void parserRejectsLeaseWithoutImmutableTeacherAuthority() {
+    @Test public void parserRejectsFullyGroundedLeaseWithoutImmutableTeacherAuthority() {
         String token = TeacherExecutionLease.beginGlobal();
         String marker = "CAA1_REPLY_ungrounded|";
-        CheckpointRequestGuard.bind(marker, token);
+        assertTrue(CheckpointRequestGuard.bindFullyGrounded(marker, token, "fp-legacy"));
+        assertEquals(token, CheckpointRequestGuard.currentBoundExecutionLease(marker));
 
         AgentAction action = TeacherProtocol.parse(
                 marker + "CLICK_TEXT|Layers|0.99|safe",
