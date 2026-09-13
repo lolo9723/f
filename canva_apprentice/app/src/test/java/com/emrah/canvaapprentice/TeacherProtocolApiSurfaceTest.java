@@ -7,19 +7,20 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class TeacherProtocolApiSurfaceTest {
-    @Test public void legacyMarkerAndRequestIdApisAreNotPublic() throws Exception {
+    @Test public void legacyMarkerAndParseApisAreNotPublic() throws Exception {
         Method markerFor = TeacherProtocol.class.getDeclaredMethod("markerFor", String.class);
-        Method legacyBuild = TeacherProtocol.class.getDeclaredMethod(
-                "buildRequest", TaskState.class, UiTreeSnapshot.class, String.class, String.class);
-        Method legacyVisualBuild = TeacherProtocol.class.getDeclaredMethod(
-                "buildVisualRequest", TaskState.class, UiTreeSnapshot.class, String.class, String.class);
         Method legacyParse = TeacherProtocol.class.getDeclaredMethod(
                 "parse", String.class, String.class);
 
         assertFalse(Modifier.isPublic(markerFor.getModifiers()));
-        assertFalse(Modifier.isPublic(legacyBuild.getModifiers()));
-        assertFalse(Modifier.isPublic(legacyVisualBuild.getModifiers()));
         assertFalse(Modifier.isPublic(legacyParse.getModifiers()));
+    }
+
+    @Test public void requestIdPromptBuildersAreRemoved() {
+        assertMissing("buildRequest",
+                TaskState.class, UiTreeSnapshot.class, String.class, String.class);
+        assertMissing("buildVisualRequest",
+                TaskState.class, UiTreeSnapshot.class, String.class, String.class);
     }
 
     @Test public void immutableAuthorityApisRemainPublic() throws Exception {
@@ -33,5 +34,14 @@ public class TeacherProtocolApiSurfaceTest {
         assertTrue(Modifier.isPublic(build.getModifiers()));
         assertTrue(Modifier.isPublic(visualBuild.getModifiers()));
         assertTrue(Modifier.isPublic(parse.getModifiers()));
+    }
+
+    private static void assertMissing(String name, Class<?>... parameterTypes) {
+        try {
+            TeacherProtocol.class.getDeclaredMethod(name, parameterTypes);
+            fail("legacy prompt-builder surface must stay removed: " + name);
+        } catch (NoSuchMethodException expected) {
+            // Expected: prompt creation must carry immutable TeacherRequestAuthority.
+        }
     }
 }
