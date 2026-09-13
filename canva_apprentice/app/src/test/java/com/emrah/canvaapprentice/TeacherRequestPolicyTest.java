@@ -46,4 +46,34 @@ public final class TeacherRequestPolicyTest {
         assertFalse(TeacherRequestPolicy.isCurrent(
                 "session-a", "session-a", TaskState.Mode.RUNNING, "req-2\u00a0", "req-2"));
     }
+
+    @Test public void designAnchorAllowsOrdinaryVisibleTitleCharacters() {
+        assertTrue(TeacherRequestPolicy.isCurrent(
+                "session-a", "session-a", TaskState.Mode.RUNNING, "req-2", "req-2",
+                "Summer Campaign 2026 ✅", "Summer Campaign 2026 ✅"));
+        assertTrue(TeacherRequestPolicy.isCurrent(
+                "session-a", "session-a", TaskState.Mode.RUNNING, "req-2", "req-2", "", ""));
+    }
+
+    @Test public void rejectsMatchingButNonCanonicalDesignAnchors() {
+        String[] malformed = {
+                "Summer\nCampaign",
+                "Summer\u200bCampaign",
+                "Summer\u2028Campaign",
+                "Summer\u2029Campaign",
+                "Summer\ud800Campaign"
+        };
+        for (String anchor : malformed) {
+            assertFalse("must fail closed for malformed design anchor",
+                    TeacherRequestPolicy.isCurrent(
+                            "session-a", "session-a", TaskState.Mode.RUNNING, "req-2", "req-2",
+                            anchor, anchor));
+        }
+    }
+
+    @Test public void rejectsWhenOnlyOneDesignAnchorIsNonCanonical() {
+        assertFalse(TeacherRequestPolicy.isCurrent(
+                "session-a", "session-a", TaskState.Mode.RUNNING, "req-2", "req-2",
+                "Summer Campaign", "Summer\u200bCampaign"));
+    }
 }
