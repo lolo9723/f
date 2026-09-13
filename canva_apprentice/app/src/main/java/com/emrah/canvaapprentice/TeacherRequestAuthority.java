@@ -39,26 +39,21 @@ public final class TeacherRequestAuthority {
         }
 
         if (!CheckpointRequestGuard.bindFullyGrounded(marker, lease, fingerprint)) {
-            // Cleanup is lease-scoped: a racing newer request may already own GLOBAL.
             TeacherExecutionLease.invalidateGlobalIfCurrent(lease);
             return invalid(id, fingerprint);
         }
         TeacherRequestAuthority authority =
                 new TeacherRequestAuthority(id, marker, lease, fingerprint, true, false);
         if (!authority.stillOwnsTransport()) {
-            // Never let stale authority cleanup invalidate a newer request's lease.
             TeacherExecutionLease.invalidateGlobalIfCurrent(lease);
             return invalid(id, fingerprint);
         }
         return authority;
     }
 
-    /**
-     * Captures an already-created structural request as one immutable authority object.
-     * Marker, lease and snapshot are read atomically from CheckpointRequestGuard so delayed
-     * transport cannot mix pieces from different checkpoint generations.
-     */
-    public static TeacherRequestAuthority fromBoundStructural(String marker) {
+    /** Legacy package-local compatibility only. Production must carry immutable authority directly. */
+    @Deprecated
+    static TeacherRequestAuthority fromBoundStructural(String marker) {
         String exactMarker = marker == null ? "" : marker;
         String id = requestIdFromMarker(exactMarker);
         if (!isSafeRequestId(id)) {
@@ -84,12 +79,6 @@ public final class TeacherRequestAuthority {
                 : invalid(id, lease.snapshotFingerprint);
     }
 
-    /**
-     * Starts a screenshot-backed teacher request with a fresh execution lease and binds the
-     * reply marker to the exact screenshot/UI-tree snapshot before transport. Visual replies
-     * are parsed through CheckpointRequestGuard too, so leaving this marker unbound would
-     * make every otherwise-valid visual reply fail closed and lose its execution authority.
-     */
     public static TeacherRequestAuthority beginVisual(String requestId, String snapshotFingerprint) {
         String id = exactRequestId(requestId);
         String fingerprint = exactSnapshotFingerprint(snapshotFingerprint);
@@ -128,11 +117,6 @@ public final class TeacherRequestAuthority {
                 && isCanonicalSnapshotFingerprint(snapshotFingerprint);
     }
 
-    /**
-     * Whether this immutable authority was created from screenshot-backed visual evidence.
-     * Parser/executor layers must derive coordinate permission from this bit instead of a
-     * separate caller-supplied boolean that can drift away from the bound request.
-     */
     public boolean isVisualGrounded() {
         return isValid() && visualGrounded;
     }
@@ -142,11 +126,6 @@ public final class TeacherRequestAuthority {
         if (!structuralBound) {
             return TeacherRequestLeasePolicy.transportStillOwns(executionLeaseToken);
         }
-
-        // Hold the execution-lease monitor while validating the marker -> lease -> snapshot
-        // tuple. Without this atomic boundary a newer teacher request could rotate the global
-        // lease after the old token was checked but before the checkpoint tuple was read,
-        // briefly allowing delayed transport from the stale request to pass both checks.
         return TeacherExecutionLease.withGlobalCurrent(executionLeaseToken, false, () -> {
             CheckpointRequestGuard.RequestLease current =
                     CheckpointRequestGuard.currentBoundRequestLease(marker);
@@ -170,11 +149,6 @@ public final class TeacherRequestAuthority {
         return isSafeRequestId(id) ? id : "";
     }
 
-    /**
-     * Request ids become part of the line protocol marker, so they must never contain
-     * separators, whitespace, control characters or arbitrary teacher-controlled text.
-     * UUID-derived ids used by the service fit this deliberately narrow grammar.
-     */
     private static boolean isSafeRequestId(String value) {
         if (value == null || value.isEmpty() || value.length() > 64) return false;
         for (int i = 0; i < value.length(); i++) {
@@ -188,15 +162,6 @@ public final class TeacherRequestAuthority {
         return true;
     }
 
-    /**
-     * Snapshot fingerprints are identity-bearing authority, not user-facing text. Never
-     * silently trim/canonicalize them and never accept embedded whitespace, Unicode space,
-     * invisible format, or control characters. Production fingerprints are SHA-derived
-     * opaque tokens, so these characters have no legitimate meaning here; accepting them
-     * would let different layers disagree about exact identity. Bound the token as well:
-     * authority data is retained across asynchronous transport and must never accept an
-     * attacker-sized or corrupted fingerprint before rotating a lease.
-     */
     private static boolean isCanonicalSnapshotFingerprint(String value) {
         if (value == null || value.isEmpty() || value.length() > 256 || !value.equals(value.trim())) return false;
         for (int i = 0; i < value.length(); i++) {
