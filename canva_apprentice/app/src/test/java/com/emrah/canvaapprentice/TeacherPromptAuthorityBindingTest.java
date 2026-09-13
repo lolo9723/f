@@ -46,6 +46,16 @@ public final class TeacherPromptAuthorityBindingTest {
         assertFalse(TeacherBridge.promptMatchesAuthority(visualPrompt, visual, false));
     }
 
+    @Test public void transportRejectsAuthorityWithWrongGroundingTypeEvenWhenHeaderAndRequestIdMatch() {
+        TeacherRequestAuthority structural = TeacherRequestAuthority.begin("crossStruct", "snapshot-S");
+        String forgedVisualPrompt = "CANVA_APPRENTICE_VISUAL_TEACHER_REQUEST\nRequestId: crossStruct\nGoal: edit";
+        assertFalse(TeacherBridge.promptMatchesAuthority(forgedVisualPrompt, structural, true));
+
+        TeacherRequestAuthority visual = TeacherRequestAuthority.beginVisual("crossVisual", "snapshot-V");
+        String forgedStructuralPrompt = "CANVA_APPRENTICE_TEACHER_REQUEST\nRequestId: crossVisual\nGoal: edit";
+        assertFalse(TeacherBridge.promptMatchesAuthority(forgedStructuralPrompt, visual, false));
+    }
+
     @Test public void requestIdLookalikesDoNotSatisfyAuthorityBinding() {
         TeacherRequestAuthority authority = TeacherRequestAuthority.begin("safe1", "snapshot-S");
 
