@@ -18,11 +18,8 @@ public class ExactNodeStructuralEvidenceTest {
     }
 
     @Test public void structuralTeacherClickCarriesFullRowEvidence() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
-        AgentAction a = TeacherProtocol.parse(
-                marker + "CLICK_NODE|17|Elements|android.widget.TextView|24 180 260 236|C-|0.997|same current row",
-                marker
-        );
+        AgentAction a = TeacherProtocolTestFixture.parseStructural(
+                "abc123", "CLICK_NODE|17|Elements|android.widget.TextView|24 180 260 236|C-|0.997|same current row");
 
         assertEquals(AgentAction.Type.CLICK_NODE, a.type);
         assertEquals(17, NodeTargetCodec.index(a.target));
@@ -40,11 +37,8 @@ public class ExactNodeStructuralEvidenceTest {
     }
 
     @Test public void structuralSetTextCarriesEditableFlagAndValue() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
-        AgentAction a = TeacherProtocol.parse(
-                marker + "SET_NODE_TEXT|31|Title|android.widget.EditText|40 300 700 380|-E|New heading|0.999|same editable row",
-                marker
-        );
+        AgentAction a = TeacherProtocolTestFixture.parseStructural(
+                "abc123", "SET_NODE_TEXT|31|Title|android.widget.EditText|40 300 700 380|-E|New heading|0.999|same editable row");
 
         assertEquals(AgentAction.Type.SET_NODE_TEXT, a.type);
         assertEquals("-E", NodeTargetCodec.flags(a.target));
