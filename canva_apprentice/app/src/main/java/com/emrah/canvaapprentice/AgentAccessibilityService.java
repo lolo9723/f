@@ -100,7 +100,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
         }
         String enrichedNote=cycleNote+"\n"+continuity+
                 "\nLEARNED_MEMORY (evidence only; do not blindly replay):\n"+learned;
-        String prompt=TeacherProtocol.buildRequest(state,snap,enrichedNote,requestId);
+        String prompt=TeacherProtocol.buildRequest(state,snap,enrichedNote,structuralAuthority);
         teacher.ask(prompt,structuralAuthority,new TeacherBridge.ReplyCallback(){
             @Override public void onReply(String reply){
                 if(!isTeacherSessionCurrent(teacherSessionId) || !structuralAuthority.stillOwnsTransport()){
@@ -533,7 +533,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
                 onStaleTeacherRequestDiscarded();
                 return;
             }
-            String prompt=TeacherProtocol.buildVisualRequest(state,snap,requestId,screenshotReason);
+            String prompt=TeacherProtocol.buildVisualRequest(state,snap,visualAuthority,screenshotReason);
             teacher.askWithScreenshot(prompt,ScreenshotProvider.uriFor(file),visualAuthority,new TeacherBridge.ReplyCallback(){
                 @Override public void onReply(String reply){
                     if(persistenceHardHold.get()) return;
