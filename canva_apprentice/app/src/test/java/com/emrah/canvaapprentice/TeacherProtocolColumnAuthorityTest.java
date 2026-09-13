@@ -5,10 +5,10 @@ import static org.junit.Assert.*;
 
 public class TeacherProtocolColumnAuthorityTest {
     @Test public void parserRejectsSpaceIndentedProtocolMarker() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("columnSpace1");
+        TeacherRequestAuthority authority = TeacherProtocolTestFixture.groundedAuthority("columnSpace1");
         AgentAction action = TeacherProtocol.parse(
-                "status\n   " + marker + "CLICK_TEXT|Elements|0.99|rendered quote\nfooter",
-                marker
+                "status\n   " + authority.marker + "CLICK_TEXT|Elements|0.99|rendered quote\nfooter",
+                authority
         );
         assertEquals(AgentAction.Type.NOOP, action.type);
         assertEquals(0.0, action.confidence, 0.0001);
@@ -16,10 +16,10 @@ public class TeacherProtocolColumnAuthorityTest {
     }
 
     @Test public void parserRejectsTabIndentedProtocolMarker() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("columnTab1");
+        TeacherRequestAuthority authority = TeacherProtocolTestFixture.groundedAuthority("columnTab1");
         AgentAction action = TeacherProtocol.parse(
-                "\t" + marker + "CLICK_TEXT|Elements|0.99|rendered quote",
-                marker
+                "\t" + authority.marker + "CLICK_TEXT|Elements|0.99|rendered quote",
+                authority
         );
         assertEquals(AgentAction.Type.NOOP, action.type);
         assertEquals(0.0, action.confidence, 0.0001);
@@ -27,10 +27,10 @@ public class TeacherProtocolColumnAuthorityTest {
     }
 
     @Test public void parserStillAcceptsExactColumnZeroMarker() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("columnExact1");
+        TeacherRequestAuthority authority = TeacherProtocolTestFixture.groundedAuthority("columnExact1");
         AgentAction action = TeacherProtocol.parse(
-                "status\n" + marker + "CLICK_TEXT|Elements|0.99|exact reply\nfooter",
-                marker
+                "status\n" + authority.marker + "CLICK_TEXT|Elements|0.99|exact reply\nfooter",
+                authority
         );
         assertEquals(AgentAction.Type.CLICK_TEXT, action.type);
         assertEquals("Elements", action.target);
