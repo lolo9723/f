@@ -5,12 +5,8 @@ import static org.junit.Assert.*;
 
 public class FinalDoneConfidenceTest {
     @Test public void lowConfidenceVisualDoneFailsClosed() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("final001");
-        AgentAction action = TeacherProtocol.parse(
-                marker + "DONE|||0.80|looks mostly complete but uncertain",
-                marker,
-                true
-        );
+        AgentAction action = TeacherProtocolTestFixture.parseVisual(
+                "final001", "DONE|||0.80|looks mostly complete but uncertain");
         assertEquals(AgentAction.Type.NOOP, action.type);
         assertEquals(0.0, action.confidence, 0.0001);
         assertTrue(action.visualGrounded);
@@ -18,23 +14,16 @@ public class FinalDoneConfidenceTest {
     }
 
     @Test public void malformedVisualDoneFailsClosed() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("final002");
-        AgentAction action = TeacherProtocol.parse(
-                marker + "DONE|||NaN|cannot certify final quality",
-                marker,
-                true
-        );
+        AgentAction action = TeacherProtocolTestFixture.parseVisual(
+                "final002", "DONE|||NaN|cannot certify final quality");
         assertEquals(AgentAction.Type.NOOP, action.type);
         assertEquals(0.0, action.confidence, 0.0001);
+        assertTrue(action.visualGrounded);
     }
 
     @Test public void highConfidenceVisualDonePreservesReportedConfidence() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("final003");
-        AgentAction action = TeacherProtocol.parse(
-                marker + "DONE|||0.999|goal and final visual quality verified",
-                marker,
-                true
-        );
+        AgentAction action = TeacherProtocolTestFixture.parseVisual(
+                "final003", "DONE|||0.999|goal and final visual quality verified");
         assertEquals(AgentAction.Type.DONE, action.type);
         assertEquals(0.999, action.confidence, 0.0001);
         assertTrue(action.visualGrounded);
