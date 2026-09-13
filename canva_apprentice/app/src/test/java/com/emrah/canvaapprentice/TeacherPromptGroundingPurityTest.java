@@ -36,7 +36,7 @@ public final class TeacherPromptGroundingPurityTest {
 
         CheckpointRequestGuard.RequestLease before =
                 CheckpointRequestGuard.currentBoundRequestLease(authority.marker);
-        String prompt = TeacherProtocol.buildRequest(state(), snap, "note", authority.requestId);
+        String prompt = TeacherProtocol.buildRequest(state(), snap, "note", authority);
         CheckpointRequestGuard.RequestLease after =
                 CheckpointRequestGuard.currentBoundRequestLease(authority.marker);
 
@@ -70,7 +70,7 @@ public final class TeacherPromptGroundingPurityTest {
         assertTrue(authority.isValid());
 
         String prompt = TeacherProtocol.buildVisualRequest(
-                state(), snap, authority.requestId, "need visual evidence");
+                state(), snap, authority, "need visual evidence");
 
         assertTrue(prompt.contains("RequestId: " + authority.requestId));
         assertTrue(authority.stillOwnsTransport());
