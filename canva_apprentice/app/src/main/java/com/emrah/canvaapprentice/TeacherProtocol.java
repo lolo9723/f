@@ -40,13 +40,6 @@ public final class TeacherProtocol {
         return marker;
     }
 
-    /** Legacy package-local test/compatibility path. Production must carry immutable authority directly. */
-    @Deprecated
-    static String buildRequest(TaskState state, UiTreeSnapshot snapshot, String note, String requestId) {
-        return buildRequest(state, snapshot, note,
-                TeacherRequestAuthority.fromBoundStructural(markerText(requestId)));
-    }
-
     public static String buildRequest(TaskState state, UiTreeSnapshot snapshot, String note,
                                       TeacherRequestAuthority authority) {
         TeacherRequestAuthority boundAuthority = requirePromptAuthority(snapshot, authority, false);
@@ -88,14 +81,6 @@ public final class TeacherProtocol {
                 "If the note says the user has just completed a human intervention, treat the current screen as untrusted until continuity is re-established. " +
                 "When a DesignAnchor is bound, do not issue editing/navigation after human intervention unless UI tree clearly proves the same design; otherwise request SCREENSHOT. " +
                 "Never create a new design unless NewDesignAllowed=true. Never guess on password/CAPTCHA/payment/destructive actions. Never navigate away merely to try something.";
-    }
-
-    /** Legacy package-local test/compatibility path. Production must carry immutable authority directly. */
-    @Deprecated
-    static String buildVisualRequest(TaskState state, UiTreeSnapshot snapshot,
-                                     String requestId, String screenshotReason) {
-        return buildVisualRequest(state, snapshot,
-                TeacherRequestAuthority.fromBoundStructural(markerText(requestId)), screenshotReason);
     }
 
     public static String buildVisualRequest(TaskState state, UiTreeSnapshot snapshot,
