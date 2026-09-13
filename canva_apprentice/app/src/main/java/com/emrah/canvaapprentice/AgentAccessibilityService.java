@@ -541,7 +541,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
                         onStaleTeacherRequestDiscarded();
                         return;
                     }
-                    AgentAction visualAction=TeacherProtocol.parse(reply,marker,true);
+                    AgentAction visualAction=TeacherProtocol.parse(reply,visualAuthority);
                     if(!visualExecutionToken.equals(visualAction.executionLeaseToken)){
                         onStaleTeacherRequestDiscarded();
                         return;
