@@ -50,16 +50,15 @@ public final class SafetyGate {
         }
 
         // A screenshot-grounded production mutation is meaningful only as the result of one
-        // exact live teacher request. If a parsing/callback regression ever produces a visual
-        // action without that execution lease, treating visualGrounded=true as authority would
-        // let coordinate gestures bypass stale-request ownership checks. JVM policy tests run
-        // without a live AccessibilityService, so ordinary locally-constructed test actions
-        // remain usable while production fails closed.
+        // exact live VISUAL teacher request. A merely non-empty/current structural lease is not
+        // visual authority: legacy parser callers must not be able to upgrade it by setting
+        // visualGrounded=true. JVM policy tests run without a live AccessibilityService, so
+        // ordinary locally-constructed test actions remain usable while production fails closed.
         if (!visualTeacherLeaseMayExecute(
                 AgentAccessibilityService.INSTANCE != null,
                 action.visualGrounded,
                 action.executionLeaseToken)) {
-            return Decision.block("Görüntülü öğretmen eylemi geçerli execution lease taşımıyor; kanıtsız visual mutasyon uygulanmadı.");
+            return Decision.block("Görüntülü öğretmen eylemi geçerli visual execution lease taşımıyor; kanıtsız visual mutasyon uygulanmadı.");
         }
 
         // Teacher-produced exact-node actions must carry the complete compact UI-row proof.
@@ -161,7 +160,7 @@ public final class SafetyGate {
             boolean visualGrounded,
             String executionLeaseToken) {
         if (!serviceActive || !visualGrounded) return true;
-        return executionLeaseToken != null && !executionLeaseToken.isEmpty();
+        return TeacherRequestLeasePolicy.visualTransportStillOwns(executionLeaseToken);
     }
 
     private static boolean validTap(String spec) {

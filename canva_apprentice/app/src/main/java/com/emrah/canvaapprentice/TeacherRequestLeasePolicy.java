@@ -7,10 +7,14 @@ package com.emrah.canvaapprentice;
  * than re-reading whichever global lease happens to be current later.
  */
 public final class TeacherRequestLeasePolicy {
+    private static volatile String currentVisualExecutionLease = "";
+
     private TeacherRequestLeasePolicy() {}
 
     public static String beginStructuralRequest() {
-        return TeacherExecutionLease.beginGlobal();
+        String lease = TeacherExecutionLease.beginGlobal();
+        currentVisualExecutionLease = "";
+        return lease;
     }
 
     /**
@@ -19,7 +23,9 @@ public final class TeacherRequestLeasePolicy {
      * cannot coexist with or borrow authority from the visual request.
      */
     public static String beginVisualRequest() {
-        return TeacherExecutionLease.beginGlobal();
+        String lease = TeacherExecutionLease.beginGlobal();
+        currentVisualExecutionLease = lease == null ? "" : lease;
+        return lease;
     }
 
     /**
@@ -43,5 +49,17 @@ public final class TeacherRequestLeasePolicy {
         return expectedExecutionLease != null
                 && !expectedExecutionLease.isEmpty()
                 && TeacherExecutionLease.isGlobalCurrent(expectedExecutionLease);
+    }
+
+    /**
+     * Coordinate/visual mutations require provenance from a visual teacher request, not just
+     * any current execution lease. This prevents a structural request (or legacy parser caller)
+     * from upgrading an ordinary lease into visual authority by setting visualGrounded=true.
+     */
+    public static boolean visualTransportStillOwns(String expectedExecutionLease) {
+        return expectedExecutionLease != null
+                && !expectedExecutionLease.isEmpty()
+                && expectedExecutionLease.equals(currentVisualExecutionLease)
+                && transportStillOwns(expectedExecutionLease);
     }
 }
