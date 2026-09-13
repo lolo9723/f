@@ -19,14 +19,14 @@ public final class TeacherProtocolGroundingAuthorityTest {
         TeacherExecutionLease.invalidateGlobal();
     }
 
-    @Test public void parserRejectsLeaseWithoutTeacherVisibleSnapshot() {
+    @Test public void parserRejectsLeaseWithoutImmutableTeacherAuthority() {
         String token = TeacherExecutionLease.beginGlobal();
         String marker = "CAA1_REPLY_ungrounded|";
         CheckpointRequestGuard.bind(marker, token);
 
         AgentAction action = TeacherProtocol.parse(
                 marker + "CLICK_TEXT|Layers|0.99|safe",
-                marker
+                null
         );
 
         assertEquals(AgentAction.Type.NOOP, action.type);
@@ -35,14 +35,13 @@ public final class TeacherProtocolGroundingAuthorityTest {
     }
 
     @Test public void parserAcceptsFullyGroundedCurrentRequest() {
-        String token = TeacherExecutionLease.beginGlobal();
-        String marker = "CAA1_REPLY_grounded|";
-        CheckpointRequestGuard.bind(marker, token);
-        assertTrue(CheckpointRequestGuard.bindSnapshot(marker, "fp-current"));
+        TeacherRequestAuthority authority = TeacherRequestAuthority.begin("grounded", "fp-current");
+        assertTrue(authority.isValid());
+        String token = authority.executionLeaseToken;
 
         AgentAction action = TeacherProtocol.parse(
-                marker + "CLICK_TEXT|Layers|0.99|safe",
-                marker
+                authority.marker + "CLICK_TEXT|Layers|0.99|safe",
+                authority
         );
 
         assertEquals(AgentAction.Type.CLICK_TEXT, action.type);
@@ -52,15 +51,13 @@ public final class TeacherProtocolGroundingAuthorityTest {
     }
 
     @Test public void staleFullyGroundedRequestLosesExecutionAuthorityAtParser() {
-        String token = TeacherExecutionLease.beginGlobal();
-        String marker = "CAA1_REPLY_stalegrounded|";
-        CheckpointRequestGuard.bind(marker, token);
-        assertTrue(CheckpointRequestGuard.bindSnapshot(marker, "fp-old"));
+        TeacherRequestAuthority authority = TeacherRequestAuthority.begin("stalegrounded", "fp-old");
+        assertTrue(authority.isValid());
         CheckpointRequestGuard.onCheckpointCommitted();
 
         AgentAction action = TeacherProtocol.parse(
-                marker + "CLICK_TEXT|Layers|0.99|safe",
-                marker
+                authority.marker + "CLICK_TEXT|Layers|0.99|safe",
+                authority
         );
 
         assertEquals(AgentAction.Type.NOOP, action.type);
