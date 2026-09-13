@@ -22,6 +22,15 @@ public final class TeacherProtocol {
         return authority;
     }
 
+    private static TeacherRequestAuthority requirePromptAuthority(
+            UiTreeSnapshot snapshot, TeacherRequestAuthority authority, boolean visualExpected) {
+        TeacherRequestAuthority boundAuthority = requireBoundAuthority(snapshot, authority);
+        if (boundAuthority.isVisualGrounded() != visualExpected) {
+            throw new IllegalStateException("teacher prompt authority grounding type mismatch");
+        }
+        return boundAuthority;
+    }
+
     /** Legacy package-local test compatibility only. Production must create immutable authority. */
     @Deprecated
     static String markerFor(String requestId) {
@@ -40,7 +49,7 @@ public final class TeacherProtocol {
 
     public static String buildRequest(TaskState state, UiTreeSnapshot snapshot, String note,
                                       TeacherRequestAuthority authority) {
-        TeacherRequestAuthority boundAuthority = requireBoundAuthority(snapshot, authority);
+        TeacherRequestAuthority boundAuthority = requirePromptAuthority(snapshot, authority, false);
         String requestId = boundAuthority.requestId;
         String continuity = state.designAnchor.isEmpty()
                 ? "DesignAnchor: UNBOUND. If a unique existing design title/name is clearly visible, you MAY bind it with BIND_DESIGN before risky navigation.\n"
@@ -91,7 +100,7 @@ public final class TeacherProtocol {
 
     public static String buildVisualRequest(TaskState state, UiTreeSnapshot snapshot,
                                             TeacherRequestAuthority authority, String screenshotReason) {
-        TeacherRequestAuthority boundAuthority = requireBoundAuthority(snapshot, authority);
+        TeacherRequestAuthority boundAuthority = requirePromptAuthority(snapshot, authority, true);
         String requestId = boundAuthority.requestId;
         String continuity = state.designAnchor.isEmpty()
                 ? "DesignAnchor: UNBOUND\n"
