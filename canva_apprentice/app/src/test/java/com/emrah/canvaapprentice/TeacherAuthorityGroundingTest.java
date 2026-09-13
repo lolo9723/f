@@ -29,6 +29,8 @@ public final class TeacherAuthorityGroundingTest {
 
         assertEquals(AgentAction.Type.TAP_NORM, parsed.type);
         assertFalse(parsed.visualGrounded);
+        assertEquals(0.0, parsed.confidence, 0.0001);
+        assertEquals("coordinate command requires immutable visual request authority", parsed.reason);
         assertEquals(authority.executionLeaseToken, parsed.executionLeaseToken);
     }
 
