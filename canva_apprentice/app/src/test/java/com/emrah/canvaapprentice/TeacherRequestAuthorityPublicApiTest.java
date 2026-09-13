@@ -1,31 +1,17 @@
 package com.emrah.canvaapprentice;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import org.junit.Test;
 
 public final class TeacherRequestAuthorityPublicApiTest {
-    @Test public void legacyBoundStructuralReconstructionIsNotPublic() throws Exception {
-        Method method = TeacherRequestAuthority.class.getDeclaredMethod(
-                "fromBoundStructural", String.class);
-        assertFalse(Modifier.isPublic(method.getModifiers()));
-    }
-
-    @Test public void legacyBoundStructuralReconstructionFailsClosedEvenForLiveMarker() {
-        TeacherRequestAuthority live = TeacherRequestAuthority.begin(
-                "legacy-reconstruct", "snapshot-legacy-reconstruct");
-        assertTrue(live.isValid());
-        assertTrue(live.stillOwnsTransport());
-
-        TeacherRequestAuthority reconstructed =
-                TeacherRequestAuthority.fromBoundStructural(live.marker);
-
-        assertFalse(reconstructed.isValid());
-        assertFalse(reconstructed.stillOwnsTransport());
-        assertTrue(reconstructed.marker.isEmpty());
-        assertTrue(reconstructed.executionLeaseToken.isEmpty());
+    @Test public void legacyBoundStructuralReconstructionIsRemoved() {
+        try {
+            TeacherRequestAuthority.class.getDeclaredMethod(
+                    "fromBoundStructural", String.class);
+            fail("legacy marker-based authority reconstruction surface must stay removed");
+        } catch (NoSuchMethodException expected) {
+            // Immutable authority must be created once for the exact snapshot and carried forward.
+        }
     }
 }
