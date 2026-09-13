@@ -19,6 +19,29 @@ public final class TeacherRequestPolicy {
         return true;
     }
 
+    /**
+     * Design titles may legitimately contain ordinary spaces, punctuation, and emoji, so they
+     * cannot share the stricter request-token grammar. Invisible/control code points still must
+     * never participate in continuity authority: two equally-corrupted strings must not make an
+     * ambiguous design identity look current.
+     */
+    private static boolean isCanonicalDesignAnchor(String anchor) {
+        if (anchor == null) return false;
+        for (int i = 0; i < anchor.length();) {
+            int cp = anchor.codePointAt(i);
+            int type = Character.getType(cp);
+            if (Character.isISOControl(cp)
+                    || type == Character.FORMAT
+                    || type == Character.LINE_SEPARATOR
+                    || type == Character.PARAGRAPH_SEPARATOR
+                    || type == Character.SURROGATE) {
+                return false;
+            }
+            i += Character.charCount(cp);
+        }
+        return true;
+    }
+
     public static boolean isCurrent(String expectedSessionId,
                                     String currentSessionId,
                                     TaskState.Mode mode,
@@ -39,7 +62,8 @@ public final class TeacherRequestPolicy {
                                     String currentDesignAnchor) {
         if (!isCurrent(expectedSessionId, currentSessionId, mode,
                 expectedRequestToken, activeRequestToken)) return false;
-        if (expectedDesignAnchor == null || currentDesignAnchor == null) return false;
+        if (!isCanonicalDesignAnchor(expectedDesignAnchor)
+                || !isCanonicalDesignAnchor(currentDesignAnchor)) return false;
         return expectedDesignAnchor.equals(currentDesignAnchor);
     }
 }
