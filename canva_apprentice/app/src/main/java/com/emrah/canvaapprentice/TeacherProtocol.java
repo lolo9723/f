@@ -22,16 +22,18 @@ public final class TeacherProtocol {
         return authority;
     }
 
-    public static String markerFor(String requestId) {
+    /** Legacy package-local test compatibility only. Production must create immutable authority. */
+    @Deprecated
+    static String markerFor(String requestId) {
         String executionLeaseToken = TeacherExecutionLease.beginGlobal();
         String marker = markerText(requestId);
         CheckpointRequestGuard.bind(marker, executionLeaseToken);
         return marker;
     }
 
-    /** Legacy test/compatibility path. Production must carry the immutable authority directly. */
+    /** Legacy package-local test/compatibility path. Production must carry immutable authority directly. */
     @Deprecated
-    public static String buildRequest(TaskState state, UiTreeSnapshot snapshot, String note, String requestId) {
+    static String buildRequest(TaskState state, UiTreeSnapshot snapshot, String note, String requestId) {
         return buildRequest(state, snapshot, note,
                 TeacherRequestAuthority.fromBoundStructural(markerText(requestId)));
     }
@@ -79,10 +81,10 @@ public final class TeacherProtocol {
                 "Never create a new design unless NewDesignAllowed=true. Never guess on password/CAPTCHA/payment/destructive actions. Never navigate away merely to try something.";
     }
 
-    /** Legacy test/compatibility path. Production must carry the immutable authority directly. */
+    /** Legacy package-local test/compatibility path. Production must carry immutable authority directly. */
     @Deprecated
-    public static String buildVisualRequest(TaskState state, UiTreeSnapshot snapshot,
-                                            String requestId, String screenshotReason) {
+    static String buildVisualRequest(TaskState state, UiTreeSnapshot snapshot,
+                                     String requestId, String screenshotReason) {
         return buildVisualRequest(state, snapshot,
                 TeacherRequestAuthority.fromBoundStructural(markerText(requestId)), screenshotReason);
     }
@@ -124,7 +126,9 @@ public final class TeacherProtocol {
                 "Never create a new design unless NewDesignAllowed=true.";
     }
 
-    public static AgentAction parse(String raw, String marker) {
+    /** Legacy package-local structural parsing only. Production must parse through immutable authority. */
+    @Deprecated
+    static AgentAction parse(String raw, String marker) {
         return parseBound(raw, marker, false);
     }
 
