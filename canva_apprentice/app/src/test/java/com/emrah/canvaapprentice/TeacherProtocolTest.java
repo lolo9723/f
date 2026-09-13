@@ -5,21 +5,21 @@ import static org.junit.Assert.*;
 
 public class TeacherProtocolTest {
     @Test public void ignoresReplyWithWrongRequestMarker() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
+        TeacherRequestAuthority authority = TeacherProtocolTestFixture.groundedAuthority("abc123");
         AgentAction a = TeacherProtocol.parse(
                 "CAA1_REPLY_other|CLICK_TEXT|Share|0.99|wrong request",
-                marker
+                authority
         );
         assertEquals(AgentAction.Type.NOOP,a.type);
         assertEquals(0.0,a.confidence,0.0001);
     }
 
     @Test public void rejectsDuplicateMatchingMarkersInsteadOfChoosingOne() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
+        TeacherRequestAuthority authority = TeacherProtocolTestFixture.groundedAuthority("abc123");
         AgentAction a = TeacherProtocol.parse(
-                marker+"CLICK_TEXT|Elements|0.99|first action\n"+
-                marker+"CLICK_TEXT|Share|0.99|second action",
-                marker
+                authority.marker+"CLICK_TEXT|Elements|0.99|first action\n"+
+                authority.marker+"CLICK_TEXT|Share|0.99|second action",
+                authority
         );
         assertEquals(AgentAction.Type.NOOP,a.type);
         assertEquals(0.0,a.confidence,0.0001);
@@ -27,22 +27,16 @@ public class TeacherProtocolTest {
     }
 
     @Test public void parsesStructuralClickAsNonVisual() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
-        AgentAction a = TeacherProtocol.parse(
-                marker+"CLICK_TEXT|Elements|0.99|open elements",
-                marker
-        );
+        AgentAction a = TeacherProtocolTestFixture.parseStructural(
+                "abc123", "CLICK_TEXT|Elements|0.99|open elements");
         assertEquals(AgentAction.Type.CLICK_TEXT,a.type);
         assertFalse(a.visualGrounded);
         assertEquals("Elements",a.target);
     }
 
     @Test public void parsesExactNodeClick() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
-        AgentAction a = TeacherProtocol.parse(
-                marker+"CLICK_NODE|17|Elements|0.997|unique current UI row",
-                marker
-        );
+        AgentAction a = TeacherProtocolTestFixture.parseStructural(
+                "abc123", "CLICK_NODE|17|Elements|0.997|unique current UI row");
         assertEquals(AgentAction.Type.CLICK_NODE,a.type);
         assertEquals(17,NodeTargetCodec.index(a.target));
         assertEquals("Elements",NodeTargetCodec.label(a.target));
@@ -50,11 +44,8 @@ public class TeacherProtocolTest {
     }
 
     @Test public void parsesExactNodeSetText() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
-        AgentAction a = TeacherProtocol.parse(
-                marker+"SET_NODE_TEXT|31|Title|New heading|0.998|exact editable row",
-                marker
-        );
+        AgentAction a = TeacherProtocolTestFixture.parseStructural(
+                "abc123", "SET_NODE_TEXT|31|Title|New heading|0.998|exact editable row");
         assertEquals(AgentAction.Type.SET_NODE_TEXT,a.type);
         assertEquals(31,NodeTargetCodec.index(a.target));
         assertEquals("Title",NodeTargetCodec.label(a.target));
@@ -63,11 +54,8 @@ public class TeacherProtocolTest {
     }
 
     @Test public void exactNodeSetTextCanTargetUnlabelledEditableRow() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
-        AgentAction a = TeacherProtocol.parse(
-                marker+"SET_NODE_TEXT|4||Body text|0.999|unlabelled editable current row",
-                marker
-        );
+        AgentAction a = TeacherProtocolTestFixture.parseStructural(
+                "abc123", "SET_NODE_TEXT|4||Body text|0.999|unlabelled editable current row");
         assertEquals(AgentAction.Type.SET_NODE_TEXT,a.type);
         assertEquals(4,NodeTargetCodec.index(a.target));
         assertEquals("empty",NodeTargetCodec.label(a.target));
@@ -75,11 +63,8 @@ public class TeacherProtocolTest {
     }
 
     @Test public void rejectsOutOfRangeExactNodeIndex() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
-        AgentAction a = TeacherProtocol.parse(
-                marker+"CLICK_NODE|999|Share|0.999|invented index",
-                marker
-        );
+        AgentAction a = TeacherProtocolTestFixture.parseStructural(
+                "abc123", "CLICK_NODE|999|Share|0.999|invented index");
         assertEquals(AgentAction.Type.NOOP,a.type);
         assertEquals(0.0,a.confidence,0.0001);
         assertEquals("teacher protocol parse error",a.reason);
@@ -115,44 +100,30 @@ public class TeacherProtocolTest {
     }
 
     @Test public void parsesVisualTapAsVisualGrounded() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
-        AgentAction a = TeacherProtocol.parse(
-                marker+"TAP_NORM|520,410|0.995|select photo",
-                marker,
-                true
-        );
+        AgentAction a = TeacherProtocolTestFixture.parseVisual(
+                "abc123", "TAP_NORM|520,410|0.995|select photo");
         assertEquals(AgentAction.Type.TAP_NORM,a.type);
         assertTrue(a.visualGrounded);
         assertEquals(0.995,a.confidence,0.0001);
     }
 
     @Test public void parsesVisualDrag() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
-        AgentAction a = TeacherProtocol.parse(
-                marker+"DRAG_NORM|500,500,700,500,450|0.998|move logo right",
-                marker,
-                true
-        );
+        AgentAction a = TeacherProtocolTestFixture.parseVisual(
+                "abc123", "DRAG_NORM|500,500,700,500,450|0.998|move logo right");
         assertEquals(AgentAction.Type.DRAG_NORM,a.type);
         assertEquals("500,500,700,500,450",a.target);
     }
 
     @Test public void parsesDesignBinding() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
-        AgentAction a = TeacherProtocol.parse(
-                marker+"BIND_DESIGN|30 Ağustos Fakülte Afişi|0.99|unique top title",
-                marker
-        );
+        AgentAction a = TeacherProtocolTestFixture.parseStructural(
+                "abc123", "BIND_DESIGN|30 Ağustos Fakülte Afişi|0.99|unique top title");
         assertEquals(AgentAction.Type.BIND_DESIGN,a.type);
         assertEquals("30 Ağustos Fakülte Afişi",a.target);
     }
 
     @Test public void parsesScreenshotFallback() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
-        AgentAction a = TeacherProtocol.parse(
-                marker+"SCREENSHOT|||1.0|canvas objects have no labels",
-                marker
-        );
+        AgentAction a = TeacherProtocolTestFixture.parseStructural(
+                "abc123", "SCREENSHOT|||1.0|canvas objects have no labels");
         assertEquals(AgentAction.Type.SCREENSHOT,a.type);
     }
 
@@ -215,42 +186,29 @@ public class TeacherProtocolTest {
     }
 
     @Test public void parsesEscapedMultilineSetText() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
-        AgentAction a = TeacherProtocol.parse(
-                marker+"SET_TEXT|Title|Hello\\|World\\nLine 2|0.99|write requested text",
-                marker
-        );
+        AgentAction a = TeacherProtocolTestFixture.parseStructural(
+                "abc123", "SET_TEXT|Title|Hello\\|World\\nLine 2|0.99|write requested text");
         assertEquals(AgentAction.Type.SET_TEXT,a.type);
         assertEquals("Hello|World\nLine 2",a.value);
         assertEquals(0.99,a.confidence,0.0001);
     }
 
     @Test public void preservesEscapedLiteralBackslash() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
-        AgentAction a = TeacherProtocol.parse(
-                marker+"SET_TEXT|Path|C:\\\\Temp|0.99|write path",
-                marker
-        );
+        AgentAction a = TeacherProtocolTestFixture.parseStructural(
+                "abc123", "SET_TEXT|Path|C:\\\\Temp|0.99|write path");
         assertEquals(AgentAction.Type.SET_TEXT,a.type);
         assertEquals("C:\\Temp",a.value);
         assertEquals(0.99,a.confidence,0.0001);
     }
 
     @Test public void nonFiniteConfidenceFailsClosed() {
-        String marker = TeacherProtocolTestFixture.groundedMarker("abc123");
-        AgentAction nan = TeacherProtocol.parse(
-                marker+"CLICK_TEXT|Elements|NaN|must not bypass threshold",
-                marker
-        );
+        AgentAction nan = TeacherProtocolTestFixture.parseStructural(
+                "abc123", "CLICK_TEXT|Elements|NaN|must not bypass threshold");
         assertEquals(AgentAction.Type.CLICK_TEXT,nan.type);
         assertEquals(0.0,nan.confidence,0.0001);
 
-        marker = TeacherProtocolTestFixture.groundedMarker("def456");
-        AgentAction inf = TeacherProtocol.parse(
-                marker+"TAP_NORM|520,410|Infinity|must not bypass threshold",
-                marker,
-                true
-        );
+        AgentAction inf = TeacherProtocolTestFixture.parseVisual(
+                "def456", "TAP_NORM|520,410|Infinity|must not bypass threshold");
         assertEquals(AgentAction.Type.TAP_NORM,inf.type);
         assertEquals(0.0,inf.confidence,0.0001);
     }
