@@ -32,20 +32,18 @@ public final class TeacherRequestAuthorityTest {
         assertEquals("snapshot-A", consumed.snapshotFingerprint);
     }
 
-    @Test public void adoptsExistingStructuralMarkerWithoutRotatingLease() {
+    @Test public void legacyStructuralMarkerCannotReconstructAuthorityEvenWhenFullyGrounded() {
         String marker = TeacherProtocol.markerFor("legacy123");
         assertTrue(CheckpointRequestGuard.bindSnapshot(marker, "snapshot-L"));
         String originalLease = CheckpointRequestGuard.currentBoundExecutionLease(marker);
+        assertFalse(originalLease.isEmpty());
 
         TeacherRequestAuthority adopted = TeacherRequestAuthority.fromBoundStructural(marker);
 
-        assertTrue(adopted.isValid());
-        assertEquals("legacy123", adopted.requestId);
-        assertEquals(marker, adopted.marker);
-        assertEquals(originalLease, adopted.executionLeaseToken);
-        assertEquals("snapshot-L", adopted.snapshotFingerprint);
-        assertTrue(adopted.stillOwnsTransport());
+        assertFalse(adopted.isValid());
+        assertFalse(adopted.stillOwnsTransport());
         assertEquals(originalLease, CheckpointRequestGuard.currentBoundExecutionLease(marker));
+        assertTrue(TeacherExecutionLease.isGlobalCurrent(originalLease));
     }
 
     @Test public void structuralAuthorityStopsOwningTransportAfterBindingIsConsumed() {
