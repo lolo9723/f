@@ -15,7 +15,17 @@ public final class OfflineEvidencePolicyTest {
         assertTrue(evidence.contains("MUST NOT by itself cause NOOP/HUMAN"));
     }
 
-    @Test public void realOfflineStillRequiresIndependentCorroboration() {
+    @Test public void validatedNetworkRewritesOfflineBannerForTeacherWithoutChangingRowCount() {
+        assertTrue(OfflineEvidencePolicy.isOfflineBanner("İnternete bağlı değilsiniz", ""));
+        assertEquals("CONNECTIVITY_BANNER_CONFLICT_ANDROID_VALIDATED (stale candidate; NOT offline proof)",
+                OfflineEvidencePolicy.teacherSafeText("İnternete bağlı değilsiniz", "", Boolean.TRUE));
+        assertTrue(OfflineEvidencePolicy.teacherSafeDescription("İnternete bağlı değilsiniz", "", Boolean.TRUE)
+                .contains("do not NOOP/HUMAN solely"));
+    }
+
+    @Test public void realOfflineBannerIsNotRedactedWhenAndroidIsUnvalidated() {
+        assertEquals("İnternete bağlı değilsiniz",
+                OfflineEvidencePolicy.teacherSafeText("İnternete bağlı değilsiniz", "", Boolean.FALSE));
         assertEquals(OfflineEvidencePolicy.Verdict.OFFLINE_CONFIRMED,
                 OfflineEvidencePolicy.classify(true, Boolean.FALSE));
         assertTrue(OfflineEvidencePolicy.teacherEvidence(true, Boolean.FALSE)

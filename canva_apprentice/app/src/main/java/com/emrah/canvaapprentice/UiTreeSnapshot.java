@@ -105,12 +105,17 @@ public final class UiTreeSnapshot {
     public String compactForTeacher() {
         StringBuilder b = new StringBuilder();
         int i = 0;
+        final Boolean networkValidated = AndroidNetworkEvidence.currentValidated();
         for (Node n : nodes) {
             if (!n.visibleToUser) continue;
             if (n.text.trim().isEmpty() && n.description.trim().isEmpty() &&
                     !n.clickable && !n.editable) continue;
+            String teacherText = OfflineEvidencePolicy.teacherSafeText(
+                    n.text, n.description, networkValidated);
+            String teacherDescription = OfflineEvidencePolicy.teacherSafeDescription(
+                    n.text, n.description, networkValidated);
             b.append(i++).append('|').append(n.className).append('|')
-                    .append(clean(n.text)).append('|').append(clean(n.description)).append('|')
+                    .append(clean(teacherText)).append('|').append(clean(teacherDescription)).append('|')
                     .append(boundsForTeacher(n.bounds)).append('|')
                     .append(n.clickable ? "C" : "-").append(n.editable ? "E" : "-").append('\n');
             if (i >= 220) break;
