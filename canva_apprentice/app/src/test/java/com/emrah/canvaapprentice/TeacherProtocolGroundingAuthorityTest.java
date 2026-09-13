@@ -1,7 +1,6 @@
 package com.emrah.canvaapprentice;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.After;
@@ -31,7 +30,8 @@ public final class TeacherProtocolGroundingAuthorityTest {
 
         assertEquals(AgentAction.Type.NOOP, action.type);
         assertEquals("", action.executionLeaseToken);
-        assertFalse(CheckpointRequestGuard.consume(marker).checkpointCurrent);
+        assertEquals(token, CheckpointRequestGuard.currentBoundExecutionLease(marker));
+        assertEquals(0, CheckpointRequestGuard.consumedSnapshotCountForTest());
     }
 
     @Test public void parserAcceptsFullyGroundedCurrentRequest() {
