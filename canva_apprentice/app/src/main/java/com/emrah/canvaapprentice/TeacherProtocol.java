@@ -8,13 +8,12 @@ public final class TeacherProtocol {
     }
 
     private static TeacherRequestAuthority requireBoundAuthority(
-            UiTreeSnapshot snapshot, String requestId) {
+            UiTreeSnapshot snapshot, TeacherRequestAuthority authority) {
         if (snapshot == null) {
             throw new IllegalStateException("teacher prompt requires a current UI snapshot");
         }
-        TeacherRequestAuthority authority =
-                TeacherRequestAuthority.fromBoundStructural(markerText(requestId));
-        if (!authority.isValid()
+        if (authority == null
+                || !authority.isValid()
                 || !authority.stillOwnsTransport()
                 || !authority.snapshotFingerprint.equals(snapshot.stableFingerprint())) {
             throw new IllegalStateException(
@@ -30,8 +29,17 @@ public final class TeacherProtocol {
         return marker;
     }
 
+    /** Legacy test/compatibility path. Production must carry the immutable authority directly. */
+    @Deprecated
     public static String buildRequest(TaskState state, UiTreeSnapshot snapshot, String note, String requestId) {
-        requireBoundAuthority(snapshot, requestId);
+        return buildRequest(state, snapshot, note,
+                TeacherRequestAuthority.fromBoundStructural(markerText(requestId)));
+    }
+
+    public static String buildRequest(TaskState state, UiTreeSnapshot snapshot, String note,
+                                      TeacherRequestAuthority authority) {
+        TeacherRequestAuthority boundAuthority = requireBoundAuthority(snapshot, authority);
+        String requestId = boundAuthority.requestId;
         String continuity = state.designAnchor.isEmpty()
                 ? "DesignAnchor: UNBOUND. If a unique existing design title/name is clearly visible, you MAY bind it with BIND_DESIGN before risky navigation.\n"
                 : "DesignAnchor: " + state.designAnchor + "\n" +
@@ -71,9 +79,18 @@ public final class TeacherProtocol {
                 "Never create a new design unless NewDesignAllowed=true. Never guess on password/CAPTCHA/payment/destructive actions. Never navigate away merely to try something.";
     }
 
+    /** Legacy test/compatibility path. Production must carry the immutable authority directly. */
+    @Deprecated
     public static String buildVisualRequest(TaskState state, UiTreeSnapshot snapshot,
                                             String requestId, String screenshotReason) {
-        requireBoundAuthority(snapshot, requestId);
+        return buildVisualRequest(state, snapshot,
+                TeacherRequestAuthority.fromBoundStructural(markerText(requestId)), screenshotReason);
+    }
+
+    public static String buildVisualRequest(TaskState state, UiTreeSnapshot snapshot,
+                                            TeacherRequestAuthority authority, String screenshotReason) {
+        TeacherRequestAuthority boundAuthority = requireBoundAuthority(snapshot, authority);
+        String requestId = boundAuthority.requestId;
         String continuity = state.designAnchor.isEmpty()
                 ? "DesignAnchor: UNBOUND\n"
                 : "DesignAnchor: " + state.designAnchor + "\nDESIGN CONTINUITY RULE: preserve this exact existing design.\n";
