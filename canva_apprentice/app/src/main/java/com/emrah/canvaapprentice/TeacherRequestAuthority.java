@@ -51,32 +51,15 @@ public final class TeacherRequestAuthority {
         return authority;
     }
 
-    /** Legacy package-local compatibility only. Production must carry immutable authority directly. */
+    /**
+     * Legacy package-local compatibility surface. Reconstructing authority from a marker
+     * breaks the invariant that delayed work must carry the exact immutable authority
+     * created for its snapshot. Keep the symbol only so old package-local callers fail
+     * closed while they are removed; never synthesize authority from ambient checkpoint state.
+     */
     @Deprecated
     static TeacherRequestAuthority fromBoundStructural(String marker) {
-        String exactMarker = marker == null ? "" : marker;
-        String id = requestIdFromMarker(exactMarker);
-        if (!isSafeRequestId(id)) {
-            return invalid("", "");
-        }
-        CheckpointRequestGuard.RequestLease lease =
-                CheckpointRequestGuard.currentBoundRequestLease(exactMarker);
-        if (!lease.checkpointCurrent
-                || lease.executionLeaseToken.isEmpty()
-                || !isCanonicalSnapshotFingerprint(lease.snapshotFingerprint)) {
-            return invalid(id, lease.snapshotFingerprint);
-        }
-        TeacherRequestAuthority authority = new TeacherRequestAuthority(
-                id,
-                exactMarker,
-                lease.executionLeaseToken,
-                lease.snapshotFingerprint,
-                true,
-                false
-        );
-        return authority.stillOwnsTransport()
-                ? authority
-                : invalid(id, lease.snapshotFingerprint);
+        return invalid("", "");
     }
 
     public static TeacherRequestAuthority beginVisual(String requestId, String snapshotFingerprint) {
@@ -138,15 +121,6 @@ public final class TeacherRequestAuthority {
     private static TeacherRequestAuthority invalid(String requestId, String snapshotFingerprint) {
         return new TeacherRequestAuthority(
                 exactRequestId(requestId), "", "", exactSnapshotFingerprint(snapshotFingerprint), false, false);
-    }
-
-    private static String requestIdFromMarker(String marker) {
-        final String prefix = "CAA1_REPLY_";
-        if (!marker.startsWith(prefix) || !marker.endsWith("|") || marker.length() <= prefix.length() + 1) {
-            return "";
-        }
-        String id = marker.substring(prefix.length(), marker.length() - 1);
-        return isSafeRequestId(id) ? id : "";
     }
 
     private static boolean isSafeRequestId(String value) {
