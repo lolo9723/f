@@ -66,4 +66,36 @@ public final class ResumeGenerationGuardTest {
         assertFalse(guard.consumeIfCurrent(generation, null));
         assertTrue(guard.isCurrent(generation));
     }
+
+    @Test public void failedRetryMutationInvalidatesGenerationAndCannotReplay() {
+        ResumeGenerationGuard guard = new ResumeGenerationGuard();
+        long generation = guard.begin();
+        AtomicInteger effects = new AtomicInteger();
+
+        assertFalse(guard.runIfCurrent(generation, () -> {
+            effects.incrementAndGet();
+            throw new IllegalStateException("partial resume mutation failed");
+        }));
+
+        assertEquals(1, effects.get());
+        assertFalse(guard.isCurrent(generation));
+        assertFalse(guard.runIfCurrent(generation, effects::incrementAndGet));
+        assertEquals(1, effects.get());
+    }
+
+    @Test public void failedConsumedMutationStaysConsumedAndCannotReplay() {
+        ResumeGenerationGuard guard = new ResumeGenerationGuard();
+        long generation = guard.begin();
+        AtomicInteger effects = new AtomicInteger();
+
+        assertFalse(guard.consumeIfCurrent(generation, () -> {
+            effects.incrementAndGet();
+            throw new IllegalStateException("terminal resume mutation failed");
+        }));
+
+        assertEquals(1, effects.get());
+        assertFalse(guard.isCurrent(generation));
+        assertFalse(guard.consumeIfCurrent(generation, effects::incrementAndGet));
+        assertEquals(1, effects.get());
+    }
 }

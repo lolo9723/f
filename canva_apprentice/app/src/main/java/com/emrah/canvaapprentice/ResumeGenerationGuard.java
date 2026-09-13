@@ -10,6 +10,10 @@ package com.emrah.canvaapprentice;
  * callback while holding the same monitor. This prevents a check-then-act
  * race where another resume invalidates the generation after isCurrent()
  * succeeds but before the callback mutates resume state.
+ *
+ * A callback that throws is treated as a failed/possibly-partial resume
+ * mutation. Its generation is invalidated before control returns so a delayed
+ * retry cannot replay the same generation on top of partially changed state.
  */
 final class ResumeGenerationGuard {
     private long generation = 0L;
@@ -29,14 +33,27 @@ final class ResumeGenerationGuard {
 
     synchronized boolean runIfCurrent(long expectedGeneration, Runnable action) {
         if (expectedGeneration != generation || action == null) return false;
-        action.run();
-        return true;
+        try {
+            action.run();
+            return true;
+        } catch (RuntimeException failure) {
+            // The callback may have mutated state before failing. Never let the
+            // same resume generation retry against that uncertain partial state.
+            generation++;
+            return false;
+        }
     }
 
     synchronized boolean consumeIfCurrent(long expectedGeneration, Runnable action) {
         if (expectedGeneration != generation || action == null) return false;
         generation++;
-        action.run();
-        return true;
+        try {
+            action.run();
+            return true;
+        } catch (RuntimeException failure) {
+            // The generation was consumed before the mutation started, so a
+            // failed terminal resume callback cannot be replayed.
+            return false;
+        }
     }
 }
