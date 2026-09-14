@@ -300,13 +300,17 @@ public final class TeacherBridge {
         while (!q.isEmpty()) {
             AccessibilityNodeInfo n = q.removeFirst();
             String s = text(n.getText());
-            if (hasReplyLine(s, marker)) latest = s;
+            if (isEligibleReplyNode(n.isVisibleToUser(), s, marker)) latest = s;
             for (int i = 0; i < n.getChildCount(); i++) {
                 AccessibilityNodeInfo c = n.getChild(i);
                 if (c != null) q.add(c);
             }
         }
         return latest;
+    }
+
+    static boolean isEligibleReplyNode(boolean visibleToUser, String value, String marker) {
+        return visibleToUser && hasReplyLine(value, marker);
     }
 
     static boolean hasReplyLine(String value, String marker) {
