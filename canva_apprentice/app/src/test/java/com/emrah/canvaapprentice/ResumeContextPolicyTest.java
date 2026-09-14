@@ -33,6 +33,11 @@ public class ResumeContextPolicyTest {
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","session\t2","Design A","session\t2"));
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","session\u00A02","Design A","session\u00A02"));
     }
+    @Test public void unicodeFormatSessionIdentityFailsClosedEvenWhenBothSidesMatch(){
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","session\u200B2","Design A","session\u200B2"));
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","session\u202E2","Design A","session\u202E2"));
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","session\u20662\u2069","Design A","session\u20662\u2069"));
+    }
     @Test public void ordinaryInteriorSpacesRemainValidInsideDesignAnchor(){
         assertTrue(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"My Design A","session-2","My Design A","session-2"));
     }
@@ -44,6 +49,13 @@ public class ResumeContextPolicyTest {
     @Test public void controlCharactersFailClosedEvenWhenBothSidesMatch(){
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","session\n2","Design A","session\n2"));
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design\u0007A","session-2","Design\u0007A","session-2"));
+    }
+    @Test public void unicodeFormatAnchorIdentityFailsClosedEvenWhenBothSidesMatch(){
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design\u200BA","session-2","Design\u200BA","session-2"));
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design\u202EA","session-2","Design\u202EA","session-2"));
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design\uFEFFA","session-2","Design\uFEFFA","session-2"));
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design\u2028A","session-2","Design\u2028A","session-2"));
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design\u2029A","session-2","Design\u2029A","session-2"));
     }
     @Test public void nonRunningFails(){
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.HUMAN_TAKEOVER,"Design A","session-2","Design A","session-2"));
