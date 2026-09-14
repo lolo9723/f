@@ -82,7 +82,8 @@ public final class TeacherRequestAuthority {
     }
 
     public boolean isValid() {
-        return isSafeRequestId(requestId)
+        return structuralBound
+                && isSafeRequestId(requestId)
                 && !marker.isEmpty()
                 && marker.equals("CAA1_REPLY_" + requestId + "|")
                 && !executionLeaseToken.isEmpty()
