@@ -72,4 +72,42 @@ public class TeacherBridgeReplyMatchTest {
         assertTrue(TeacherBridge.isEligibleReplyNode(
                 true, newReply, marker, baseline));
     }
+
+    @Test public void mutatedPreDispatchNodeCannotGainAuthorityFromChangedText() {
+        String marker = "CAA1_REPLY_abc123|";
+        String beforeDispatch = marker + "NOOP|||1.0|stale";
+        String sameNodeAfterMutation = marker + "CLICK_TEXT|Elements|0.99|mutated-stale-node";
+        Set<String> baseline = new HashSet<>();
+        baseline.add(beforeDispatch);
+
+        // Exact-text protection alone would consider the changed value new. Structural
+        // occurrence provenance must still reject occurrence zero because it existed before send.
+        assertTrue(TeacherBridge.isEligibleReplyNode(
+                true, sameNodeAfterMutation, marker, baseline));
+        assertFalse(TeacherBridge.isEligiblePostDispatchReplyNode(
+                true, sameNodeAfterMutation, marker, baseline, 0, 1));
+    }
+
+    @Test public void replyAppendedAfterPreDispatchMarkerPrefixCanGainAuthority() {
+        String marker = "CAA1_REPLY_abc123|";
+        String stale = marker + "NOOP|||1.0|stale";
+        String appended = marker + "CLICK_TEXT|Elements|0.99|fresh";
+        Set<String> baseline = new HashSet<>();
+        baseline.add(stale);
+
+        assertTrue(TeacherBridge.isEligiblePostDispatchReplyNode(
+                true, appended, marker, baseline, 1, 1));
+        assertFalse(TeacherBridge.isEligiblePostDispatchReplyNode(
+                false, appended, marker, baseline, 1, 1));
+    }
+
+    @Test public void malformedOccurrenceMetadataFailsClosed() {
+        String marker = "CAA1_REPLY_abc123|";
+        String reply = marker + "NOOP|||1.0|reply";
+
+        assertFalse(TeacherBridge.isEligiblePostDispatchReplyNode(
+                true, reply, marker, new HashSet<>(), -1, 0));
+        assertFalse(TeacherBridge.isEligiblePostDispatchReplyNode(
+                true, reply, marker, new HashSet<>(), 0, -1));
+    }
 }
