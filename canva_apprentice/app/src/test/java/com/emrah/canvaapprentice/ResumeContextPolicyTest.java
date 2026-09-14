@@ -38,6 +38,10 @@ public class ResumeContextPolicyTest {
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","session\u202E2","Design A","session\u202E2"));
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A","session\u20662\u2069","Design A","session\u20662\u2069"));
     }
+    @Test public void malformedSurrogateSessionIdentityFailsClosedEvenWhenBothSidesMatch(){
+        String malformed = "session-" + '\uD800' + "2";
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design A",malformed,"Design A",malformed));
+    }
     @Test public void ordinaryInteriorSpacesRemainValidInsideDesignAnchor(){
         assertTrue(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"My Design A","session-2","My Design A","session-2"));
     }
@@ -56,6 +60,10 @@ public class ResumeContextPolicyTest {
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design\uFEFFA","session-2","Design\uFEFFA","session-2"));
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design\u2028A","session-2","Design\u2028A","session-2"));
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design\u2029A","session-2","Design\u2029A","session-2"));
+    }
+    @Test public void malformedSurrogateAnchorIdentityFailsClosedEvenWhenBothSidesMatch(){
+        String malformed = "Design" + '\uDFFF' + "A";
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,malformed,"session-2",malformed,"session-2"));
     }
     @Test public void nonRunningFails(){
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.HUMAN_TAKEOVER,"Design A","session-2","Design A","session-2"));
