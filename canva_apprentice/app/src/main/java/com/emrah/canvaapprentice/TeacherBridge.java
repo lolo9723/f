@@ -10,6 +10,8 @@ import android.os.Looper;
 import android.view.accessibility.AccessibilityNodeInfo;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 public final class TeacherBridge {
@@ -108,12 +110,14 @@ public final class TeacherBridge {
                 discardStaleRequest();
                 return;
             }
-            AccessibilityNodeInfo send = findSend(service.getRootInActiveWindow());
+            AccessibilityNodeInfo beforeSendRoot = service.getRootInActiveWindow();
+            Set<String> replyBaseline = visibleReplyTexts(beforeSendRoot, authority.marker);
+            AccessibilityNodeInfo send = findSend(beforeSendRoot);
             if (send == null || !clickNodeOrParent(send)) {
                 failCurrentRequest(sessionId, requestToken, callback, "ChatGPT görüntülü mesaj gönder düğmesi bulunamadı.");
                 return;
             }
-            pollReply(authority, sessionId, requestToken, callback, 0);
+            pollReply(authority, sessionId, requestToken, callback, 0, replyBaseline);
         }, 1400);
     }
 
@@ -168,16 +172,18 @@ public final class TeacherBridge {
             discardStaleRequest();
             return;
         }
-        AccessibilityNodeInfo send = findSend(service.getRootInActiveWindow());
+        AccessibilityNodeInfo beforeSendRoot = service.getRootInActiveWindow();
+        Set<String> replyBaseline = visibleReplyTexts(beforeSendRoot, authority.marker);
+        AccessibilityNodeInfo send = findSend(beforeSendRoot);
         if (send == null || !clickNodeOrParent(send)) {
             failCurrentRequest(sessionId, requestToken, callback, "ChatGPT gönder düğmesi bulunamadı.");
             return;
         }
-        pollReply(authority, sessionId, requestToken, callback, 0);
+        pollReply(authority, sessionId, requestToken, callback, 0, replyBaseline);
     }
 
     private void pollReply(TeacherRequestAuthority authority, String sessionId, String requestToken,
-                           ReplyCallback callback, int attempt) {
+                           ReplyCallback callback, int attempt, Set<String> replyBaseline) {
         if (!isTransportCurrent(sessionId, requestToken, authority)) {
             discardStaleRequest();
             return;
@@ -193,10 +199,10 @@ public final class TeacherBridge {
             }
             AccessibilityNodeInfo root = service.getRootInActiveWindow();
             if (!AgentConstants.CHATGPT_PACKAGE.equals(packageOf(root))) {
-                pollReply(authority, sessionId, requestToken, callback, attempt + 1);
+                pollReply(authority, sessionId, requestToken, callback, attempt + 1, replyBaseline);
                 return;
             }
-            String found = latestTextContaining(root, authority.marker);
+            String found = latestTextContaining(root, authority.marker, replyBaseline);
             if (found != null) {
                 if (!isTransportCurrent(sessionId, requestToken, authority)
                         || !consumeIfCurrent(sessionId, requestToken)) {
@@ -205,7 +211,7 @@ public final class TeacherBridge {
                 }
                 callback.onReply(found);
             } else {
-                pollReply(authority, sessionId, requestToken, callback, attempt + 1);
+                pollReply(authority, sessionId, requestToken, callback, attempt + 1, replyBaseline);
             }
         }, 1000);
     }
@@ -292,7 +298,25 @@ public final class TeacherBridge {
         return null;
     }
 
-    private static String latestTextContaining(AccessibilityNodeInfo root, String marker) {
+    private static Set<String> visibleReplyTexts(AccessibilityNodeInfo root, String marker) {
+        Set<String> replies = new HashSet<>();
+        if (root == null) return replies;
+        Deque<AccessibilityNodeInfo> q = new ArrayDeque<>();
+        q.add(root);
+        while (!q.isEmpty()) {
+            AccessibilityNodeInfo n = q.removeFirst();
+            String value = text(n.getText());
+            if (isEligibleReplyNode(n.isVisibleToUser(), value, marker, null)) replies.add(value);
+            for (int i = 0; i < n.getChildCount(); i++) {
+                AccessibilityNodeInfo c = n.getChild(i);
+                if (c != null) q.add(c);
+            }
+        }
+        return replies;
+    }
+
+    private static String latestTextContaining(AccessibilityNodeInfo root, String marker,
+                                               Set<String> replyBaseline) {
         if (root == null) return null;
         String latest = null;
         Deque<AccessibilityNodeInfo> q = new ArrayDeque<>();
@@ -300,7 +324,7 @@ public final class TeacherBridge {
         while (!q.isEmpty()) {
             AccessibilityNodeInfo n = q.removeFirst();
             String s = text(n.getText());
-            if (isEligibleReplyNode(n.isVisibleToUser(), s, marker)) latest = s;
+            if (isEligibleReplyNode(n.isVisibleToUser(), s, marker, replyBaseline)) latest = s;
             for (int i = 0; i < n.getChildCount(); i++) {
                 AccessibilityNodeInfo c = n.getChild(i);
                 if (c != null) q.add(c);
@@ -310,7 +334,13 @@ public final class TeacherBridge {
     }
 
     static boolean isEligibleReplyNode(boolean visibleToUser, String value, String marker) {
-        return visibleToUser && hasReplyLine(value, marker);
+        return isEligibleReplyNode(visibleToUser, value, marker, null);
+    }
+
+    static boolean isEligibleReplyNode(boolean visibleToUser, String value, String marker,
+                                       Set<String> replyBaseline) {
+        if (!visibleToUser || !hasReplyLine(value, marker)) return false;
+        return replyBaseline == null || !replyBaseline.contains(value);
     }
 
     static boolean hasReplyLine(String value, String marker) {
