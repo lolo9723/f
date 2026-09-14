@@ -422,17 +422,48 @@ public final class TeacherBridge {
                 && replyBaselineNodeIdentities.contains(stableNodeIdentity)) {
             return false;
         }
-        // Occurrence order remains a conservative fallback when the accessibility provider
-        // does not expose a stable unique node id. On API 33+ an old node's exact identity
-        // is also captured before send, so reordering or text mutation cannot make that same
-        // node authoritative for the current request.
+        // Occurrence order is the final conservative fallback. Exact unique ids are preferred;
+        // providers without unique ids now receive a text/bounds/order-independent ancestry
+        // fingerprint, so a pre-dispatch node normally stays recognizable after UI reordering.
         return markerOccurrence >= replyBaselineNodeCount;
     }
 
     private static String stableNodeIdentity(AccessibilityNodeInfo node) {
-        if (node == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return "";
-        String uniqueId = text(node.getUniqueId());
-        return uniqueId.isEmpty() ? "" : uniqueId;
+        if (node == null) return "";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            String uniqueId = text(node.getUniqueId());
+            if (!uniqueId.isEmpty()) return "uid:" + uniqueId;
+        }
+
+        String[] ancestry = new String[12];
+        int partCount = 0;
+        AccessibilityNodeInfo current = node;
+        while (current != null && partCount < ancestry.length) {
+            ancestry[partCount++] = text(current.getClassName());
+            ancestry[partCount++] = text(current.getViewIdResourceName());
+            current = current.getParent();
+        }
+        if (partCount < 4) return "";
+        String[] compact = new String[partCount];
+        System.arraycopy(ancestry, 0, compact, 0, partCount);
+        return composeStructuralAncestryIdentity(node.getWindowId(), compact);
+    }
+
+    static String composeStructuralAncestryIdentity(int windowId, String... classAndViewIdPairs) {
+        if (windowId < 0 || classAndViewIdPairs == null
+                || classAndViewIdPairs.length < 4
+                || classAndViewIdPairs.length % 2 != 0) {
+            return "";
+        }
+        StringBuilder out = new StringBuilder("anc:w").append(windowId);
+        for (int i = 0; i < classAndViewIdPairs.length; i += 2) {
+            String className = classAndViewIdPairs[i] == null ? "" : classAndViewIdPairs[i];
+            String viewId = classAndViewIdPairs[i + 1] == null ? "" : classAndViewIdPairs[i + 1];
+            if (className.isEmpty() && viewId.isEmpty()) return "";
+            out.append('|').append(className.length()).append(':').append(className)
+                    .append('|').append(viewId.length()).append(':').append(viewId);
+        }
+        return out.toString();
     }
 
     static boolean hasReplyLine(String value, String marker) {
