@@ -32,12 +32,6 @@ public final class TeacherBridge {
         this.stateRepo = new TaskStateRepository(service);
     }
 
-    /** Legacy package-local compatibility only. Marker-only transport must never reconstruct authority. */
-    @Deprecated
-    void ask(String prompt, String awaitingMarker, ReplyCallback callback) {
-        callback.onFailure("Legacy marker-only teacher transport devre dışı; immutable request authority gerekli.");
-    }
-
     public void ask(String prompt, TeacherRequestAuthority authority, ReplyCallback callback) {
         final String sessionId = stateRepo.currentTeacherSessionId();
         final String designAnchor = stateRepo.load().designAnchor;
