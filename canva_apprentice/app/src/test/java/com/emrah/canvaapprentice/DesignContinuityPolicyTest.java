@@ -28,7 +28,7 @@ public final class DesignContinuityPolicyTest {
     }
 
     @Test public void unboundTaskRejectsCreationLabelInsideExactNodeTarget() {
-        String nodeTarget = NodeTargetCodec.encode("button", "Create a design", "", 0, 0);
+        String nodeTarget = NodeTargetCodec.encode(0, "Create a design", "button", "", "");
         assertFalse(DesignContinuityPolicy.allows(
                 action(AgentAction.Type.CLICK_NODE, nodeTarget, ""), "", false, true));
     }
