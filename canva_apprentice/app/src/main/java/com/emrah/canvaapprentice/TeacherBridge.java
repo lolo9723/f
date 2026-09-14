@@ -121,8 +121,8 @@ public final class TeacherBridge {
                 discardStaleRequest();
                 return;
             }
-            AccessibilityNodeInfo send = dispatchEvidence.uniqueSendNode();
-            if (send == null || !clickNodeOrParent(send)) {
+            AccessibilityNodeInfo sendClickTarget = dispatchEvidence.uniqueSendClickTarget();
+            if (sendClickTarget == null || !clickCapturedNode(sendClickTarget)) {
                 failCurrentRequest(sessionId, requestToken, callback,
                         "ChatGPT görüntülü mesaj gönder düğmesi tekil ve güvenli biçimde doğrulanamadı.");
                 return;
@@ -188,8 +188,8 @@ public final class TeacherBridge {
             discardStaleRequest();
             return;
         }
-        AccessibilityNodeInfo send = dispatchEvidence.uniqueSendNode();
-        if (send == null || !clickNodeOrParent(send)) {
+        AccessibilityNodeInfo sendClickTarget = dispatchEvidence.uniqueSendClickTarget();
+        if (sendClickTarget == null || !clickCapturedNode(sendClickTarget)) {
             failCurrentRequest(sessionId, requestToken, callback,
                     "ChatGPT gönder düğmesi tekil ve güvenli biçimde doğrulanamadı.");
             return;
@@ -277,7 +277,6 @@ public final class TeacherBridge {
 
     private void discardStaleRequest() {
     }
-
     private static AccessibilityNodeInfo findEditable(AccessibilityNodeInfo root) {
         if (root == null) return null;
         AccessibilityNodeInfo last = null;
@@ -327,19 +326,19 @@ public final class TeacherBridge {
 
     private static final class DispatchEvidenceSnapshot {
         final ReplyEvidenceSnapshot replyBaseline;
-        final AccessibilityNodeInfo sendNode;
+        final AccessibilityNodeInfo sendClickTarget;
         final int usableSendNodeCount;
 
         DispatchEvidenceSnapshot(ReplyEvidenceSnapshot replyBaseline,
-                                 AccessibilityNodeInfo sendNode,
+                                 AccessibilityNodeInfo sendClickTarget,
                                  int usableSendNodeCount) {
             this.replyBaseline = replyBaseline;
-            this.sendNode = sendNode;
+            this.sendClickTarget = sendClickTarget;
             this.usableSendNodeCount = usableSendNodeCount;
         }
 
-        AccessibilityNodeInfo uniqueSendNode() {
-            return usableSendNodeCount == 1 ? sendNode : null;
+        AccessibilityNodeInfo uniqueSendClickTarget() {
+            return usableSendNodeCount == 1 ? sendClickTarget : null;
         }
     }
 
@@ -348,7 +347,7 @@ public final class TeacherBridge {
         Set<String> identities = new HashSet<>();
         Map<String, Integer> identityCounts = new HashMap<>();
         List<ReplyNodeEvidence> nodes = new ArrayList<>();
-        AccessibilityNodeInfo sendNode = null;
+        AccessibilityNodeInfo sendClickTarget = null;
         int usableSendNodeCount = 0;
         if (root == null) {
             return new DispatchEvidenceSnapshot(
@@ -374,8 +373,8 @@ public final class TeacherBridge {
             String description = text(n.getContentDescription());
             if (TeacherUiPolicy.isUsableSend(n.isVisibleToUser(), n.isEnabled(), value, description)) {
                 usableSendNodeCount++;
-                if (usableSendNodeCount == 1) sendNode = n;
-                else sendNode = null;
+                if (usableSendNodeCount == 1) sendClickTarget = firstClickableNodeOrParent(n);
+                else sendClickTarget = null;
             }
 
             for (int i = 0; i < n.getChildCount(); i++) {
@@ -385,7 +384,7 @@ public final class TeacherBridge {
         }
         return new DispatchEvidenceSnapshot(
                 new ReplyEvidenceSnapshot(texts, identities, identityCounts, nodes),
-                sendNode, usableSendNodeCount);
+                sendClickTarget, usableSendNodeCount);
     }
 
     private static ReplyEvidenceSnapshot captureReplyEvidence(AccessibilityNodeInfo root, String marker) {
@@ -568,10 +567,15 @@ public final class TeacherBridge {
         return root == null || root.getPackageName() == null ? "" : root.getPackageName().toString();
     }
 
-    private static boolean clickNodeOrParent(AccessibilityNodeInfo n) {
+    private static AccessibilityNodeInfo firstClickableNodeOrParent(AccessibilityNodeInfo n) {
         AccessibilityNodeInfo x = n;
         while (x != null && !x.isClickable()) x = x.getParent();
-        return x != null && x.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        return x;
+    }
+
+    private static boolean clickCapturedNode(AccessibilityNodeInfo n) {
+        return n != null && n.isClickable()
+                && n.performAction(AccessibilityNodeInfo.ACTION_CLICK);
     }
 
     private static String text(CharSequence value) {
