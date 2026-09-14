@@ -33,10 +33,11 @@ public final class TeacherRequestAuthorityTest {
     }
 
     @Test public void legacyStructuralMarkerCannotReconstructAuthorityEvenWhenFullyGrounded() {
-        String marker = TeacherProtocol.markerFor("legacy123");
+        String marker = "CAA1_REPLY_legacy123|";
+        String originalLease = TeacherExecutionLease.beginGlobal();
+        CheckpointRequestGuard.bind(marker, originalLease);
         assertTrue(CheckpointRequestGuard.bindSnapshot(marker, "snapshot-L"));
-        String originalLease = CheckpointRequestGuard.currentBoundExecutionLease(marker);
-        assertFalse(originalLease.isEmpty());
+        assertEquals(originalLease, CheckpointRequestGuard.currentBoundExecutionLease(marker));
 
         assertLegacyReconstructionRemoved();
 
@@ -66,7 +67,9 @@ public final class TeacherRequestAuthorityTest {
     }
 
     @Test public void legacyReconstructionSurfaceStaysAbsentForUngroundedAndStaleMarkers() {
-        String marker = TeacherProtocol.markerFor("ungrounded");
+        String marker = "CAA1_REPLY_ungrounded|";
+        String legacyLease = TeacherExecutionLease.beginGlobal();
+        CheckpointRequestGuard.bind(marker, legacyLease);
         assertLegacyReconstructionRemoved();
 
         assertTrue(CheckpointRequestGuard.bindSnapshot(marker, "snapshot-U"));
