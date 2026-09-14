@@ -116,13 +116,18 @@ public final class TeacherBridge {
                 return;
             }
             AccessibilityNodeInfo beforeSendRoot = service.getRootInActiveWindow();
-            ReplyEvidenceSnapshot replyBaseline = captureReplyEvidence(beforeSendRoot, authority.marker);
-            AccessibilityNodeInfo send = findSend(beforeSendRoot);
-            if (send == null || !clickNodeOrParent(send)) {
-                failCurrentRequest(sessionId, requestToken, callback, "ChatGPT görüntülü mesaj gönder düğmesi bulunamadı.");
+            DispatchEvidenceSnapshot dispatchEvidence = captureDispatchEvidence(beforeSendRoot, authority.marker);
+            if (!isTransportCurrent(sessionId, requestToken, authority)) {
+                discardStaleRequest();
                 return;
             }
-            pollReply(authority, sessionId, requestToken, callback, 0, replyBaseline);
+            AccessibilityNodeInfo send = dispatchEvidence.uniqueSendNode();
+            if (send == null || !clickNodeOrParent(send)) {
+                failCurrentRequest(sessionId, requestToken, callback,
+                        "ChatGPT görüntülü mesaj gönder düğmesi tekil ve güvenli biçimde doğrulanamadı.");
+                return;
+            }
+            pollReply(authority, sessionId, requestToken, callback, 0, dispatchEvidence.replyBaseline);
         }, 1400);
     }
 
@@ -178,13 +183,18 @@ public final class TeacherBridge {
             return;
         }
         AccessibilityNodeInfo beforeSendRoot = service.getRootInActiveWindow();
-        ReplyEvidenceSnapshot replyBaseline = captureReplyEvidence(beforeSendRoot, authority.marker);
-        AccessibilityNodeInfo send = findSend(beforeSendRoot);
-        if (send == null || !clickNodeOrParent(send)) {
-            failCurrentRequest(sessionId, requestToken, callback, "ChatGPT gönder düğmesi bulunamadı.");
+        DispatchEvidenceSnapshot dispatchEvidence = captureDispatchEvidence(beforeSendRoot, authority.marker);
+        if (!isTransportCurrent(sessionId, requestToken, authority)) {
+            discardStaleRequest();
             return;
         }
-        pollReply(authority, sessionId, requestToken, callback, 0, replyBaseline);
+        AccessibilityNodeInfo send = dispatchEvidence.uniqueSendNode();
+        if (send == null || !clickNodeOrParent(send)) {
+            failCurrentRequest(sessionId, requestToken, callback,
+                    "ChatGPT gönder düğmesi tekil ve güvenli biçimde doğrulanamadı.");
+            return;
+        }
+        pollReply(authority, sessionId, requestToken, callback, 0, dispatchEvidence.replyBaseline);
     }
 
     private void pollReply(TeacherRequestAuthority authority, String sessionId, String requestToken,
@@ -284,25 +294,6 @@ public final class TeacherBridge {
         return last;
     }
 
-    private static AccessibilityNodeInfo findSend(AccessibilityNodeInfo root) {
-        if (root == null) return null;
-        Deque<AccessibilityNodeInfo> q = new ArrayDeque<>();
-        q.add(root);
-        while (!q.isEmpty()) {
-            AccessibilityNodeInfo n = q.removeFirst();
-            String label = text(n.getText());
-            String description = text(n.getContentDescription());
-            if (TeacherUiPolicy.isUsableSend(n.isVisibleToUser(), n.isEnabled(), label, description)) {
-                return n;
-            }
-            for (int i = 0; i < n.getChildCount(); i++) {
-                AccessibilityNodeInfo c = n.getChild(i);
-                if (c != null) q.add(c);
-            }
-        }
-        return null;
-    }
-
     private static final class ReplyNodeEvidence {
         final String value;
         final String stableIdentity;
@@ -332,6 +323,69 @@ public final class TeacherBridge {
             this.nodes = nodes;
             this.nodeCount = nodes.size();
         }
+    }
+
+    private static final class DispatchEvidenceSnapshot {
+        final ReplyEvidenceSnapshot replyBaseline;
+        final AccessibilityNodeInfo sendNode;
+        final int usableSendNodeCount;
+
+        DispatchEvidenceSnapshot(ReplyEvidenceSnapshot replyBaseline,
+                                 AccessibilityNodeInfo sendNode,
+                                 int usableSendNodeCount) {
+            this.replyBaseline = replyBaseline;
+            this.sendNode = sendNode;
+            this.usableSendNodeCount = usableSendNodeCount;
+        }
+
+        AccessibilityNodeInfo uniqueSendNode() {
+            return usableSendNodeCount == 1 ? sendNode : null;
+        }
+    }
+
+    private static DispatchEvidenceSnapshot captureDispatchEvidence(AccessibilityNodeInfo root, String marker) {
+        Set<String> texts = new HashSet<>();
+        Set<String> identities = new HashSet<>();
+        Map<String, Integer> identityCounts = new HashMap<>();
+        List<ReplyNodeEvidence> nodes = new ArrayList<>();
+        AccessibilityNodeInfo sendNode = null;
+        int usableSendNodeCount = 0;
+        if (root == null) {
+            return new DispatchEvidenceSnapshot(
+                    new ReplyEvidenceSnapshot(texts, identities, identityCounts, nodes), null, 0);
+        }
+
+        Deque<AccessibilityNodeInfo> q = new ArrayDeque<>();
+        q.add(root);
+        int markerOccurrence = 0;
+        while (!q.isEmpty()) {
+            AccessibilityNodeInfo n = q.removeFirst();
+            String value = text(n.getText());
+            if (n.isVisibleToUser() && hasReplyLine(value, marker)) {
+                String identity = stableNodeIdentity(n);
+                texts.add(value);
+                nodes.add(new ReplyNodeEvidence(value, identity, markerOccurrence++));
+                if (!identity.isEmpty()) {
+                    identities.add(identity);
+                    identityCounts.put(identity, identityCounts.getOrDefault(identity, 0) + 1);
+                }
+            }
+
+            String description = text(n.getContentDescription());
+            if (TeacherUiPolicy.isUsableSend(n.isVisibleToUser(), n.isEnabled(), value, description)) {
+                usableSendNodeCount++;
+                if (usableSendNodeCount == 1) sendNode = n;
+                else sendNode = null;
+            }
+
+            for (int i = 0; i < n.getChildCount(); i++) {
+                AccessibilityNodeInfo c = n.getChild(i);
+                if (c != null) q.add(c);
+            }
+        }
+        return new DispatchEvidenceSnapshot(
+                new ReplyEvidenceSnapshot(texts, identities, identityCounts, nodes),
+                sendNode, usableSendNodeCount);
     }
 
     private static ReplyEvidenceSnapshot captureReplyEvidence(AccessibilityNodeInfo root, String marker) {
@@ -451,9 +505,6 @@ public final class TeacherBridge {
         if (markerOccurrence < 0 || replyBaselineNodeCount < 0 || currentStableIdentityCount < 0
                 || currentReplyNodeCount < 0) return false;
         if (stableNodeIdentity != null && !stableNodeIdentity.isEmpty()) {
-            // Stable identity only proves provenance when exactly one currently-visible reply node
-            // owns it. Shared ancestry fingerprints (or duplicated provider uniqueIds) are
-            // ambiguous, so occurrence order must never be allowed to override that ambiguity.
             if (currentStableIdentityCount != 1) return false;
             if (replyBaselineNodeIdentities != null
                     && replyBaselineNodeIdentities.contains(stableNodeIdentity)) {
@@ -462,10 +513,6 @@ public final class TeacherBridge {
             return markerOccurrence >= replyBaselineNodeCount;
         }
 
-        // Providers without a stable node identity get a deliberately narrower fallback: the
-        // current tree must contain exactly one additional marker-bearing node, and the candidate
-        // must be that exact first post-baseline occurrence. If two or more candidate nodes appear,
-        // ordering alone is ambiguous and therefore fails closed.
         if (replyBaselineNodeCount == Integer.MAX_VALUE) return false;
         return currentReplyNodeCount == replyBaselineNodeCount + 1
                 && markerOccurrence == replyBaselineNodeCount;
@@ -512,8 +559,6 @@ public final class TeacherBridge {
     static boolean hasReplyLine(String value, String marker) {
         if (value == null || marker == null || marker.isEmpty()) return false;
         for (String line : value.split("\\R", -1)) {
-            // Protocol authority must begin at physical column zero. Trimming here would
-            // accept indented/quoted/rendered explanatory text as an executable reply.
             if (line.startsWith(marker)) return true;
         }
         return false;
