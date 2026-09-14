@@ -162,6 +162,32 @@ public class TeacherBridgeReplyMatchTest {
                 4, 1, ancestry, nodeBaseline));
     }
 
+    @Test public void ambiguousStableIdentityFailsClosedEvenAfterBaselinePrefix() {
+        String marker = "CAA1_REPLY_abc123|";
+        String fresh = marker + "CLICK_TEXT|Elements|0.99|ambiguous";
+        String ancestry = TeacherBridge.composeStructuralAncestryIdentity(
+                9,
+                "android.widget.TextView", "",
+                "android.view.ViewGroup", "com.openai.chatgpt:id/message_container");
+
+        assertFalse(TeacherBridge.isEligiblePostDispatchReplyNode(
+                true, fresh, marker, new HashSet<>(),
+                2, 1, ancestry, new HashSet<>(), 2));
+    }
+
+    @Test public void uniqueCurrentStableIdentityCanStillProveFreshReply() {
+        String marker = "CAA1_REPLY_abc123|";
+        String fresh = marker + "CLICK_TEXT|Elements|0.99|unique";
+        String ancestry = TeacherBridge.composeStructuralAncestryIdentity(
+                9,
+                "android.widget.TextView", "",
+                "android.view.ViewGroup", "com.openai.chatgpt:id/message_container");
+
+        assertTrue(TeacherBridge.isEligiblePostDispatchReplyNode(
+                true, fresh, marker, new HashSet<>(),
+                1, 1, ancestry, new HashSet<>(), 1));
+    }
+
     @Test public void malformedStructuralAncestryCannotPretendToBeStableIdentity() {
         assertEquals("", TeacherBridge.composeStructuralAncestryIdentity(1,
                 "android.widget.TextView", "only-one-level"));
