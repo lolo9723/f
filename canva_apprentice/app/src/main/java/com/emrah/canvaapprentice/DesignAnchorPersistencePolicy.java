@@ -54,8 +54,16 @@ public final class DesignAnchorPersistencePolicy {
     static boolean isPersistableAnchor(String anchor) {
         String value = normalize(anchor);
         if (value.isEmpty() || UNBOUND_SENTINEL.equalsIgnoreCase(value)) return false;
-        for (int i = 0; i < value.length(); i++) {
-            if (Character.isISOControl(value.charAt(i))) return false;
+        for (int i = 0; i < value.length();) {
+            int codePoint = value.codePointAt(i);
+            int type = Character.getType(codePoint);
+            if (Character.isISOControl(codePoint)
+                    || type == Character.FORMAT
+                    || type == Character.LINE_SEPARATOR
+                    || type == Character.PARAGRAPH_SEPARATOR) {
+                return false;
+            }
+            i += Character.charCount(codePoint);
         }
         return true;
     }

@@ -58,6 +58,19 @@ public final class DesignAnchorPersistencePolicyTest {
                 "Existing design", "Existing design\tspoof"));
     }
 
+    @Test public void rejectsUnicodeFormatAndSeparatorSpoofing() {
+        assertFalse(DesignAnchorPersistencePolicy.mayCommit(
+                TaskState.Mode.RUNNING,"session-a","session-a","Design\u202Espoof"));
+        assertFalse(DesignAnchorPersistencePolicy.mayCommit(
+                TaskState.Mode.RUNNING,"session-a","session-a","Design\u200Bspoof"));
+        assertFalse(DesignAnchorPersistencePolicy.mayCommit(
+                TaskState.Mode.RUNNING,"session-a","session-a","Design\u2028spoof"));
+        assertFalse(DesignAnchorPersistencePolicy.mayCommit(
+                TaskState.Mode.RUNNING,"session-a","session-a","Design\u2029spoof"));
+        assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity(
+                "Existing design", "Existing\u2066 design\u2069"));
+    }
+
     @Test public void allowsFirstBindAndIdempotentRebind() {
         assertTrue(DesignAnchorPersistencePolicy.preservesBoundIdentity("", "Existing design"));
         assertTrue(DesignAnchorPersistencePolicy.preservesBoundIdentity(
