@@ -47,21 +47,33 @@ final class ResumeContextPolicy {
 
     private static boolean isCanonicalSessionIdentity(String value) {
         if (value == null || value.isEmpty() || !value.equals(value.trim())) return false;
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (Character.isISOControl(c) || Character.isWhitespace(c) || Character.isSpaceChar(c)) {
+        for (int i = 0; i < value.length();) {
+            int codePoint = value.codePointAt(i);
+            if (isForbiddenIdentityCodePoint(codePoint)
+                    || Character.isWhitespace(codePoint)
+                    || Character.isSpaceChar(codePoint)) {
                 return false;
             }
+            i += Character.charCount(codePoint);
         }
         return true;
     }
 
     private static boolean isCanonicalAnchorIdentity(String value) {
         if (value == null || value.isEmpty() || !value.equals(value.trim())) return false;
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (Character.isISOControl(c)) return false;
+        for (int i = 0; i < value.length();) {
+            int codePoint = value.codePointAt(i);
+            if (isForbiddenIdentityCodePoint(codePoint)) return false;
+            i += Character.charCount(codePoint);
         }
         return true;
+    }
+
+    private static boolean isForbiddenIdentityCodePoint(int codePoint) {
+        int type = Character.getType(codePoint);
+        return Character.isISOControl(codePoint)
+                || type == Character.FORMAT
+                || type == Character.LINE_SEPARATOR
+                || type == Character.PARAGRAPH_SEPARATOR;
     }
 }
