@@ -22,6 +22,16 @@ public class TeacherUiPolicyTest {
         assertFalse(TeacherUiPolicy.isExactSendLabel(null));
     }
 
+    @Test public void rejectsControlAndUnicodeFormattingInsideExactSendLabels() {
+        assertFalse(TeacherUiPolicy.isExactSendLabel("Send\nmessage"));
+        assertFalse(TeacherUiPolicy.isExactSendLabel("Send\tmessage"));
+        assertFalse(TeacherUiPolicy.isExactSendLabel("Se\u200Bnd"));
+        assertFalse(TeacherUiPolicy.isExactSendLabel("Se\u202End"));
+        assertFalse(TeacherUiPolicy.isExactSendLabel("Send\u2028message"));
+        assertFalse(TeacherUiPolicy.isExactSendLabel("Send\u2029message"));
+        assertFalse(TeacherUiPolicy.isExactSendLabel("\u2066Send\u2069"));
+    }
+
     @Test public void hiddenOrDisabledEditorsAreNeverUsable() {
         assertTrue(TeacherUiPolicy.isUsableEditable(true, true, true));
         assertFalse(TeacherUiPolicy.isUsableEditable(false, true, true));
@@ -43,5 +53,11 @@ public class TeacherUiPolicyTest {
         assertFalse(TeacherUiPolicy.isUsableSend(true, true, "Send", "Share"));
         assertFalse(TeacherUiPolicy.isUsableSend(true, true, "", ""));
         assertFalse(TeacherUiPolicy.isUsableSend(true, true, null, null));
+    }
+
+    @Test public void unsafeFormattingInEitherAccessibilityFieldFailsClosed() {
+        assertFalse(TeacherUiPolicy.isUsableSend(true, true, "Send", "Send\nmessage"));
+        assertFalse(TeacherUiPolicy.isUsableSend(true, true, "Se\u200Bnd", "Send"));
+        assertFalse(TeacherUiPolicy.isUsableSend(true, true, "Send", "\u2066Send\u2069"));
     }
 }
