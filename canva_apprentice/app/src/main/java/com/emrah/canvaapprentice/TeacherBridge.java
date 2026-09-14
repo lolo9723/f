@@ -11,7 +11,9 @@ import android.os.Looper;
 import android.view.accessibility.AccessibilityNodeInfo;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -361,6 +363,25 @@ public final class TeacherBridge {
         return identities;
     }
 
+    private static Map<String, Integer> visibleReplyNodeIdentityCounts(AccessibilityNodeInfo root, String marker) {
+        Map<String, Integer> counts = new HashMap<>();
+        if (root == null) return counts;
+        Deque<AccessibilityNodeInfo> q = new ArrayDeque<>();
+        q.add(root);
+        while (!q.isEmpty()) {
+            AccessibilityNodeInfo n = q.removeFirst();
+            if (n.isVisibleToUser() && hasReplyLine(text(n.getText()), marker)) {
+                String identity = stableNodeIdentity(n);
+                if (!identity.isEmpty()) counts.put(identity, counts.getOrDefault(identity, 0) + 1);
+            }
+            for (int i = 0; i < n.getChildCount(); i++) {
+                AccessibilityNodeInfo c = n.getChild(i);
+                if (c != null) q.add(c);
+            }
+        }
+        return counts;
+    }
+
     private static String latestTextContaining(AccessibilityNodeInfo root, String marker,
                                                Set<String> replyBaseline,
                                                int replyBaselineNodeCount,
@@ -368,16 +389,20 @@ public final class TeacherBridge {
         if (root == null) return null;
         String latest = null;
         int markerOccurrence = 0;
+        Map<String, Integer> currentIdentityCounts = visibleReplyNodeIdentityCounts(root, marker);
         Deque<AccessibilityNodeInfo> q = new ArrayDeque<>();
         q.add(root);
         while (!q.isEmpty()) {
             AccessibilityNodeInfo n = q.removeFirst();
             String s = text(n.getText());
             if (n.isVisibleToUser() && hasReplyLine(s, marker)) {
+                String nodeIdentity = stableNodeIdentity(n);
+                int identityOccurrenceCount = nodeIdentity.isEmpty()
+                        ? 0 : currentIdentityCounts.getOrDefault(nodeIdentity, 0);
                 if (isEligiblePostDispatchReplyNode(
                         true, s, marker, replyBaseline,
                         markerOccurrence, replyBaselineNodeCount,
-                        stableNodeIdentity(n), replyBaselineNodeIdentities)) {
+                        nodeIdentity, replyBaselineNodeIdentities, identityOccurrenceCount)) {
                     latest = s;
                 }
                 markerOccurrence++;
@@ -406,7 +431,7 @@ public final class TeacherBridge {
                                                    int replyBaselineNodeCount) {
         return isEligiblePostDispatchReplyNode(
                 visibleToUser, value, marker, replyBaseline,
-                markerOccurrence, replyBaselineNodeCount, "", null);
+                markerOccurrence, replyBaselineNodeCount, "", null, 0);
     }
 
     static boolean isEligiblePostDispatchReplyNode(boolean visibleToUser, String value, String marker,
@@ -415,16 +440,34 @@ public final class TeacherBridge {
                                                    int replyBaselineNodeCount,
                                                    String stableNodeIdentity,
                                                    Set<String> replyBaselineNodeIdentities) {
+        return isEligiblePostDispatchReplyNode(
+                visibleToUser, value, marker, replyBaseline,
+                markerOccurrence, replyBaselineNodeCount,
+                stableNodeIdentity, replyBaselineNodeIdentities,
+                stableNodeIdentity == null || stableNodeIdentity.isEmpty() ? 0 : 1);
+    }
+
+    static boolean isEligiblePostDispatchReplyNode(boolean visibleToUser, String value, String marker,
+                                                   Set<String> replyBaseline,
+                                                   int markerOccurrence,
+                                                   int replyBaselineNodeCount,
+                                                   String stableNodeIdentity,
+                                                   Set<String> replyBaselineNodeIdentities,
+                                                   int currentStableIdentityCount) {
         if (!isEligibleReplyNode(visibleToUser, value, marker, replyBaseline)) return false;
-        if (markerOccurrence < 0 || replyBaselineNodeCount < 0) return false;
-        if (stableNodeIdentity != null && !stableNodeIdentity.isEmpty()
-                && replyBaselineNodeIdentities != null
-                && replyBaselineNodeIdentities.contains(stableNodeIdentity)) {
-            return false;
+        if (markerOccurrence < 0 || replyBaselineNodeCount < 0 || currentStableIdentityCount < 0) return false;
+        if (stableNodeIdentity != null && !stableNodeIdentity.isEmpty()) {
+            // Stable identity only proves provenance when exactly one currently-visible reply node
+            // owns it. Shared ancestry fingerprints (or duplicated provider uniqueIds) are
+            // ambiguous, so occurrence order must never be allowed to override that ambiguity.
+            if (currentStableIdentityCount != 1) return false;
+            if (replyBaselineNodeIdentities != null
+                    && replyBaselineNodeIdentities.contains(stableNodeIdentity)) {
+                return false;
+            }
         }
-        // Occurrence order is the final conservative fallback. Exact unique ids are preferred;
-        // providers without unique ids now receive a text/bounds/order-independent ancestry
-        // fingerprint, so a pre-dispatch node normally stays recognizable after UI reordering.
+        // Occurrence order is the final conservative fallback for providers that expose no stable
+        // identity at all. Once an identity exists, ambiguity is handled above and fails closed.
         return markerOccurrence >= replyBaselineNodeCount;
     }
 
