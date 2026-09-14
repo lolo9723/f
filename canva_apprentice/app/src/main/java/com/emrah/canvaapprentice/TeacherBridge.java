@@ -389,6 +389,7 @@ public final class TeacherBridge {
         if (root == null) return null;
         String latest = null;
         int markerOccurrence = 0;
+        int currentReplyNodeCount = visibleReplyNodeCount(root, marker);
         Map<String, Integer> currentIdentityCounts = visibleReplyNodeIdentityCounts(root, marker);
         Deque<AccessibilityNodeInfo> q = new ArrayDeque<>();
         q.add(root);
@@ -402,7 +403,8 @@ public final class TeacherBridge {
                 if (isEligiblePostDispatchReplyNode(
                         true, s, marker, replyBaseline,
                         markerOccurrence, replyBaselineNodeCount,
-                        nodeIdentity, replyBaselineNodeIdentities, identityOccurrenceCount)) {
+                        nodeIdentity, replyBaselineNodeIdentities,
+                        identityOccurrenceCount, currentReplyNodeCount)) {
                     latest = s;
                 }
                 markerOccurrence++;
@@ -429,9 +431,12 @@ public final class TeacherBridge {
                                                    Set<String> replyBaseline,
                                                    int markerOccurrence,
                                                    int replyBaselineNodeCount) {
+        int assumedCurrentReplyNodeCount = replyBaselineNodeCount == Integer.MAX_VALUE
+                ? -1 : replyBaselineNodeCount + 1;
         return isEligiblePostDispatchReplyNode(
                 visibleToUser, value, marker, replyBaseline,
-                markerOccurrence, replyBaselineNodeCount, "", null, 0);
+                markerOccurrence, replyBaselineNodeCount, "", null, 0,
+                assumedCurrentReplyNodeCount);
     }
 
     static boolean isEligiblePostDispatchReplyNode(boolean visibleToUser, String value, String marker,
@@ -440,11 +445,14 @@ public final class TeacherBridge {
                                                    int replyBaselineNodeCount,
                                                    String stableNodeIdentity,
                                                    Set<String> replyBaselineNodeIdentities) {
+        int assumedCurrentReplyNodeCount = replyBaselineNodeCount == Integer.MAX_VALUE
+                ? -1 : replyBaselineNodeCount + 1;
         return isEligiblePostDispatchReplyNode(
                 visibleToUser, value, marker, replyBaseline,
                 markerOccurrence, replyBaselineNodeCount,
                 stableNodeIdentity, replyBaselineNodeIdentities,
-                stableNodeIdentity == null || stableNodeIdentity.isEmpty() ? 0 : 1);
+                stableNodeIdentity == null || stableNodeIdentity.isEmpty() ? 0 : 1,
+                assumedCurrentReplyNodeCount);
     }
 
     static boolean isEligiblePostDispatchReplyNode(boolean visibleToUser, String value, String marker,
@@ -454,8 +462,26 @@ public final class TeacherBridge {
                                                    String stableNodeIdentity,
                                                    Set<String> replyBaselineNodeIdentities,
                                                    int currentStableIdentityCount) {
+        int assumedCurrentReplyNodeCount = replyBaselineNodeCount == Integer.MAX_VALUE
+                ? -1 : replyBaselineNodeCount + 1;
+        return isEligiblePostDispatchReplyNode(
+                visibleToUser, value, marker, replyBaseline,
+                markerOccurrence, replyBaselineNodeCount,
+                stableNodeIdentity, replyBaselineNodeIdentities,
+                currentStableIdentityCount, assumedCurrentReplyNodeCount);
+    }
+
+    static boolean isEligiblePostDispatchReplyNode(boolean visibleToUser, String value, String marker,
+                                                   Set<String> replyBaseline,
+                                                   int markerOccurrence,
+                                                   int replyBaselineNodeCount,
+                                                   String stableNodeIdentity,
+                                                   Set<String> replyBaselineNodeIdentities,
+                                                   int currentStableIdentityCount,
+                                                   int currentReplyNodeCount) {
         if (!isEligibleReplyNode(visibleToUser, value, marker, replyBaseline)) return false;
-        if (markerOccurrence < 0 || replyBaselineNodeCount < 0 || currentStableIdentityCount < 0) return false;
+        if (markerOccurrence < 0 || replyBaselineNodeCount < 0 || currentStableIdentityCount < 0
+                || currentReplyNodeCount < 0) return false;
         if (stableNodeIdentity != null && !stableNodeIdentity.isEmpty()) {
             // Stable identity only proves provenance when exactly one currently-visible reply node
             // owns it. Shared ancestry fingerprints (or duplicated provider uniqueIds) are
@@ -465,10 +491,16 @@ public final class TeacherBridge {
                     && replyBaselineNodeIdentities.contains(stableNodeIdentity)) {
                 return false;
             }
+            return markerOccurrence >= replyBaselineNodeCount;
         }
-        // Occurrence order is the final conservative fallback for providers that expose no stable
-        // identity at all. Once an identity exists, ambiguity is handled above and fails closed.
-        return markerOccurrence >= replyBaselineNodeCount;
+
+        // Providers without a stable node identity get a deliberately narrower fallback: the
+        // current tree must contain exactly one additional marker-bearing node, and the candidate
+        // must be that exact first post-baseline occurrence. If two or more candidate nodes appear,
+        // ordering alone is ambiguous and therefore fails closed.
+        if (replyBaselineNodeCount == Integer.MAX_VALUE) return false;
+        return currentReplyNodeCount == replyBaselineNodeCount + 1
+                && markerOccurrence == replyBaselineNodeCount;
     }
 
     private static String stableNodeIdentity(AccessibilityNodeInfo node) {
