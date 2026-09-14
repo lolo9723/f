@@ -1,5 +1,7 @@
 package com.emrah.canvaapprentice;
 
+import java.util.HashSet;
+import java.util.Set;
 import org.junit.Test;
 
 import static org.junit.Assert.assertFalse;
@@ -48,5 +50,26 @@ public class TeacherBridgeReplyMatchTest {
 
         assertFalse(TeacherBridge.isEligibleReplyNode(false, reply, marker));
         assertTrue(TeacherBridge.isEligibleReplyNode(true, reply, marker));
+    }
+
+    @Test public void replyAlreadyVisibleBeforeDispatchCannotBecomeCurrentReply() {
+        String marker = "CAA1_REPLY_abc123|";
+        String staleVisibleReply = marker + "CLICK_TEXT|Elements|0.99|stale";
+        Set<String> baseline = new HashSet<>();
+        baseline.add(staleVisibleReply);
+
+        assertFalse(TeacherBridge.isEligibleReplyNode(
+                true, staleVisibleReply, marker, baseline));
+    }
+
+    @Test public void newlyAppearedReplyAfterDispatchRemainsEligible() {
+        String marker = "CAA1_REPLY_abc123|";
+        String oldReply = marker + "NOOP|||1.0|old";
+        String newReply = marker + "CLICK_TEXT|Elements|0.99|new";
+        Set<String> baseline = new HashSet<>();
+        baseline.add(oldReply);
+
+        assertTrue(TeacherBridge.isEligibleReplyNode(
+                true, newReply, marker, baseline));
     }
 }
