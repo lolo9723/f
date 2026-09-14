@@ -25,9 +25,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
-      - name: Install Android SDK 36
-        run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
+      - name: Verify preinstalled Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ANDROID_HOME:-}"
+          test -f "$ANDROID_HOME/platforms/android-36/android.jar"
+          test -d "$ANDROID_HOME/build-tools/35.0.0"
+          echo "Verified Android SDK 36 at $ANDROID_HOME"
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
