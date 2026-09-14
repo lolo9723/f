@@ -10,9 +10,11 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.accessibility.AccessibilityNodeInfo;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -114,16 +116,13 @@ public final class TeacherBridge {
                 return;
             }
             AccessibilityNodeInfo beforeSendRoot = service.getRootInActiveWindow();
-            Set<String> replyBaseline = visibleReplyTexts(beforeSendRoot, authority.marker);
-            int replyBaselineNodeCount = visibleReplyNodeCount(beforeSendRoot, authority.marker);
-            Set<String> replyBaselineNodeIdentities = visibleReplyNodeIdentities(beforeSendRoot, authority.marker);
+            ReplyEvidenceSnapshot replyBaseline = captureReplyEvidence(beforeSendRoot, authority.marker);
             AccessibilityNodeInfo send = findSend(beforeSendRoot);
             if (send == null || !clickNodeOrParent(send)) {
                 failCurrentRequest(sessionId, requestToken, callback, "ChatGPT görüntülü mesaj gönder düğmesi bulunamadı.");
                 return;
             }
-            pollReply(authority, sessionId, requestToken, callback, 0,
-                    replyBaseline, replyBaselineNodeCount, replyBaselineNodeIdentities);
+            pollReply(authority, sessionId, requestToken, callback, 0, replyBaseline);
         }, 1400);
     }
 
@@ -179,21 +178,17 @@ public final class TeacherBridge {
             return;
         }
         AccessibilityNodeInfo beforeSendRoot = service.getRootInActiveWindow();
-        Set<String> replyBaseline = visibleReplyTexts(beforeSendRoot, authority.marker);
-        int replyBaselineNodeCount = visibleReplyNodeCount(beforeSendRoot, authority.marker);
-        Set<String> replyBaselineNodeIdentities = visibleReplyNodeIdentities(beforeSendRoot, authority.marker);
+        ReplyEvidenceSnapshot replyBaseline = captureReplyEvidence(beforeSendRoot, authority.marker);
         AccessibilityNodeInfo send = findSend(beforeSendRoot);
         if (send == null || !clickNodeOrParent(send)) {
             failCurrentRequest(sessionId, requestToken, callback, "ChatGPT gönder düğmesi bulunamadı.");
             return;
         }
-        pollReply(authority, sessionId, requestToken, callback, 0,
-                replyBaseline, replyBaselineNodeCount, replyBaselineNodeIdentities);
+        pollReply(authority, sessionId, requestToken, callback, 0, replyBaseline);
     }
 
     private void pollReply(TeacherRequestAuthority authority, String sessionId, String requestToken,
-                           ReplyCallback callback, int attempt, Set<String> replyBaseline,
-                           int replyBaselineNodeCount, Set<String> replyBaselineNodeIdentities) {
+                           ReplyCallback callback, int attempt, ReplyEvidenceSnapshot replyBaseline) {
         if (!isTransportCurrent(sessionId, requestToken, authority)) {
             discardStaleRequest();
             return;
@@ -209,12 +204,10 @@ public final class TeacherBridge {
             }
             AccessibilityNodeInfo root = service.getRootInActiveWindow();
             if (!AgentConstants.CHATGPT_PACKAGE.equals(packageOf(root))) {
-                pollReply(authority, sessionId, requestToken, callback, attempt + 1,
-                        replyBaseline, replyBaselineNodeCount, replyBaselineNodeIdentities);
+                pollReply(authority, sessionId, requestToken, callback, attempt + 1, replyBaseline);
                 return;
             }
-            String found = latestTextContaining(root, authority.marker,
-                    replyBaseline, replyBaselineNodeCount, replyBaselineNodeIdentities);
+            String found = latestTextContaining(root, authority.marker, replyBaseline);
             if (found != null) {
                 if (!isTransportCurrent(sessionId, requestToken, authority)
                         || !consumeIfCurrent(sessionId, requestToken)) {
@@ -223,8 +216,7 @@ public final class TeacherBridge {
                 }
                 callback.onReply(found);
             } else {
-                pollReply(authority, sessionId, requestToken, callback, attempt + 1,
-                        replyBaseline, replyBaselineNodeCount, replyBaselineNodeIdentities);
+                pollReply(authority, sessionId, requestToken, callback, attempt + 1, replyBaseline);
             }
         }, 1000);
     }
@@ -311,107 +303,83 @@ public final class TeacherBridge {
         return null;
     }
 
-    private static Set<String> visibleReplyTexts(AccessibilityNodeInfo root, String marker) {
-        Set<String> replies = new HashSet<>();
-        if (root == null) return replies;
+    private static final class ReplyNodeEvidence {
+        final String value;
+        final String stableIdentity;
+        final int markerOccurrence;
+
+        ReplyNodeEvidence(String value, String stableIdentity, int markerOccurrence) {
+            this.value = value;
+            this.stableIdentity = stableIdentity;
+            this.markerOccurrence = markerOccurrence;
+        }
+    }
+
+    private static final class ReplyEvidenceSnapshot {
+        final Set<String> texts;
+        final Set<String> stableIdentities;
+        final Map<String, Integer> stableIdentityCounts;
+        final List<ReplyNodeEvidence> nodes;
+        final int nodeCount;
+
+        ReplyEvidenceSnapshot(Set<String> texts,
+                              Set<String> stableIdentities,
+                              Map<String, Integer> stableIdentityCounts,
+                              List<ReplyNodeEvidence> nodes) {
+            this.texts = texts;
+            this.stableIdentities = stableIdentities;
+            this.stableIdentityCounts = stableIdentityCounts;
+            this.nodes = nodes;
+            this.nodeCount = nodes.size();
+        }
+    }
+
+    private static ReplyEvidenceSnapshot captureReplyEvidence(AccessibilityNodeInfo root, String marker) {
+        Set<String> texts = new HashSet<>();
+        Set<String> identities = new HashSet<>();
+        Map<String, Integer> identityCounts = new HashMap<>();
+        List<ReplyNodeEvidence> nodes = new ArrayList<>();
+        if (root == null) {
+            return new ReplyEvidenceSnapshot(texts, identities, identityCounts, nodes);
+        }
+
         Deque<AccessibilityNodeInfo> q = new ArrayDeque<>();
         q.add(root);
+        int markerOccurrence = 0;
         while (!q.isEmpty()) {
             AccessibilityNodeInfo n = q.removeFirst();
             String value = text(n.getText());
-            if (isEligibleReplyNode(n.isVisibleToUser(), value, marker, null)) replies.add(value);
-            for (int i = 0; i < n.getChildCount(); i++) {
-                AccessibilityNodeInfo c = n.getChild(i);
-                if (c != null) q.add(c);
-            }
-        }
-        return replies;
-    }
-
-    private static int visibleReplyNodeCount(AccessibilityNodeInfo root, String marker) {
-        if (root == null) return 0;
-        int count = 0;
-        Deque<AccessibilityNodeInfo> q = new ArrayDeque<>();
-        q.add(root);
-        while (!q.isEmpty()) {
-            AccessibilityNodeInfo n = q.removeFirst();
-            if (n.isVisibleToUser() && hasReplyLine(text(n.getText()), marker)) count++;
-            for (int i = 0; i < n.getChildCount(); i++) {
-                AccessibilityNodeInfo c = n.getChild(i);
-                if (c != null) q.add(c);
-            }
-        }
-        return count;
-    }
-
-    private static Set<String> visibleReplyNodeIdentities(AccessibilityNodeInfo root, String marker) {
-        Set<String> identities = new HashSet<>();
-        if (root == null) return identities;
-        Deque<AccessibilityNodeInfo> q = new ArrayDeque<>();
-        q.add(root);
-        while (!q.isEmpty()) {
-            AccessibilityNodeInfo n = q.removeFirst();
-            if (n.isVisibleToUser() && hasReplyLine(text(n.getText()), marker)) {
+            if (n.isVisibleToUser() && hasReplyLine(value, marker)) {
                 String identity = stableNodeIdentity(n);
-                if (!identity.isEmpty()) identities.add(identity);
+                texts.add(value);
+                nodes.add(new ReplyNodeEvidence(value, identity, markerOccurrence++));
+                if (!identity.isEmpty()) {
+                    identities.add(identity);
+                    identityCounts.put(identity, identityCounts.getOrDefault(identity, 0) + 1);
+                }
             }
             for (int i = 0; i < n.getChildCount(); i++) {
                 AccessibilityNodeInfo c = n.getChild(i);
                 if (c != null) q.add(c);
             }
         }
-        return identities;
-    }
-
-    private static Map<String, Integer> visibleReplyNodeIdentityCounts(AccessibilityNodeInfo root, String marker) {
-        Map<String, Integer> counts = new HashMap<>();
-        if (root == null) return counts;
-        Deque<AccessibilityNodeInfo> q = new ArrayDeque<>();
-        q.add(root);
-        while (!q.isEmpty()) {
-            AccessibilityNodeInfo n = q.removeFirst();
-            if (n.isVisibleToUser() && hasReplyLine(text(n.getText()), marker)) {
-                String identity = stableNodeIdentity(n);
-                if (!identity.isEmpty()) counts.put(identity, counts.getOrDefault(identity, 0) + 1);
-            }
-            for (int i = 0; i < n.getChildCount(); i++) {
-                AccessibilityNodeInfo c = n.getChild(i);
-                if (c != null) q.add(c);
-            }
-        }
-        return counts;
+        return new ReplyEvidenceSnapshot(texts, identities, identityCounts, nodes);
     }
 
     private static String latestTextContaining(AccessibilityNodeInfo root, String marker,
-                                               Set<String> replyBaseline,
-                                               int replyBaselineNodeCount,
-                                               Set<String> replyBaselineNodeIdentities) {
-        if (root == null) return null;
+                                               ReplyEvidenceSnapshot replyBaseline) {
+        if (root == null || replyBaseline == null) return null;
+        ReplyEvidenceSnapshot current = captureReplyEvidence(root, marker);
         String latest = null;
-        int markerOccurrence = 0;
-        int currentReplyNodeCount = visibleReplyNodeCount(root, marker);
-        Map<String, Integer> currentIdentityCounts = visibleReplyNodeIdentityCounts(root, marker);
-        Deque<AccessibilityNodeInfo> q = new ArrayDeque<>();
-        q.add(root);
-        while (!q.isEmpty()) {
-            AccessibilityNodeInfo n = q.removeFirst();
-            String s = text(n.getText());
-            if (n.isVisibleToUser() && hasReplyLine(s, marker)) {
-                String nodeIdentity = stableNodeIdentity(n);
-                int identityOccurrenceCount = nodeIdentity.isEmpty()
-                        ? 0 : currentIdentityCounts.getOrDefault(nodeIdentity, 0);
-                if (isEligiblePostDispatchReplyNode(
-                        true, s, marker, replyBaseline,
-                        markerOccurrence, replyBaselineNodeCount,
-                        nodeIdentity, replyBaselineNodeIdentities,
-                        identityOccurrenceCount, currentReplyNodeCount)) {
-                    latest = s;
-                }
-                markerOccurrence++;
-            }
-            for (int i = 0; i < n.getChildCount(); i++) {
-                AccessibilityNodeInfo c = n.getChild(i);
-                if (c != null) q.add(c);
+        for (ReplyNodeEvidence node : current.nodes) {
+            int identityOccurrenceCount = node.stableIdentity.isEmpty()
+                    ? 0 : current.stableIdentityCounts.getOrDefault(node.stableIdentity, 0);
+            if (isEligiblePostDispatchReplyNode(
+                    true, node.value, marker, replyBaseline.texts,
+                    node.markerOccurrence, replyBaseline.nodeCount,
+                    node.stableIdentity, replyBaseline.stableIdentities,
+                    identityOccurrenceCount, current.nodeCount)) {
+                latest = node.value;
             }
         }
         return latest;
