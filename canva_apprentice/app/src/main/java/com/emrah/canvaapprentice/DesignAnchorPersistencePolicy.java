@@ -60,7 +60,11 @@ public final class DesignAnchorPersistencePolicy {
             if (Character.isISOControl(codePoint)
                     || type == Character.FORMAT
                     || type == Character.LINE_SEPARATOR
-                    || type == Character.PARAGRAPH_SEPARATOR) {
+                    || type == Character.PARAGRAPH_SEPARATOR
+                    // A lone UTF-16 surrogate is malformed Unicode. Persisting it would create a
+                    // design identity that later resume-safety deliberately refuses to trust,
+                    // stranding the task or creating inconsistent authority boundaries.
+                    || type == Character.SURROGATE) {
                 return false;
             }
             i += Character.charCount(codePoint);
