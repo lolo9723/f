@@ -6,7 +6,7 @@ public final class TeacherUiPolicy {
     private TeacherUiPolicy() {}
 
     public static boolean isExactSendLabel(String raw) {
-        if (raw == null) return false;
+        if (raw == null || hasUnsafeAccessibilityFormatting(raw)) return false;
         String s = raw.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
         return s.equals("send") ||
                 s.equals("send message") ||
@@ -14,6 +14,21 @@ public final class TeacherUiPolicy {
                 s.equals("gönder") ||
                 s.equals("mesaj gönder") ||
                 s.equals("mesajı gönder");
+    }
+
+    private static boolean hasUnsafeAccessibilityFormatting(String raw) {
+        for (int offset = 0; offset < raw.length();) {
+            int codePoint = raw.codePointAt(offset);
+            int type = Character.getType(codePoint);
+            if (Character.isISOControl(codePoint)
+                    || type == Character.FORMAT
+                    || type == Character.LINE_SEPARATOR
+                    || type == Character.PARAGRAPH_SEPARATOR) {
+                return true;
+            }
+            offset += Character.charCount(codePoint);
+        }
+        return false;
     }
 
     /**
@@ -27,7 +42,8 @@ public final class TeacherUiPolicy {
     /**
      * A matching "Send" label is not enough. Hidden/stale buttons are unsafe even when enabled.
      * If Android exposes both text and content-description they must agree that this is a send
-     * control; conflicting accessibility evidence fails closed instead of trusting one field.
+     * control; conflicting or structurally unsafe accessibility evidence fails closed instead of
+     * trusting one field or normalizing spoofable formatting into an exact label.
      */
     public static boolean isUsableSend(boolean visibleToUser, boolean enabled,
                                        String label, String description) {
@@ -37,8 +53,8 @@ public final class TeacherUiPolicy {
         boolean hasLabel = !safeLabel.isEmpty();
         boolean hasDescription = !safeDescription.isEmpty();
         if (!hasLabel && !hasDescription) return false;
-        if (hasLabel && !isExactSendLabel(safeLabel)) return false;
-        if (hasDescription && !isExactSendLabel(safeDescription)) return false;
+        if (hasLabel && !isExactSendLabel(label)) return false;
+        if (hasDescription && !isExactSendLabel(description)) return false;
         return true;
     }
 }
