@@ -4,6 +4,7 @@ import java.util.HashSet;
 import java.util.Set;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -127,6 +128,47 @@ public class TeacherBridgeReplyMatchTest {
         assertTrue(TeacherBridge.isEligiblePostDispatchReplyNode(
                 true, fresh, marker, textBaseline,
                 1, 1, "node-new", nodeBaseline));
+    }
+
+    @Test public void structuralAncestryFallbackIsDeterministicAndTextIndependent() {
+        String before = TeacherBridge.composeStructuralAncestryIdentity(
+                7,
+                "android.widget.TextView", "com.openai.chatgpt:id/message_text",
+                "android.view.ViewGroup", "com.openai.chatgpt:id/message_container");
+        String after = TeacherBridge.composeStructuralAncestryIdentity(
+                7,
+                "android.widget.TextView", "com.openai.chatgpt:id/message_text",
+                "android.view.ViewGroup", "com.openai.chatgpt:id/message_container");
+
+        assertFalse(before.isEmpty());
+        assertEquals(before, after);
+    }
+
+    @Test public void matchingAncestryFallbackRejectsReorderedMutatedOldNodeWithoutUniqueId() {
+        String marker = "CAA1_REPLY_abc123|";
+        String stale = marker + "NOOP|||1.0|stale";
+        String mutatedAfterReorder = marker + "CLICK_TEXT|Elements|0.99|mutated-old-node";
+        String ancestry = TeacherBridge.composeStructuralAncestryIdentity(
+                3,
+                "android.widget.TextView", "",
+                "android.view.ViewGroup", "com.openai.chatgpt:id/message_container");
+        Set<String> textBaseline = new HashSet<>();
+        textBaseline.add(stale);
+        Set<String> nodeBaseline = new HashSet<>();
+        nodeBaseline.add(ancestry);
+
+        assertFalse(TeacherBridge.isEligiblePostDispatchReplyNode(
+                true, mutatedAfterReorder, marker, textBaseline,
+                4, 1, ancestry, nodeBaseline));
+    }
+
+    @Test public void malformedStructuralAncestryCannotPretendToBeStableIdentity() {
+        assertEquals("", TeacherBridge.composeStructuralAncestryIdentity(1,
+                "android.widget.TextView", "only-one-level"));
+        assertEquals("", TeacherBridge.composeStructuralAncestryIdentity(-1,
+                "android.widget.TextView", "id", "android.view.ViewGroup", "parent"));
+        assertEquals("", TeacherBridge.composeStructuralAncestryIdentity(1,
+                "", "", "android.view.ViewGroup", "parent"));
     }
 
     @Test public void malformedOccurrenceMetadataFailsClosed() {
