@@ -3,10 +3,6 @@ package com.emrah.canvaapprentice;
 public final class TeacherProtocol {
     private TeacherProtocol() {}
 
-    private static String markerText(String requestId) {
-        return "CAA1_REPLY_" + requestId + "|";
-    }
-
     private static TeacherRequestAuthority requireBoundAuthority(
             UiTreeSnapshot snapshot, TeacherRequestAuthority authority) {
         if (snapshot == null) {
@@ -29,15 +25,6 @@ public final class TeacherProtocol {
             throw new IllegalStateException("teacher prompt authority grounding type mismatch");
         }
         return boundAuthority;
-    }
-
-    /** Legacy package-local test compatibility only. Production must create immutable authority. */
-    @Deprecated
-    static String markerFor(String requestId) {
-        String executionLeaseToken = TeacherExecutionLease.beginGlobal();
-        String marker = markerText(requestId);
-        CheckpointRequestGuard.bind(marker, executionLeaseToken);
-        return marker;
     }
 
     public static String buildRequest(TaskState state, UiTreeSnapshot snapshot, String note,

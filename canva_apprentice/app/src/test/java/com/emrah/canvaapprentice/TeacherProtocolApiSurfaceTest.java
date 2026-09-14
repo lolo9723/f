@@ -12,9 +12,8 @@ public class TeacherProtocolApiSurfaceTest {
         assertMissing("parse", String.class, String.class, boolean.class);
     }
 
-    @Test public void markerCreationRemainsNonPublicCompatibilityOnly() throws Exception {
-        Method markerFor = TeacherProtocol.class.getDeclaredMethod("markerFor", String.class);
-        assertFalse(Modifier.isPublic(markerFor.getModifiers()));
+    @Test public void legacyMarkerCreationApiIsRemoved() {
+        assertMissing("markerFor", String.class);
     }
 
     @Test public void requestIdPromptBuildersAreRemoved() {
