@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService;
 import android.content.ClipData;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -113,13 +114,14 @@ public final class TeacherBridge {
             AccessibilityNodeInfo beforeSendRoot = service.getRootInActiveWindow();
             Set<String> replyBaseline = visibleReplyTexts(beforeSendRoot, authority.marker);
             int replyBaselineNodeCount = visibleReplyNodeCount(beforeSendRoot, authority.marker);
+            Set<String> replyBaselineNodeIdentities = visibleReplyNodeIdentities(beforeSendRoot, authority.marker);
             AccessibilityNodeInfo send = findSend(beforeSendRoot);
             if (send == null || !clickNodeOrParent(send)) {
                 failCurrentRequest(sessionId, requestToken, callback, "ChatGPT görüntülü mesaj gönder düğmesi bulunamadı.");
                 return;
             }
             pollReply(authority, sessionId, requestToken, callback, 0,
-                    replyBaseline, replyBaselineNodeCount);
+                    replyBaseline, replyBaselineNodeCount, replyBaselineNodeIdentities);
         }, 1400);
     }
 
@@ -177,18 +179,19 @@ public final class TeacherBridge {
         AccessibilityNodeInfo beforeSendRoot = service.getRootInActiveWindow();
         Set<String> replyBaseline = visibleReplyTexts(beforeSendRoot, authority.marker);
         int replyBaselineNodeCount = visibleReplyNodeCount(beforeSendRoot, authority.marker);
+        Set<String> replyBaselineNodeIdentities = visibleReplyNodeIdentities(beforeSendRoot, authority.marker);
         AccessibilityNodeInfo send = findSend(beforeSendRoot);
         if (send == null || !clickNodeOrParent(send)) {
             failCurrentRequest(sessionId, requestToken, callback, "ChatGPT gönder düğmesi bulunamadı.");
             return;
         }
         pollReply(authority, sessionId, requestToken, callback, 0,
-                replyBaseline, replyBaselineNodeCount);
+                replyBaseline, replyBaselineNodeCount, replyBaselineNodeIdentities);
     }
 
     private void pollReply(TeacherRequestAuthority authority, String sessionId, String requestToken,
                            ReplyCallback callback, int attempt, Set<String> replyBaseline,
-                           int replyBaselineNodeCount) {
+                           int replyBaselineNodeCount, Set<String> replyBaselineNodeIdentities) {
         if (!isTransportCurrent(sessionId, requestToken, authority)) {
             discardStaleRequest();
             return;
@@ -205,11 +208,11 @@ public final class TeacherBridge {
             AccessibilityNodeInfo root = service.getRootInActiveWindow();
             if (!AgentConstants.CHATGPT_PACKAGE.equals(packageOf(root))) {
                 pollReply(authority, sessionId, requestToken, callback, attempt + 1,
-                        replyBaseline, replyBaselineNodeCount);
+                        replyBaseline, replyBaselineNodeCount, replyBaselineNodeIdentities);
                 return;
             }
             String found = latestTextContaining(root, authority.marker,
-                    replyBaseline, replyBaselineNodeCount);
+                    replyBaseline, replyBaselineNodeCount, replyBaselineNodeIdentities);
             if (found != null) {
                 if (!isTransportCurrent(sessionId, requestToken, authority)
                         || !consumeIfCurrent(sessionId, requestToken)) {
@@ -219,7 +222,7 @@ public final class TeacherBridge {
                 callback.onReply(found);
             } else {
                 pollReply(authority, sessionId, requestToken, callback, attempt + 1,
-                        replyBaseline, replyBaselineNodeCount);
+                        replyBaseline, replyBaselineNodeCount, replyBaselineNodeIdentities);
             }
         }, 1000);
     }
@@ -339,9 +342,29 @@ public final class TeacherBridge {
         return count;
     }
 
+    private static Set<String> visibleReplyNodeIdentities(AccessibilityNodeInfo root, String marker) {
+        Set<String> identities = new HashSet<>();
+        if (root == null) return identities;
+        Deque<AccessibilityNodeInfo> q = new ArrayDeque<>();
+        q.add(root);
+        while (!q.isEmpty()) {
+            AccessibilityNodeInfo n = q.removeFirst();
+            if (n.isVisibleToUser() && hasReplyLine(text(n.getText()), marker)) {
+                String identity = stableNodeIdentity(n);
+                if (!identity.isEmpty()) identities.add(identity);
+            }
+            for (int i = 0; i < n.getChildCount(); i++) {
+                AccessibilityNodeInfo c = n.getChild(i);
+                if (c != null) q.add(c);
+            }
+        }
+        return identities;
+    }
+
     private static String latestTextContaining(AccessibilityNodeInfo root, String marker,
                                                Set<String> replyBaseline,
-                                               int replyBaselineNodeCount) {
+                                               int replyBaselineNodeCount,
+                                               Set<String> replyBaselineNodeIdentities) {
         if (root == null) return null;
         String latest = null;
         int markerOccurrence = 0;
@@ -353,7 +376,8 @@ public final class TeacherBridge {
             if (n.isVisibleToUser() && hasReplyLine(s, marker)) {
                 if (isEligiblePostDispatchReplyNode(
                         true, s, marker, replyBaseline,
-                        markerOccurrence, replyBaselineNodeCount)) {
+                        markerOccurrence, replyBaselineNodeCount,
+                        stableNodeIdentity(n), replyBaselineNodeIdentities)) {
                     latest = s;
                 }
                 markerOccurrence++;
@@ -380,12 +404,35 @@ public final class TeacherBridge {
                                                    Set<String> replyBaseline,
                                                    int markerOccurrence,
                                                    int replyBaselineNodeCount) {
+        return isEligiblePostDispatchReplyNode(
+                visibleToUser, value, marker, replyBaseline,
+                markerOccurrence, replyBaselineNodeCount, "", null);
+    }
+
+    static boolean isEligiblePostDispatchReplyNode(boolean visibleToUser, String value, String marker,
+                                                   Set<String> replyBaseline,
+                                                   int markerOccurrence,
+                                                   int replyBaselineNodeCount,
+                                                   String stableNodeIdentity,
+                                                   Set<String> replyBaselineNodeIdentities) {
         if (!isEligibleReplyNode(visibleToUser, value, marker, replyBaseline)) return false;
         if (markerOccurrence < 0 || replyBaselineNodeCount < 0) return false;
-        // A pre-dispatch marker-bearing node must never gain authority merely because its
-        // text changed while ChatGPT was rendering. Only marker occurrences appended after
-        // the complete pre-send marker-node prefix are eligible for this request.
+        if (stableNodeIdentity != null && !stableNodeIdentity.isEmpty()
+                && replyBaselineNodeIdentities != null
+                && replyBaselineNodeIdentities.contains(stableNodeIdentity)) {
+            return false;
+        }
+        // Occurrence order remains a conservative fallback when the accessibility provider
+        // does not expose a stable unique node id. On API 33+ an old node's exact identity
+        // is also captured before send, so reordering or text mutation cannot make that same
+        // node authoritative for the current request.
         return markerOccurrence >= replyBaselineNodeCount;
+    }
+
+    private static String stableNodeIdentity(AccessibilityNodeInfo node) {
+        if (node == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return "";
+        String uniqueId = text(node.getUniqueId());
+        return uniqueId.isEmpty() ? "" : uniqueId;
     }
 
     static boolean hasReplyLine(String value, String marker) {
