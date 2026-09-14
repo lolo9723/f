@@ -36,4 +36,12 @@ public class TeacherUiPolicyTest {
         assertFalse(TeacherUiPolicy.isUsableSend(true, false, "Send", ""));
         assertFalse(TeacherUiPolicy.isUsableSend(true, true, "Send feedback", ""));
     }
+
+    @Test public void conflictingSendAccessibilityEvidenceFailsClosed() {
+        assertTrue(TeacherUiPolicy.isUsableSend(true, true, "Send", "Send message"));
+        assertFalse(TeacherUiPolicy.isUsableSend(true, true, "Cancel", "Send"));
+        assertFalse(TeacherUiPolicy.isUsableSend(true, true, "Send", "Share"));
+        assertFalse(TeacherUiPolicy.isUsableSend(true, true, "", ""));
+        assertFalse(TeacherUiPolicy.isUsableSend(true, true, null, null));
+    }
 }

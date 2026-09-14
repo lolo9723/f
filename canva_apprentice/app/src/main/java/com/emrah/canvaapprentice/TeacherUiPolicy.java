@@ -26,10 +26,19 @@ public final class TeacherUiPolicy {
 
     /**
      * A matching "Send" label is not enough. Hidden/stale buttons are unsafe even when enabled.
+     * If Android exposes both text and content-description they must agree that this is a send
+     * control; conflicting accessibility evidence fails closed instead of trusting one field.
      */
     public static boolean isUsableSend(boolean visibleToUser, boolean enabled,
                                        String label, String description) {
         if (!visibleToUser || !enabled) return false;
-        return isExactSendLabel(label) || isExactSendLabel(description);
+        String safeLabel = label == null ? "" : label.trim();
+        String safeDescription = description == null ? "" : description.trim();
+        boolean hasLabel = !safeLabel.isEmpty();
+        boolean hasDescription = !safeDescription.isEmpty();
+        if (!hasLabel && !hasDescription) return false;
+        if (hasLabel && !isExactSendLabel(safeLabel)) return false;
+        if (hasDescription && !isExactSendLabel(safeDescription)) return false;
+        return true;
     }
 }
