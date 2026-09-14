@@ -32,10 +32,16 @@ public final class DesignContinuityPolicy {
             // Before an existing design has been bound, the agent may only perform
             // non-content navigation needed to locate/recover that design. In particular,
             // text edits and coordinate gestures must not touch an arbitrary editor just
-            // because the task has not established design identity yet.
-            return action.type == AgentAction.Type.CLICK_TEXT
-                    || action.type == AgentAction.Type.CLICK_NODE
-                    || action.type == AgentAction.Type.BACK;
+            // because the task has not established design identity yet. Explicit creation
+            // controls are also forbidden: the user's task is to remain in an existing design,
+            // so an unbound state must never be able to create a replacement by accident.
+            if (action.type == AgentAction.Type.CLICK_TEXT) {
+                return !isExplicitCreationTarget(action.target);
+            }
+            if (action.type == AgentAction.Type.CLICK_NODE) {
+                return !isExplicitCreationTarget(NodeTargetCodec.label(action.target));
+            }
+            return action.type == AgentAction.Type.BACK;
         }
 
         if (canvaHomeVisible) {
@@ -142,6 +148,18 @@ public final class DesignContinuityPolicy {
         if (anchor.isEmpty()) return true;
         if (canvaHomeVisible) return false;
         return anchorVisible || matchesLastSafeEditorSnapshot || visualEditorContinuityVerified;
+    }
+
+    private static boolean isExplicitCreationTarget(String rawTarget) {
+        String target = norm(rawTarget);
+        if (target.isEmpty()) return false;
+        return target.equals("create a design")
+                || target.equals("create design")
+                || target.equals("create new design")
+                || target.equals("new design")
+                || target.equals("tasarim olustur")
+                || target.equals("yeni tasarim")
+                || target.equals("yeni bir tasarim olustur");
     }
 
     private static String norm(String s) {
