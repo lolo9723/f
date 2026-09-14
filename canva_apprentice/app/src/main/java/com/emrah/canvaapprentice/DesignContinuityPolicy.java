@@ -62,14 +62,6 @@ public final class DesignContinuityPolicy {
         return false;
     }
 
-    /**
-     * Independent pre-action proof used by visual continuity. A positive proof must already refer
-     * to a bound design, must not come from Canva home/projects, and must be backed either by the
-     * bound anchor being visible or by an exact previously-safe editor snapshot.
-     *
-     * Keeping this calculation here prevents callers from accidentally treating "task unbound",
-     * "home screen", or a generic visual similarity signal as proof of design identity.
-     */
     public static boolean preActionBoundDesignVerified(String boundAnchor,
                                                        boolean anchorVisible,
                                                        boolean canvaHomeVisible,
@@ -80,11 +72,6 @@ public final class DesignContinuityPolicy {
         return anchorVisible || matchesLastSafeEditorSnapshot;
     }
 
-    /**
-     * Final visual DONE is stronger than an ordinary teacher assertion: it may terminate the task
-     * only if the current Canva editor was independently proven to be the already-bound design and
-     * the screenshot inspected by the visual teacher still belongs to this execution lease.
-     */
     public static boolean finalDoneMayStop(String boundAnchor,
                                            boolean visualGrounded,
                                            boolean preActionBoundDesignVerified,
@@ -93,23 +80,10 @@ public final class DesignContinuityPolicy {
         return visualGrounded && preActionBoundDesignVerified && leaseOwnedVisualEvidence;
     }
 
-    /**
-     * Visual similarity by itself is never design identity. This legacy entry point intentionally
-     * remains fail-closed so callers cannot accidentally authorize continuity from distance alone.
-     */
     public static boolean visualEditorContinuityFromDistance(double visualDistance) {
         return false;
     }
 
-    /**
-     * Three-factor visual continuity proof for transient Canva editor panels:
-     *  1) the pre-action UI was independently proven to belong to the bound design,
-     *  2) the visual evidence belongs to the current execution lease,
-     *  3) the post-action screenshot remains within a very small finite visual distance.
-     *
-     * Missing any factor fails closed. This method does not override an explicit Canva-home signal;
-     * verifiesBoundDesignAfterAction() still rejects home/projects even with a positive proof.
-     */
     public static boolean visualEditorContinuityFromDistance(double visualDistance,
                                                              boolean preActionBoundDesignVerified,
                                                              boolean leaseOwnedVisualEvidence) {
@@ -135,10 +109,6 @@ public final class DesignContinuityPolicy {
         );
     }
 
-    /**
-     * Visual editor continuity is accepted only when the caller has already produced an explicit
-     * independently verified visualEditorContinuityVerified flag.
-     */
     public static boolean verifiesBoundDesignAfterAction(String boundAnchor,
                                                          boolean anchorVisible,
                                                          boolean canvaHomeVisible,
@@ -151,7 +121,7 @@ public final class DesignContinuityPolicy {
     }
 
     private static boolean isExplicitCreationTarget(String rawTarget) {
-        String target = norm(rawTarget);
+        String target = creationNorm(rawTarget);
         if (target.isEmpty()) return false;
         return target.equals("create a design")
                 || target.equals("create design")
@@ -160,6 +130,16 @@ public final class DesignContinuityPolicy {
                 || target.equals("tasarim olustur")
                 || target.equals("yeni tasarim")
                 || target.equals("yeni bir tasarim olustur");
+    }
+
+    private static String creationNorm(String s) {
+        // Creation controls often carry leading '+' icons, arrows, ellipses or invisible
+        // formatting characters in accessibility labels. Treat those decorations as separators
+        // so a cosmetic label change cannot bypass the existing-design-only guard.
+        return norm(s)
+                .replaceAll("[\\p{P}\\p{S}\\p{C}]+", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 
     private static String norm(String s) {
