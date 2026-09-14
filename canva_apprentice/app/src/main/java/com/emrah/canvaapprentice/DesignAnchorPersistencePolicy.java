@@ -7,6 +7,8 @@ package com.emrah.canvaapprentice;
  * at the persistence boundary. Any session rollover makes the evidence stale.
  */
 public final class DesignAnchorPersistencePolicy {
+    private static final String UNBOUND_SENTINEL = "UNBOUND";
+
     private DesignAnchorPersistencePolicy() {}
 
     public static boolean mayCommit(TaskState.Mode mode,
@@ -27,11 +29,13 @@ public final class DesignAnchorPersistencePolicy {
                                     String currentTeacherSessionId,
                                     String targetAnchor) {
         if (mode != TaskState.Mode.RUNNING) return false;
-        String action = actionTeacherSessionId == null ? "" : actionTeacherSessionId.trim();
-        String observed = observedTeacherSessionId == null ? "" : observedTeacherSessionId.trim();
-        String current = currentTeacherSessionId == null ? "" : currentTeacherSessionId.trim();
-        String target = targetAnchor == null ? "" : targetAnchor.trim();
-        if (action.isEmpty() || observed.isEmpty() || current.isEmpty() || target.isEmpty()) return false;
+        String action = normalize(actionTeacherSessionId);
+        String observed = normalize(observedTeacherSessionId);
+        String current = normalize(currentTeacherSessionId);
+        String target = normalize(targetAnchor);
+        if (action.isEmpty() || observed.isEmpty() || current.isEmpty() || !isPersistableAnchor(target)) {
+            return false;
+        }
         return action.equals(observed) && observed.equals(current);
     }
 
@@ -41,9 +45,22 @@ public final class DesignAnchorPersistencePolicy {
      * it requires a new explicit task rather than teacher authority alone.
      */
     public static boolean preservesBoundIdentity(String existingAnchor, String targetAnchor) {
-        String existing = existingAnchor == null ? "" : existingAnchor.trim();
-        String target = targetAnchor == null ? "" : targetAnchor.trim();
-        if (target.isEmpty()) return false;
+        String existing = normalize(existingAnchor);
+        String target = normalize(targetAnchor);
+        if (!isPersistableAnchor(target)) return false;
         return existing.isEmpty() || existing.equals(target);
+    }
+
+    static boolean isPersistableAnchor(String anchor) {
+        String value = normalize(anchor);
+        if (value.isEmpty() || UNBOUND_SENTINEL.equalsIgnoreCase(value)) return false;
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.isISOControl(value.charAt(i))) return false;
+        }
+        return true;
+    }
+
+    private static String normalize(String value) {
+        return value == null ? "" : value.trim();
     }
 }

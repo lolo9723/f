@@ -46,6 +46,18 @@ public final class DesignAnchorPersistencePolicyTest {
                 TaskState.Mode.RUNNING,"","session-a","session-a","Existing design"));
     }
 
+    @Test public void rejectsUnboundSentinelAndControlCharacters() {
+        assertFalse(DesignAnchorPersistencePolicy.mayCommit(
+                TaskState.Mode.RUNNING,"session-a","session-a","UNBOUND"));
+        assertFalse(DesignAnchorPersistencePolicy.mayCommit(
+                TaskState.Mode.RUNNING,"session-a","session-a"," unbound "));
+        assertFalse(DesignAnchorPersistencePolicy.mayCommit(
+                TaskState.Mode.RUNNING,"session-a","session-a","Design\nInjected"));
+        assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity("", "UNBOUND"));
+        assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity(
+                "Existing design", "Existing design\tspoof"));
+    }
+
     @Test public void allowsFirstBindAndIdempotentRebind() {
         assertTrue(DesignAnchorPersistencePolicy.preservesBoundIdentity("", "Existing design"));
         assertTrue(DesignAnchorPersistencePolicy.preservesBoundIdentity(
