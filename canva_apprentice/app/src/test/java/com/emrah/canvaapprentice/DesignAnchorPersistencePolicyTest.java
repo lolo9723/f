@@ -64,6 +64,8 @@ public final class DesignAnchorPersistencePolicyTest {
         assertFalse(DesignAnchorPersistencePolicy.mayCommit(
                 TaskState.Mode.RUNNING,"session-a","session-a","Design\u200Bspoof"));
         assertFalse(DesignAnchorPersistencePolicy.mayCommit(
+                TaskState.Mode.RUNNING,"session-a","session-a","Design\uFEFFspoof"));
+        assertFalse(DesignAnchorPersistencePolicy.mayCommit(
                 TaskState.Mode.RUNNING,"session-a","session-a","Design\u2028spoof"));
         assertFalse(DesignAnchorPersistencePolicy.mayCommit(
                 TaskState.Mode.RUNNING,"session-a","session-a","Design\u2029spoof"));
