@@ -74,6 +74,10 @@ final class ResumeContextPolicy {
         return Character.isISOControl(codePoint)
                 || type == Character.FORMAT
                 || type == Character.LINE_SEPARATOR
-                || type == Character.PARAGRAPH_SEPARATOR;
+                || type == Character.PARAGRAPH_SEPARATOR
+                // A lone UTF-16 surrogate is malformed Unicode but can still exist in a Java
+                // String. If the same corrupted value is persisted on both sides, exact equality
+                // must not accidentally turn it into resume authority.
+                || type == Character.SURROGATE;
     }
 }
