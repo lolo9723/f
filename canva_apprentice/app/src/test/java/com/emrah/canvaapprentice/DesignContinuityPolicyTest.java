@@ -27,8 +27,23 @@ public final class DesignContinuityPolicyTest {
                 action(AgentAction.Type.CLICK_TEXT, "Yeni tasarım", ""), "", false, true));
     }
 
+    @Test public void unboundTaskRejectsDecoratedNewDesignControls() {
+        assertFalse(DesignContinuityPolicy.allows(
+                action(AgentAction.Type.CLICK_TEXT, "+ Create a design…", ""), "", false, true));
+        assertFalse(DesignContinuityPolicy.allows(
+                action(AgentAction.Type.CLICK_TEXT, "Create\u200Ba design", ""), "", false, true));
+        assertFalse(DesignContinuityPolicy.allows(
+                action(AgentAction.Type.CLICK_TEXT, "› Yeni tasarım ＋", ""), "", false, true));
+    }
+
     @Test public void unboundTaskRejectsCreationLabelInsideExactNodeTarget() {
         String nodeTarget = NodeTargetCodec.encode(0, "Create a design", "button", "", "");
+        assertFalse(DesignContinuityPolicy.allows(
+                action(AgentAction.Type.CLICK_NODE, nodeTarget, ""), "", false, true));
+    }
+
+    @Test public void unboundTaskRejectsDecoratedCreationLabelInsideExactNodeTarget() {
+        String nodeTarget = NodeTargetCodec.encode(0, "＋ Create a design ›", "button", "", "");
         assertFalse(DesignContinuityPolicy.allows(
                 action(AgentAction.Type.CLICK_NODE, nodeTarget, ""), "", false, true));
     }
