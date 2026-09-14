@@ -80,8 +80,6 @@ public class TeacherBridgeReplyMatchTest {
         Set<String> baseline = new HashSet<>();
         baseline.add(beforeDispatch);
 
-        // Exact-text protection alone would consider the changed value new. Structural
-        // occurrence provenance must still reject occurrence zero because it existed before send.
         assertTrue(TeacherBridge.isEligibleReplyNode(
                 true, sameNodeAfterMutation, marker, baseline));
         assertFalse(TeacherBridge.isEligiblePostDispatchReplyNode(
@@ -99,6 +97,36 @@ public class TeacherBridgeReplyMatchTest {
                 true, appended, marker, baseline, 1, 1));
         assertFalse(TeacherBridge.isEligiblePostDispatchReplyNode(
                 false, appended, marker, baseline, 1, 1));
+    }
+
+    @Test public void reorderedPreDispatchNodeCannotGainAuthorityWhenStableIdentityMatches() {
+        String marker = "CAA1_REPLY_abc123|";
+        String stale = marker + "NOOP|||1.0|stale";
+        String mutatedAfterReorder = marker + "CLICK_TEXT|Elements|0.99|same-old-node";
+        Set<String> textBaseline = new HashSet<>();
+        textBaseline.add(stale);
+        Set<String> nodeBaseline = new HashSet<>();
+        nodeBaseline.add("node-42");
+
+        // Occurrence 1 would pass the old prefix-only rule after UI reordering. Exact-node
+        // provenance must still reject the node because it existed before dispatch.
+        assertFalse(TeacherBridge.isEligiblePostDispatchReplyNode(
+                true, mutatedAfterReorder, marker, textBaseline,
+                1, 1, "node-42", nodeBaseline));
+    }
+
+    @Test public void genuinelyNewStableNodeCanGainAuthorityAfterBaselinePrefix() {
+        String marker = "CAA1_REPLY_abc123|";
+        String stale = marker + "NOOP|||1.0|stale";
+        String fresh = marker + "CLICK_TEXT|Elements|0.99|fresh";
+        Set<String> textBaseline = new HashSet<>();
+        textBaseline.add(stale);
+        Set<String> nodeBaseline = new HashSet<>();
+        nodeBaseline.add("node-old");
+
+        assertTrue(TeacherBridge.isEligiblePostDispatchReplyNode(
+                true, fresh, marker, textBaseline,
+                1, 1, "node-new", nodeBaseline));
     }
 
     @Test public void malformedOccurrenceMetadataFailsClosed() {
