@@ -10,9 +10,9 @@ import java.nio.file.Paths;
 import org.junit.Test;
 
 /**
- * Dispatch provenance must bind the reply baseline and the Send candidate to the same
- * accessibility traversal. A split baseline/findSend sequence can observe two different UI
- * states and click a button that was not part of the provenance baseline.
+ * Dispatch provenance must bind the reply baseline, Send candidate, and concrete clickable
+ * target to the same accessibility evidence pass. Resolving a clickable parent after capture
+ * can observe a different UI state and redirect the dispatch outside the measured provenance.
  */
 public final class TeacherDispatchEvidenceAtomicityTest {
     private static String source() throws Exception {
@@ -41,8 +41,22 @@ public final class TeacherDispatchEvidenceAtomicityTest {
 
     @Test public void dispatchFailsClosedOnAmbiguousSendCandidates() throws Exception {
         String source = source();
-        assertTrue(source.contains("return usableSendNodeCount == 1 ? sendNode : null;"));
-        assertTrue(source.contains("AccessibilityNodeInfo send = dispatchEvidence.uniqueSendNode();"));
+        assertTrue(source.contains("return usableSendNodeCount == 1 ? sendClickTarget : null;"));
+        assertTrue(source.contains("AccessibilityNodeInfo sendClickTarget = dispatchEvidence.uniqueSendClickTarget();"));
+    }
+
+    @Test public void clickableParentIsBoundDuringEvidenceCapture() throws Exception {
+        String source = source();
+        assertTrue(source.contains("sendClickTarget = firstClickableNodeOrParent(n);"));
+        assertTrue(source.contains("clickCapturedNode(sendClickTarget)"));
+        assertFalse("dispatch must not traverse parents after evidence capture",
+                source.contains("clickNodeOrParent("));
+
+        int capture = source.indexOf("private static DispatchEvidenceSnapshot captureDispatchEvidence");
+        int bind = source.indexOf("sendClickTarget = firstClickableNodeOrParent(n);", capture);
+        int captureEnd = source.indexOf("private static ReplyEvidenceSnapshot captureReplyEvidence", capture);
+        assertTrue("click target must be resolved inside the dispatch evidence pass",
+                capture >= 0 && bind > capture && captureEnd > bind);
     }
 
     @Test public void authorityIsRecheckedAfterEvidenceCaptureBeforeClick() throws Exception {
@@ -51,14 +65,14 @@ public final class TeacherDispatchEvidenceAtomicityTest {
         int first = source.indexOf(token);
         assertTrue(first >= 0);
         int recheck = source.indexOf("if (!isTransportCurrent(sessionId, requestToken, authority))", first + token.length());
-        int click = source.indexOf("clickNodeOrParent(send)", first + token.length());
+        int click = source.indexOf("clickCapturedNode(sendClickTarget)", first + token.length());
         assertTrue("transport authority must be rechecked after evidence capture", recheck > first);
         assertTrue("recheck must happen before the actual click", click > recheck);
 
         int second = source.indexOf(token, first + token.length());
         assertTrue(second > first);
         recheck = source.indexOf("if (!isTransportCurrent(sessionId, requestToken, authority))", second + token.length());
-        click = source.indexOf("clickNodeOrParent(send)", second + token.length());
+        click = source.indexOf("clickCapturedNode(sendClickTarget)", second + token.length());
         assertTrue(recheck > second && click > recheck);
     }
 }
