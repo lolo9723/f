@@ -73,6 +73,15 @@ public final class DesignAnchorPersistencePolicyTest {
                 "Existing design", "Existing\u2066 design\u2069"));
     }
 
+    @Test public void rejectsMalformedSurrogateAnchors() {
+        assertFalse(DesignAnchorPersistencePolicy.mayCommit(
+                TaskState.Mode.RUNNING,"session-a","session-a","Design\uD800spoof"));
+        assertFalse(DesignAnchorPersistencePolicy.mayCommit(
+                TaskState.Mode.RUNNING,"session-a","session-a","Design\uDC00spoof"));
+        assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity(
+                "Existing design", "Existing\uD800design"));
+    }
+
     @Test public void allowsFirstBindAndIdempotentRebind() {
         assertTrue(DesignAnchorPersistencePolicy.preservesBoundIdentity("", "Existing design"));
         assertTrue(DesignAnchorPersistencePolicy.preservesBoundIdentity(
