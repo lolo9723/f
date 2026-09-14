@@ -16,6 +16,23 @@ public final class DesignContinuityPolicyTest {
         assertTrue(DesignContinuityPolicy.allows(a, "", false, false));
     }
 
+    @Test public void unboundTaskRejectsExplicitNewDesignControls() {
+        assertFalse(DesignContinuityPolicy.allows(
+                action(AgentAction.Type.CLICK_TEXT, "Create a design", ""), "", false, true));
+        assertFalse(DesignContinuityPolicy.allows(
+                action(AgentAction.Type.CLICK_TEXT, "New design", ""), "", false, true));
+        assertFalse(DesignContinuityPolicy.allows(
+                action(AgentAction.Type.CLICK_TEXT, "Tasarım oluştur", ""), "", false, true));
+        assertFalse(DesignContinuityPolicy.allows(
+                action(AgentAction.Type.CLICK_TEXT, "Yeni tasarım", ""), "", false, true));
+    }
+
+    @Test public void unboundTaskRejectsCreationLabelInsideExactNodeTarget() {
+        String nodeTarget = NodeTargetCodec.encode("button", "Create a design", "", 0, 0);
+        assertFalse(DesignContinuityPolicy.allows(
+                action(AgentAction.Type.CLICK_NODE, nodeTarget, ""), "", false, true));
+    }
+
     @Test public void visibleBoundAnchorAllowsExecution() {
         AgentAction a = action(AgentAction.Type.SET_TEXT, "Title", "Hello");
         assertTrue(DesignContinuityPolicy.allows(a, "Campaign A", true, false));
