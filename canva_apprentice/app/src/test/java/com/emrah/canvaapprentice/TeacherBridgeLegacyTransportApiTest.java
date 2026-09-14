@@ -1,15 +1,17 @@
 package com.emrah.canvaapprentice;
 
-import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.fail;
 
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import org.junit.Test;
 
 public final class TeacherBridgeLegacyTransportApiTest {
-    @Test public void markerOnlyTeacherTransportIsNotPublic() throws Exception {
-        Method method = TeacherBridge.class.getDeclaredMethod(
-                "ask", String.class, String.class, TeacherBridge.ReplyCallback.class);
-        assertFalse(Modifier.isPublic(method.getModifiers()));
+    @Test public void markerOnlyTeacherTransportApiIsAbsent() throws Exception {
+        try {
+            TeacherBridge.class.getDeclaredMethod(
+                    "ask", String.class, String.class, TeacherBridge.ReplyCallback.class);
+            fail("Marker-only teacher transport must not exist; immutable authority is required.");
+        } catch (NoSuchMethodException expected) {
+            // Expected: the legacy marker-only transport surface has been removed entirely.
+        }
     }
 }
