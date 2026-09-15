@@ -9,6 +9,8 @@ public final class TeacherSendClickEvidencePolicyTest {
         assertTrue(TeacherSendClickEvidencePolicy.mayDispatch(true, true, true, true, true, "uid:send-1", "uid:send-1"));
         assertTrue(TeacherSendClickEvidencePolicy.mayDispatch(true, true, true, true, true,
                 "anc:w7|1:A|1:B|1:C|1:D", "anc:w7|1:A|1:B|1:C|1:D"));
+        assertTrue(TeacherSendClickEvidencePolicy.mayDispatch(true, true, true, true, true,
+                "anc:w0|0:|1:B|1:C|1:D", "anc:w0|0:|1:B|1:C|1:D"));
     }
 
     @Test public void staleOrChangedTargetFailsClosed() {
@@ -43,5 +45,12 @@ public final class TeacherSendClickEvidencePolicyTest {
         assertFalse(TeacherSendClickEvidencePolicy.mayDispatch(true, true, true, true, true,
                 "anc:w7|999999999999999999999:A|1:B|1:C|1:D",
                 "anc:w7|999999999999999999999:A|1:B|1:C|1:D"));
+        assertFalse(TeacherSendClickEvidencePolicy.mayDispatch(true, true, true, true, true,
+                "anc:w999999999999999999999|1:A|1:B|1:C|1:D",
+                "anc:w999999999999999999999|1:A|1:B|1:C|1:D"));
+        assertFalse(TeacherSendClickEvidencePolicy.mayDispatch(true, true, true, true, true,
+                "anc:w07|1:A|1:B|1:C|1:D", "anc:w07|1:A|1:B|1:C|1:D"));
+        assertFalse(TeacherSendClickEvidencePolicy.mayDispatch(true, true, true, true, true,
+                "anc:w7|01:A|1:B|1:C|1:D", "anc:w7|01:A|1:B|1:C|1:D"));
     }
 }
