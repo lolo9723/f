@@ -23,14 +23,14 @@ public final class TaskState {
         boolean invalidPersistedAnchor = !restoredAnchor.isEmpty()
                 && !DesignAnchorPersistencePolicy.isPersistableAnchor(restoredAnchor);
         if (invalidPersistedAnchor) {
-            // A durable identity that current code would refuse to create must never regain authority
-            // after process restore. Drop the untrusted identity and force explicit human re-entry
-            // instead of silently continuing RUNNING against an ambiguous/spoofed Canva title.
+            // Never return an identity that current code would refuse to create. Process-level
+            // restore safety is enforced durably by TaskStateRepository before TaskState is built:
+            // a restored RUNNING task is first moved to HUMAN_TAKEOVER and its session/checkpoint
+            // authority is rotated. After the user explicitly presses DEVAM ET, the repository
+            // returns to RUNNING; keeping the stale invalid raw anchor quarantined here (as empty)
+            // lets that explicit resume proceed UNBOUND so BIND_DESIGN must establish fresh live
+            // Canva evidence. Forcing HUMAN_TAKEOVER again here would create an endless resume loop.
             restoredAnchor = "";
-            if (restoredMode == Mode.RUNNING) {
-                restoredMode = Mode.HUMAN_TAKEOVER;
-                restoredReason = "Kalıcı tasarım kimliği güvenli biçimde doğrulanamadı. Canva'daki mevcut tasarımı kontrol edip DEVAM ET'e bas.";
-            }
         }
         this.designAnchor = restoredAnchor;
         this.lastSafeSnapshotHash = invalidPersistedAnchor ? "" : (lastSafeSnapshotHash == null ? "" : lastSafeSnapshotHash);
