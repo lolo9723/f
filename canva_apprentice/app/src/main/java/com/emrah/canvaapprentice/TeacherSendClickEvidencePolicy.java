@@ -40,6 +40,7 @@ final class TeacherSendClickEvidencePolicy {
         int windowStart = p;
         while (p < value.length() && Character.isDigit(value.charAt(p))) p++;
         if (p == windowStart || p >= value.length() || value.charAt(p) != '|') return false;
+        if (!isCanonicalNonNegativeInt(value, windowStart, p)) return false;
 
         int fieldCount = 0;
         while (p < value.length()) {
@@ -47,6 +48,7 @@ final class TeacherSendClickEvidencePolicy {
             int lenStart = p;
             while (p < value.length() && Character.isDigit(value.charAt(p))) p++;
             if (p == lenStart || p >= value.length() || value.charAt(p++) != ':') return false;
+            if (!isCanonicalNonNegativeInt(value, lenStart, p - 1)) return false;
             final int declaredLength;
             try {
                 declaredLength = Integer.parseInt(value.substring(lenStart, p - 1));
@@ -59,5 +61,15 @@ final class TeacherSendClickEvidencePolicy {
             if (p < value.length() && value.charAt(p) != '|') return false;
         }
         return fieldCount >= 4 && fieldCount % 2 == 0;
+    }
+
+    private static boolean isCanonicalNonNegativeInt(String value, int start, int endExclusive) {
+        if (start < 0 || endExclusive <= start || endExclusive > value.length()) return false;
+        if (endExclusive - start > 1 && value.charAt(start) == '0') return false;
+        try {
+            return Integer.parseInt(value.substring(start, endExclusive)) >= 0;
+        } catch (NumberFormatException ex) {
+            return false;
+        }
     }
 }
