@@ -52,5 +52,9 @@ public final class TeacherSendClickEvidencePolicyTest {
                 "anc:w07|1:A|1:B|1:C|1:D", "anc:w07|1:A|1:B|1:C|1:D"));
         assertFalse(TeacherSendClickEvidencePolicy.mayDispatch(true, true, true, true, true,
                 "anc:w7|01:A|1:B|1:C|1:D", "anc:w7|01:A|1:B|1:C|1:D"));
+        assertFalse(TeacherSendClickEvidencePolicy.mayDispatch(true, true, true, true, true,
+                "anc:w7|0:|0:|1:C|1:D", "anc:w7|0:|0:|1:C|1:D"));
+        assertFalse(TeacherSendClickEvidencePolicy.mayDispatch(true, true, true, true, true,
+                "anc:w7|1:A|1:B|0:|0:", "anc:w7|1:A|1:B|0:|0:"));
     }
 }
