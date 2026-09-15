@@ -56,12 +56,19 @@ public final class DesignAnchorPersistencePolicyTest {
         assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity(nfc, decomposed));
         assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity(decomposed, nfc));
     }
-    @Test public void invalidRestoredRunningAnchorForcesHumanTakeoverAndDropsCheckpoint() {
-        TaskState restored = new TaskState("goal","fp","Cafe\u0301 Poster","safe","",TaskState.Mode.RUNNING,false,4);
-        assertEquals("", restored.designAnchor);
-        assertEquals("", restored.lastSafeSnapshotHash);
-        assertEquals(TaskState.Mode.HUMAN_TAKEOVER, restored.mode);
-        assertTrue(restored.humanReason.contains("DEVAM ET"));
+    @Test public void invalidAnchorIsQuarantinedWithoutReenteringHumanTakeoverAfterExplicitResume() {
+        TaskState resumed = new TaskState("goal","fp","Cafe\u0301 Poster","safe","",TaskState.Mode.RUNNING,false,4);
+        assertEquals("", resumed.designAnchor);
+        assertEquals("", resumed.lastSafeSnapshotHash);
+        assertEquals(TaskState.Mode.RUNNING, resumed.mode);
+        assertEquals("", resumed.humanReason);
+    }
+    @Test public void invalidAnchorStaysQuarantinedDuringHumanTakeover() {
+        TaskState waiting = new TaskState("goal","fp","Cafe\u0301 Poster","safe","verify",TaskState.Mode.HUMAN_TAKEOVER,false,4);
+        assertEquals("", waiting.designAnchor);
+        assertEquals("", waiting.lastSafeSnapshotHash);
+        assertEquals(TaskState.Mode.HUMAN_TAKEOVER, waiting.mode);
+        assertEquals("verify", waiting.humanReason);
     }
     @Test public void validRestoredAnchorKeepsRunningAuthority() {
         TaskState restored = new TaskState("goal","fp","Caf\u00e9 Poster","safe","",TaskState.Mode.RUNNING,false,4);
