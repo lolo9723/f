@@ -43,6 +43,7 @@ final class TeacherSendClickEvidencePolicy {
         if (!isCanonicalNonNegativeInt(value, windowStart, p)) return false;
 
         int fieldCount = 0;
+        boolean previousFieldEmpty = false;
         while (p < value.length()) {
             if (value.charAt(p++) != '|') return false;
             int lenStart = p;
@@ -58,6 +59,14 @@ final class TeacherSendClickEvidencePolicy {
             if (declaredLength < 0 || declaredLength > value.length() - p) return false;
             p += declaredLength;
             fieldCount++;
+            boolean currentFieldEmpty = declaredLength == 0;
+            if (fieldCount % 2 == 1) {
+                previousFieldEmpty = currentFieldEmpty;
+            } else if (previousFieldEmpty && currentFieldEmpty) {
+                // composeStructuralAncestryIdentity never emits a class/view-id pair
+                // with both fields empty; accepting one would make revalidation non-canonical.
+                return false;
+            }
             if (p < value.length() && value.charAt(p) != '|') return false;
         }
         return fieldCount >= 4 && fieldCount % 2 == 0;
