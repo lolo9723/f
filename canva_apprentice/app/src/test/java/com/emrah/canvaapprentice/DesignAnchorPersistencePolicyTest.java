@@ -82,6 +82,17 @@ public final class DesignAnchorPersistencePolicyTest {
                 "Existing design", "Existing\uD800design"));
     }
 
+    @Test public void rejectsCanonicallyEquivalentButNonNfcAnchors() {
+        String nfc = "Caf\u00e9 Poster";
+        String decomposed = "Cafe\u0301 Poster";
+        assertTrue(DesignAnchorPersistencePolicy.mayCommit(
+                TaskState.Mode.RUNNING,"session-a","session-a",nfc));
+        assertFalse(DesignAnchorPersistencePolicy.mayCommit(
+                TaskState.Mode.RUNNING,"session-a","session-a",decomposed));
+        assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity(nfc, decomposed));
+        assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity(decomposed, nfc));
+    }
+
     @Test public void allowsFirstBindAndIdempotentRebind() {
         assertTrue(DesignAnchorPersistencePolicy.preservesBoundIdentity("", "Existing design"));
         assertTrue(DesignAnchorPersistencePolicy.preservesBoundIdentity(
