@@ -32,6 +32,18 @@ public class TeacherUiPolicyTest {
         assertFalse(TeacherUiPolicy.isExactSendLabel("\u2066Send\u2069"));
     }
 
+    @Test public void rejectsMalformedUtf16InsideSendAccessibilityEvidence() {
+        assertFalse(TeacherUiPolicy.isExactSendLabel("Send\uD800"));
+        assertFalse(TeacherUiPolicy.isExactSendLabel("\uDC00Send"));
+        assertFalse(TeacherUiPolicy.isExactSendLabel("Mesaj gönder\uDFFF"));
+        assertFalse(TeacherUiPolicy.isUsableSend(true, true, "Send\uD800", ""));
+        assertFalse(TeacherUiPolicy.isUsableSend(true, true, "Send", "Gönder\uDC00"));
+    }
+
+    @Test public void validSupplementaryUnicodeDoesNotBecomeMalformedEvidence() {
+        assertFalse(TeacherUiPolicy.isExactSendLabel("Send \uD83D\uDE80"));
+    }
+
     @Test public void hiddenOrDisabledEditorsAreNeverUsable() {
         assertTrue(TeacherUiPolicy.isUsableEditable(true, true, true));
         assertFalse(TeacherUiPolicy.isUsableEditable(false, true, true));
