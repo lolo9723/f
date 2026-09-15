@@ -117,14 +117,9 @@ public final class TeacherBridge {
             }
             AccessibilityNodeInfo beforeSendRoot = service.getRootInActiveWindow();
             DispatchEvidenceSnapshot dispatchEvidence = captureDispatchEvidence(beforeSendRoot, authority.marker);
-            if (!isTransportCurrent(sessionId, requestToken, authority)) {
-                discardStaleRequest();
-                return;
-            }
-            AccessibilityNodeInfo sendClickTarget = dispatchEvidence.uniqueSendClickTarget();
-            if (sendClickTarget == null || !clickCapturedNode(sendClickTarget)) {
+            if (!revalidateAndClickCapturedSend(dispatchEvidence, sessionId, requestToken, authority)) {
                 failCurrentRequest(sessionId, requestToken, callback,
-                        "ChatGPT görüntülü mesaj gönder düğmesi tekil ve güvenli biçimde doğrulanamadı.");
+                        "ChatGPT görüntülü mesaj gönder düğmesi tekil ve güvenli biçimde yeniden doğrulanamadı.");
                 return;
             }
             pollReply(authority, sessionId, requestToken, callback, 0, dispatchEvidence.replyBaseline);
@@ -184,14 +179,9 @@ public final class TeacherBridge {
         }
         AccessibilityNodeInfo beforeSendRoot = service.getRootInActiveWindow();
         DispatchEvidenceSnapshot dispatchEvidence = captureDispatchEvidence(beforeSendRoot, authority.marker);
-        if (!isTransportCurrent(sessionId, requestToken, authority)) {
-            discardStaleRequest();
-            return;
-        }
-        AccessibilityNodeInfo sendClickTarget = dispatchEvidence.uniqueSendClickTarget();
-        if (sendClickTarget == null || !clickCapturedNode(sendClickTarget)) {
+        if (!revalidateAndClickCapturedSend(dispatchEvidence, sessionId, requestToken, authority)) {
             failCurrentRequest(sessionId, requestToken, callback,
-                    "ChatGPT gönder düğmesi tekil ve güvenli biçimde doğrulanamadı.");
+                    "ChatGPT gönder düğmesi tekil ve güvenli biçimde yeniden doğrulanamadı.");
             return;
         }
         pollReply(authority, sessionId, requestToken, callback, 0, dispatchEvidence.replyBaseline);
@@ -277,6 +267,50 @@ public final class TeacherBridge {
 
     private void discardStaleRequest() {
     }
+
+    private boolean revalidateAndClickCapturedSend(DispatchEvidenceSnapshot evidence,
+                                                   String sessionId,
+                                                   String requestToken,
+                                                   TeacherRequestAuthority authority) {
+        if (evidence == null || evidence.uniqueSendClickTarget() == null
+                || evidence.sendClickTargetIdentity.isEmpty()) return false;
+        if (!isTransportCurrent(sessionId, requestToken, authority)) return false;
+        AccessibilityNodeInfo currentRoot = service.getRootInActiveWindow();
+        if (!AgentConstants.CHATGPT_PACKAGE.equals(packageOf(currentRoot))) return false;
+        AccessibilityNodeInfo currentTarget = findUniqueNodeByIdentity(currentRoot, evidence.sendClickTargetIdentity);
+        if (currentTarget == null) return false;
+        String currentIdentity = stableNodeIdentity(currentTarget);
+        boolean transportCurrent = isTransportCurrent(sessionId, requestToken, authority);
+        if (!TeacherSendClickEvidencePolicy.mayDispatch(
+                transportCurrent,
+                true,
+                currentTarget.isVisibleToUser(),
+                currentTarget.isEnabled(),
+                currentTarget.isClickable(),
+                evidence.sendClickTargetIdentity,
+                currentIdentity)) return false;
+        return currentTarget.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+    }
+
+    private static AccessibilityNodeInfo findUniqueNodeByIdentity(AccessibilityNodeInfo root, String identity) {
+        if (root == null || identity == null || identity.isEmpty()) return null;
+        AccessibilityNodeInfo match = null;
+        Deque<AccessibilityNodeInfo> q = new ArrayDeque<>();
+        q.add(root);
+        while (!q.isEmpty()) {
+            AccessibilityNodeInfo n = q.removeFirst();
+            if (identity.equals(stableNodeIdentity(n))) {
+                if (match != null) return null;
+                match = n;
+            }
+            for (int i = 0; i < n.getChildCount(); i++) {
+                AccessibilityNodeInfo c = n.getChild(i);
+                if (c != null) q.add(c);
+            }
+        }
+        return match;
+    }
+
     private static AccessibilityNodeInfo findEditable(AccessibilityNodeInfo root) {
         if (root == null) return null;
         AccessibilityNodeInfo last = null;
@@ -327,13 +361,16 @@ public final class TeacherBridge {
     private static final class DispatchEvidenceSnapshot {
         final ReplyEvidenceSnapshot replyBaseline;
         final AccessibilityNodeInfo sendClickTarget;
+        final String sendClickTargetIdentity;
         final int usableSendNodeCount;
 
         DispatchEvidenceSnapshot(ReplyEvidenceSnapshot replyBaseline,
                                  AccessibilityNodeInfo sendClickTarget,
+                                 String sendClickTargetIdentity,
                                  int usableSendNodeCount) {
             this.replyBaseline = replyBaseline;
             this.sendClickTarget = sendClickTarget;
+            this.sendClickTargetIdentity = sendClickTargetIdentity == null ? "" : sendClickTargetIdentity;
             this.usableSendNodeCount = usableSendNodeCount;
         }
 
@@ -348,10 +385,11 @@ public final class TeacherBridge {
         Map<String, Integer> identityCounts = new HashMap<>();
         List<ReplyNodeEvidence> nodes = new ArrayList<>();
         AccessibilityNodeInfo sendClickTarget = null;
+        String sendClickTargetIdentity = "";
         int usableSendNodeCount = 0;
         if (root == null) {
             return new DispatchEvidenceSnapshot(
-                    new ReplyEvidenceSnapshot(texts, identities, identityCounts, nodes), null, 0);
+                    new ReplyEvidenceSnapshot(texts, identities, identityCounts, nodes), null, "", 0);
         }
 
         Deque<AccessibilityNodeInfo> q = new ArrayDeque<>();
@@ -373,8 +411,13 @@ public final class TeacherBridge {
             String description = text(n.getContentDescription());
             if (TeacherUiPolicy.isUsableSend(n.isVisibleToUser(), n.isEnabled(), value, description)) {
                 usableSendNodeCount++;
-                if (usableSendNodeCount == 1) sendClickTarget = firstClickableNodeOrParent(n);
-                else sendClickTarget = null;
+                if (usableSendNodeCount == 1) {
+                    sendClickTarget = firstClickableNodeOrParent(n);
+                    sendClickTargetIdentity = stableNodeIdentity(sendClickTarget);
+                } else {
+                    sendClickTarget = null;
+                    sendClickTargetIdentity = "";
+                }
             }
 
             for (int i = 0; i < n.getChildCount(); i++) {
@@ -384,7 +427,7 @@ public final class TeacherBridge {
         }
         return new DispatchEvidenceSnapshot(
                 new ReplyEvidenceSnapshot(texts, identities, identityCounts, nodes),
-                sendClickTarget, usableSendNodeCount);
+                sendClickTarget, sendClickTargetIdentity, usableSendNodeCount);
     }
 
     private static ReplyEvidenceSnapshot captureReplyEvidence(AccessibilityNodeInfo root, String marker) {
@@ -571,11 +614,6 @@ public final class TeacherBridge {
         AccessibilityNodeInfo x = n;
         while (x != null && !x.isClickable()) x = x.getParent();
         return x;
-    }
-
-    private static boolean clickCapturedNode(AccessibilityNodeInfo n) {
-        return n != null && n.isClickable()
-                && n.performAction(AccessibilityNodeInfo.ACTION_CLICK);
     }
 
     private static String text(CharSequence value) {
