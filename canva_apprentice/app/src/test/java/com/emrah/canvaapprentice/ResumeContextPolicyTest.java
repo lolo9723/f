@@ -61,6 +61,15 @@ public class ResumeContextPolicyTest {
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design\u2028A","session-2","Design\u2028A","session-2"));
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Design\u2029A","session-2","Design\u2029A","session-2"));
     }
+    @Test public void nonNfcAnchorFailsClosedEvenWhenBothSidesMatch(){
+        String decomposed = "Cafe\u0301 Design";
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,decomposed,"session-2",decomposed,"session-2"));
+        assertTrue(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"Caf\u00E9 Design","session-2","Caf\u00E9 Design","session-2"));
+    }
+    @Test public void unboundSentinelNeverBecomesResumeAuthority(){
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"UNBOUND","session-2","UNBOUND","session-2"));
+        assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,"unbound","session-2","unbound","session-2"));
+    }
     @Test public void malformedSurrogateAnchorIdentityFailsClosedEvenWhenBothSidesMatch(){
         String malformed = "Design" + '\uDFFF' + "A";
         assertFalse(ResumeContextPolicy.isCurrent(TaskState.Mode.RUNNING,malformed,"session-2",malformed,"session-2"));
