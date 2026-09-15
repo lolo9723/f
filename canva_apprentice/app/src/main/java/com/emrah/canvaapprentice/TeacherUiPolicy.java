@@ -18,12 +18,22 @@ public final class TeacherUiPolicy {
 
     private static boolean hasUnsafeAccessibilityFormatting(String raw) {
         for (int offset = 0; offset < raw.length();) {
+            char unit = raw.charAt(offset);
+            if (Character.isHighSurrogate(unit)) {
+                if (offset + 1 >= raw.length() || !Character.isLowSurrogate(raw.charAt(offset + 1))) {
+                    return true;
+                }
+            } else if (Character.isLowSurrogate(unit)) {
+                return true;
+            }
+
             int codePoint = raw.codePointAt(offset);
             int type = Character.getType(codePoint);
             if (Character.isISOControl(codePoint)
                     || type == Character.FORMAT
                     || type == Character.LINE_SEPARATOR
-                    || type == Character.PARAGRAPH_SEPARATOR) {
+                    || type == Character.PARAGRAPH_SEPARATOR
+                    || type == Character.SURROGATE) {
                 return true;
             }
             offset += Character.charCount(codePoint);
