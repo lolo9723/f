@@ -11,8 +11,6 @@ final class ResumeContextPolicy {
         // Resume ownership is identity-bearing authority. Never trim or otherwise normalize
         // session ids or design anchors here: "session-2" and " session-2 " (or the same
         // distinction for an anchor) must not be allowed to collapse into one authority.
-        // A corrupted/padded persisted value therefore fails closed instead of silently
-        // re-attaching a DEVAM ET chain to the wrong execution context.
         String currentSession = exact(currentSessionId);
         String expectedSession = exact(expectedSessionId);
         if (!isCanonicalSessionIdentity(expectedSession)
@@ -24,17 +22,20 @@ final class ResumeContextPolicy {
         String current = exact(currentAnchor);
         String expected = exact(expectedAnchor);
 
-        // An empty design anchor is a legitimate pre-bind task state: a newly started task may
-        // be RUNNING before a unique existing Canva design has been proven and bound. Service
-        // restoration / DEVAM ET must be able to resume that same unbound state, otherwise a
-        // process restart can strand a valid task forever. Empty is allowed only symmetrically;
-        // one empty and one bound anchor is still a continuity mismatch and fails closed.
+        // Empty is the only authority-free design state that may resume. It forces the next
+        // teacher cycle to prove and BIND_DESIGN from the live Canva editor before a durable
+        // design identity exists again.
         if (current.isEmpty() || expected.isEmpty()) {
             return current.isEmpty() && expected.isEmpty();
         }
 
-        if (!isCanonicalAnchorIdentity(expected)
-                || !isCanonicalAnchorIdentity(current)
+        // Resume must accept exactly the same design-identity language as durable persistence.
+        // In particular, canonically equivalent but non-NFC Unicode titles must never become
+        // resume authority merely because the same corrupted value appears on both sides.
+        if (!DesignAnchorPersistencePolicy.isPersistableAnchor(current)
+                || !DesignAnchorPersistencePolicy.isPersistableAnchor(expected)
+                || !current.equals(current.trim())
+                || !expected.equals(expected.trim())
                 || !expected.equals(current)) {
             return false;
         }
@@ -59,25 +60,12 @@ final class ResumeContextPolicy {
         return true;
     }
 
-    private static boolean isCanonicalAnchorIdentity(String value) {
-        if (value == null || value.isEmpty() || !value.equals(value.trim())) return false;
-        for (int i = 0; i < value.length();) {
-            int codePoint = value.codePointAt(i);
-            if (isForbiddenIdentityCodePoint(codePoint)) return false;
-            i += Character.charCount(codePoint);
-        }
-        return true;
-    }
-
     private static boolean isForbiddenIdentityCodePoint(int codePoint) {
         int type = Character.getType(codePoint);
         return Character.isISOControl(codePoint)
                 || type == Character.FORMAT
                 || type == Character.LINE_SEPARATOR
                 || type == Character.PARAGRAPH_SEPARATOR
-                // A lone UTF-16 surrogate is malformed Unicode but can still exist in a Java
-                // String. If the same corrupted value is persisted on both sides, exact equality
-                // must not accidentally turn it into resume authority.
                 || type == Character.SURROGATE;
     }
 }
