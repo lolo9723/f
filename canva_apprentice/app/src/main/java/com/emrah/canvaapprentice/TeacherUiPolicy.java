@@ -7,7 +7,10 @@ public final class TeacherUiPolicy {
 
     public static boolean isExactSendLabel(String raw) {
         if (raw == null || hasUnsafeAccessibilityFormatting(raw)) return false;
-        String s = raw.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
+        // Fail closed on padding: an exact transport control must expose the exact label,
+        // not a look-alike that only becomes trusted after trimming attacker/stale UI data.
+        if (!raw.equals(raw.trim())) return false;
+        String s = raw.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
         return s.equals("send") ||
                 s.equals("send message") ||
                 s.equals("send prompt") ||
