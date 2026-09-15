@@ -11,8 +11,8 @@ import org.junit.Test;
 
 /**
  * Dispatch provenance must bind the reply baseline, Send candidate, and concrete clickable
- * target to the same accessibility evidence pass. Resolving a clickable parent after capture
- * can observe a different UI state and redirect the dispatch outside the measured provenance.
+ * target to the same accessibility evidence pass. The captured target must then be reacquired
+ * by stable identity and fail closed unless the live node is still unique and safe to click.
  */
 public final class TeacherDispatchEvidenceAtomicityTest {
     private static String source() throws Exception {
@@ -42,13 +42,15 @@ public final class TeacherDispatchEvidenceAtomicityTest {
     @Test public void dispatchFailsClosedOnAmbiguousSendCandidates() throws Exception {
         String source = source();
         assertTrue(source.contains("return usableSendNodeCount == 1 ? sendClickTarget : null;"));
-        assertTrue(source.contains("AccessibilityNodeInfo sendClickTarget = dispatchEvidence.uniqueSendClickTarget();"));
+        assertTrue(source.contains("evidence.uniqueSendClickTarget() == null"));
+        assertTrue("live identity lookup must reject duplicate matches",
+                source.contains("if (match != null) return null;"));
     }
 
     @Test public void clickableParentIsBoundDuringEvidenceCapture() throws Exception {
         String source = source();
         assertTrue(source.contains("sendClickTarget = firstClickableNodeOrParent(n);"));
-        assertTrue(source.contains("clickCapturedNode(sendClickTarget)"));
+        assertTrue(source.contains("sendClickTargetIdentity = stableNodeIdentity(sendClickTarget);"));
         assertFalse("dispatch must not traverse parents after evidence capture",
                 source.contains("clickNodeOrParent("));
 
@@ -59,20 +61,36 @@ public final class TeacherDispatchEvidenceAtomicityTest {
                 capture >= 0 && bind > capture && captureEnd > bind);
     }
 
-    @Test public void authorityIsRecheckedAfterEvidenceCaptureBeforeClick() throws Exception {
+    @Test public void capturedSendIsReacquiredAndRevalidatedBeforeClick() throws Exception {
         String source = source();
+        assertTrue(source.contains("AccessibilityNodeInfo currentTarget = findUniqueNodeByIdentity(currentRoot, evidence.sendClickTargetIdentity);"));
+        assertTrue(source.contains("TeacherSendClickEvidencePolicy.mayDispatch("));
+        assertTrue(source.contains("return currentTarget.performAction(AccessibilityNodeInfo.ACTION_CLICK);"));
+
         String token = "DispatchEvidenceSnapshot dispatchEvidence = captureDispatchEvidence(beforeSendRoot, authority.marker);";
         int first = source.indexOf(token);
         assertTrue(first >= 0);
-        int recheck = source.indexOf("if (!isTransportCurrent(sessionId, requestToken, authority))", first + token.length());
-        int click = source.indexOf("clickCapturedNode(sendClickTarget)", first + token.length());
-        assertTrue("transport authority must be rechecked after evidence capture", recheck > first);
-        assertTrue("recheck must happen before the actual click", click > recheck);
+        int revalidate = source.indexOf("revalidateAndClickCapturedSend(dispatchEvidence, sessionId, requestToken, authority)", first + token.length());
+        int poll = source.indexOf("pollReply(authority, sessionId, requestToken, callback, 0, dispatchEvidence.replyBaseline);", first + token.length());
+        assertTrue("captured Send must be revalidated after evidence capture", revalidate > first);
+        assertTrue("reply polling must start only after revalidated dispatch", poll > revalidate);
 
         int second = source.indexOf(token, first + token.length());
         assertTrue(second > first);
-        recheck = source.indexOf("if (!isTransportCurrent(sessionId, requestToken, authority))", second + token.length());
-        click = source.indexOf("clickCapturedNode(sendClickTarget)", second + token.length());
-        assertTrue(recheck > second && click > recheck);
+        revalidate = source.indexOf("revalidateAndClickCapturedSend(dispatchEvidence, sessionId, requestToken, authority)", second + token.length());
+        poll = source.indexOf("pollReply(authority, sessionId, requestToken, callback, 0, dispatchEvidence.replyBaseline);", second + token.length());
+        assertTrue(revalidate > second && poll > revalidate);
+    }
+
+    @Test public void authorityIsRecheckedInsideRevalidationBeforeLiveLookupAndClick() throws Exception {
+        String source = source();
+        int method = source.indexOf("private boolean revalidateAndClickCapturedSend");
+        assertTrue(method >= 0);
+        int recheck = source.indexOf("if (!isTransportCurrent(sessionId, requestToken, authority)) return false;", method);
+        int liveRoot = source.indexOf("AccessibilityNodeInfo currentRoot = service.getRootInActiveWindow();", method);
+        int secondRecheck = source.indexOf("boolean transportCurrent = isTransportCurrent(sessionId, requestToken, authority);", liveRoot);
+        int click = source.indexOf("return currentTarget.performAction(AccessibilityNodeInfo.ACTION_CLICK);", method);
+        assertTrue("authority must be current before reacquiring live UI", recheck > method && liveRoot > recheck);
+        assertTrue("authority must be rechecked after reacquire and before click", secondRecheck > liveRoot && click > secondRecheck);
     }
 }
