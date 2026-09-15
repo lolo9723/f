@@ -1,5 +1,7 @@
 package com.emrah.canvaapprentice;
 
+import java.text.Normalizer;
+
 /**
  * Fail-closed persistence guard for design identity commits.
  * A live-editor observation must belong to the same teacher session that originated
@@ -48,12 +50,17 @@ public final class DesignAnchorPersistencePolicy {
         String existing = normalize(existingAnchor);
         String target = normalize(targetAnchor);
         if (!isPersistableAnchor(target)) return false;
+        if (!existing.isEmpty() && !isPersistableAnchor(existing)) return false;
         return existing.isEmpty() || existing.equals(target);
     }
 
     static boolean isPersistableAnchor(String anchor) {
         String value = normalize(anchor);
         if (value.isEmpty() || UNBOUND_SENTINEL.equalsIgnoreCase(value)) return false;
+        // Canonically equivalent Unicode strings must not become distinct durable design identities.
+        // Reject non-NFC input instead of silently rewriting teacher/live UI evidence at an authority
+        // boundary; the caller must observe the exact canonical title before it can be persisted.
+        if (!Normalizer.isNormalized(value, Normalizer.Form.NFC)) return false;
         for (int i = 0; i < value.length();) {
             int codePoint = value.codePointAt(i);
             int type = Character.getType(codePoint);
