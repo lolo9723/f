@@ -23,37 +23,19 @@ public final class SafetyGate {
 
     public Decision evaluate(AgentAction action, TaskState state, String activePackage) {
         if (action == null) return Decision.block("Boş eylem uygulanamaz.");
-        // A malformed/forward-incompatible teacher response must never fall through as a
-        // high-confidence generic action. Several checks below intentionally compare known
-        // enum values; a null type would skip all of them and could otherwise reach ALLOW,
-        // only to crash or behave unpredictably at the executor boundary. Fail closed here.
         if (action.type == null) return Decision.block("Eylem türü doğrulanamadı; bilinmeyen komut uygulanamaz.");
         if (state == null) return Decision.block("Görev durumu doğrulanamadı; eylem uygulanamaz.");
         if (state.mode != TaskState.Mode.RUNNING) return Decision.block("Ajan çalışma modunda değil.");
 
-        // ChatGPT is an allowed companion app for teacher communication, but it is never an
-        // execution surface. UI actions must fail closed unless Canva itself is the active app.
-        // This keeps a future caller from accidentally reusing ALLOWED_PACKAGES as permission
-        // to click/type inside ChatGPT or any other companion package.
         if (!AgentConstants.CANVA_PACKAGE.equals(activePackage)) {
             return Decision.block("Eylem yüzeyi Canva değil; başka uygulamada işlem uygulanamaz.");
         }
 
-        // Execution lease is a runtime safety boundary, not merely a continuity hint.
-        // A teacher-produced action that belonged to an older request must never pass
-        // the general safety gate after a newer teacher request has rotated the lease.
-        // Keep unleased locally-constructed/test actions compatible, but fail closed
-        // for every non-empty stale teacher lease before confidence/target checks.
         if (!action.executionLeaseToken.isEmpty()
                 && !TeacherExecutionLease.isGlobalCurrent(action.executionLeaseToken)) {
             return Decision.block("Eski öğretmen eylemi geçersiz execution lease nedeniyle engellendi.");
         }
 
-        // A screenshot-grounded production mutation is meaningful only as the result of one
-        // exact live VISUAL teacher request. A merely non-empty/current structural lease is not
-        // visual authority: legacy parser callers must not be able to upgrade it by setting
-        // visualGrounded=true. JVM policy tests run without a live AccessibilityService, so
-        // ordinary locally-constructed test actions remain usable while production fails closed.
         if (!visualTeacherLeaseMayExecute(
                 AgentAccessibilityService.INSTANCE != null,
                 action.visualGrounded,
@@ -61,33 +43,29 @@ public final class SafetyGate {
             return Decision.block("Görüntülü öğretmen eylemi geçerli visual execution lease taşımıyor; kanıtsız visual mutasyon uygulanmadı.");
         }
 
-        // Teacher-produced exact-node actions must carry the complete compact UI-row proof.
-        // A leased CLICK_NODE/SET_NODE_TEXT with only index+label is not "exact": the row can
-        // be reordered or duplicated before execution, and letting it continue merely burns
-        // an execution attempt before ActionExecutor rejects it. Fail at the safety boundary
-        // instead, so the agent re-grounds rather than entering a retry/failure loop.
         if (!action.executionLeaseToken.isEmpty()
                 && action.isNodeAction()
                 && !NodeTargetCodec.hasStructuralEvidence(action.target)) {
             return Decision.block("Öğretmen exact-node eylemi tam yapısal düğüm kanıtı taşımıyor; hedef yeniden doğrulanmalı.");
         }
 
-        // Screenshot-grounded mutations must never execute before exact design identity has
-        // been bound. The visual teacher may inspect an unbound editor only to establish the
-        // identity (BIND_DESIGN is handled before SafetyGate by AgentAccessibilityService).
-        // Keeping this invariant here as well makes the last-mile executor fail closed even if
-        // the visual-distance callback is later refactored or accidentally bypassed.
+        // A live teacher lease is production authority. While design identity is UNBOUND,
+        // it may inspect, ask, screenshot or BACK out to recover, but it must not mutate or
+        // navigate Canva. Otherwise a post-takeover/resume teacher reply such as CLICK_TEXT
+        // "Share" could act on the wrong editor before BIND_DESIGN re-establishes continuity.
+        // BIND_DESIGN itself is handled by AgentAccessibilityService before this gate.
+        if (!action.executionLeaseToken.isEmpty()
+                && !hasBoundDesign(state)
+                && isCanvaMutationOrNavigation(action.type)) {
+            return Decision.block("Tasarım kimliği bağlı değil; canlı BIND_DESIGN kanıtından önce Canva değiştirilemez veya gezilemez.");
+        }
+
         if (action.visualGrounded && action.executionLeaseToken != null
                 && !action.executionLeaseToken.isEmpty()
-                && (state.designAnchor == null || state.designAnchor.trim().isEmpty())) {
+                && !hasBoundDesign(state)) {
             return Decision.block("Görüntülü mutasyon için mevcut tasarım kimliği henüz bağlı değil.");
         }
 
-        // Last-mile visual evidence gate. Screenshot-grounded mutations are allowed to
-        // reach ActionExecutor only while production still has the runtime-bound evidence
-        // context that authorized them and package/tree/design identity remains current.
-        // BIND_DESIGN/DONE/NOOP are handled before SafetyGate, so this does not prevent
-        // visual inspection from establishing an initial exact design anchor.
         if (action.visualGrounded && !action.executionLeaseToken.isEmpty()) {
             boolean serviceActive = AgentAccessibilityService.INSTANCE != null;
             boolean visualRuntimeCurrent = VisualEvidenceLease.visualRuntimeEvidenceMayExecute(
@@ -99,11 +77,6 @@ public final class SafetyGate {
             }
         }
 
-        // Exact-node means the exact evidenced row must itself own the capability that
-        // will be invoked. In particular, do not accept a non-clickable text child and
-        // later climb to an unverified clickable ancestor: that turns exact-node proof
-        // into an implicit/guessed target. Teacher-produced node actions carry full row
-        // evidence, so fail closed whenever that evidence contradicts the requested act.
         if (action.type == AgentAction.Type.CLICK_NODE
                 && NodeTargetCodec.hasStructuralEvidence(action.target)
                 && !NodeTargetCodec.flags(action.target).startsWith("C")) {
@@ -153,6 +126,19 @@ public final class SafetyGate {
             return Decision.block("Normalize drag koordinatı geçersiz.");
         }
         return Decision.allow();
+    }
+
+    private static boolean hasBoundDesign(TaskState state) {
+        return state.designAnchor != null && !state.designAnchor.trim().isEmpty();
+    }
+
+    private static boolean isCanvaMutationOrNavigation(AgentAction.Type type) {
+        return type == AgentAction.Type.CLICK_TEXT
+                || type == AgentAction.Type.SET_TEXT
+                || type == AgentAction.Type.CLICK_NODE
+                || type == AgentAction.Type.SET_NODE_TEXT
+                || type == AgentAction.Type.TAP_NORM
+                || type == AgentAction.Type.DRAG_NORM;
     }
 
     static boolean visualTeacherLeaseMayExecute(
