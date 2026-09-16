@@ -10,6 +10,12 @@ import java.text.Normalizer;
  */
 public final class DesignAnchorPersistencePolicy {
     private static final String UNBOUND_SENTINEL = "UNBOUND";
+    // A design title is copied into durable authority state and teacher prompts. Bound the
+    // identity defensively so a corrupted/accessibility-injected megastring cannot become
+    // persistent authority or cause unbounded prompt/state growth. This is deliberately much
+    // larger than a normal human-readable Canva title and therefore is a safety ceiling, not a
+    // product-title assumption.
+    private static final int MAX_ANCHOR_CODE_POINTS = 512;
 
     private DesignAnchorPersistencePolicy() {}
 
@@ -50,6 +56,8 @@ public final class DesignAnchorPersistencePolicy {
         String existing = normalize(existingAnchor);
         String target = normalize(targetAnchor);
         if (!isPersistableAnchor(target)) return false;
+        // Existing durable identity must itself still be admissible. Otherwise a corrupted legacy
+        // value could participate in an apparently idempotent rebind and regain authority.
         if (!existing.isEmpty() && !isPersistableAnchor(existing)) return false;
         return existing.isEmpty() || existing.equals(target);
     }
@@ -57,10 +65,8 @@ public final class DesignAnchorPersistencePolicy {
     static boolean isPersistableAnchor(String anchor) {
         String value = normalize(anchor);
         if (value.isEmpty() || UNBOUND_SENTINEL.equalsIgnoreCase(value)) return false;
-        // Canonically equivalent Unicode strings must not become distinct durable design identities.
-        // Reject non-NFC input instead of silently rewriting teacher/live UI evidence at an authority
-        // boundary; the caller must observe the exact canonical title before it can be persisted.
         if (!Normalizer.isNormalized(value, Normalizer.Form.NFC)) return false;
+        if (value.codePointCount(0, value.length()) > MAX_ANCHOR_CODE_POINTS) return false;
         for (int i = 0; i < value.length();) {
             int codePoint = value.codePointAt(i);
             int type = Character.getType(codePoint);
@@ -68,6 +74,10 @@ public final class DesignAnchorPersistencePolicy {
                     || type == Character.FORMAT
                     || type == Character.LINE_SEPARATOR
                     || type == Character.PARAGRAPH_SEPARATOR
+                    // Private-use glyphs have no stable cross-font visual meaning. They can render
+                    // as blank/tofu/different symbols across Android/Canva and are therefore unsafe
+                    // as a durable visual design identity.
+                    || type == Character.PRIVATE_USE
                     // A lone UTF-16 surrogate is malformed Unicode. Persisting it would create a
                     // design identity that later resume-safety deliberately refuses to trust,
                     // stranding the task or creating inconsistent authority boundaries.
