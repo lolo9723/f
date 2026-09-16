@@ -8,7 +8,7 @@ public class SafetyGateTeacherNodeEvidenceTest {
 
     private TaskState running() {
         return new TaskState(
-                "test goal","","","", "",
+                "test goal","","test-design-anchor","", "",
                 TaskState.Mode.RUNNING,false,0
         );
     }
