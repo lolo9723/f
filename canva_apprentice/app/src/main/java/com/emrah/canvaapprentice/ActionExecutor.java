@@ -74,10 +74,11 @@ public final class ActionExecutor {
         TaskState commitState = stateRepo.load();
         UiTreeSnapshot commitSnap = UiTreeSnapshot.capture(commitRoot);
         String commitPackage = commitRoot.getPackageName().toString();
+        String commitSnapshotHash = commitSnap.stableFingerprint();
         if (!executionCommitContextMatches(
                 commitPackage,
                 currentSnapshotHash,
-                commitSnap.stableFingerprint(),
+                commitSnapshotHash,
                 state.designAnchor,
                 commitState.designAnchor,
                 commitState.mode == TaskState.Mode.RUNNING)) {
@@ -86,7 +87,7 @@ public final class ActionExecutor {
         boolean commitAnchorVisible = !commitState.designAnchor.isEmpty()
                 && commitSnap.containsText(commitState.designAnchor);
         boolean commitMatchesLastSafe = !commitState.lastSafeSnapshotHash.isEmpty()
-                && commitState.lastSafeSnapshotHash.equals(commitSnap.stableFingerprint());
+                && commitState.lastSafeSnapshotHash.equals(commitSnapshotHash);
         if (!DesignContinuityPolicy.allows(
                 action, commitState.designAnchor, commitAnchorVisible, commitSnap.looksLikeCanvaHome(),
                 commitMatchesLastSafe)) {
@@ -105,9 +106,9 @@ public final class ActionExecutor {
             case SET_TEXT:
                 return setText(commitRoot, action.target, action.value);
             case CLICK_NODE:
-                return clickExactNode(commitRoot, action.target);
+                return clickExactNode(action.target, commitSnapshotHash, commitState.designAnchor);
             case SET_NODE_TEXT:
-                return setExactNodeText(commitRoot, action.target, action.value);
+                return setExactNodeText(action.target, action.value, commitSnapshotHash, commitState.designAnchor);
             default:
                 return false;
         }
@@ -128,14 +129,46 @@ public final class ActionExecutor {
                 && expectedDesignAnchor.equals(currentDesignAnchor);
     }
 
-    private boolean clickExactNode(AccessibilityNodeInfo root, String encodedTarget) {
-        AccessibilityNodeInfo node = verifiedCompactNode(root, encodedTarget);
+    private AccessibilityNodeInfo freshExactNodeMutationRoot(
+            String expectedFingerprint, String expectedDesignAnchor) {
+        AccessibilityNodeInfo freshRoot = service.getRootInActiveWindow();
+        if (freshRoot == null || freshRoot.getPackageName() == null) return null;
+        TaskState freshState = stateRepo.load();
+        UiTreeSnapshot freshSnap = UiTreeSnapshot.capture(freshRoot);
+        if (!executionCommitContextMatches(
+                freshRoot.getPackageName().toString(),
+                expectedFingerprint,
+                freshSnap.stableFingerprint(),
+                expectedDesignAnchor,
+                freshState.designAnchor,
+                freshState.mode == TaskState.Mode.RUNNING)) {
+            return null;
+        }
+        return freshRoot;
+    }
+
+    private boolean clickExactNode(
+            String encodedTarget, String expectedFingerprint, String expectedDesignAnchor) {
+        // Reacquire from a fresh active-window root at the mutation boundary. Never act on
+        // the node object that was structurally verified from the earlier commitRoot: Canva
+        // may replace the accessibility tree between verification and performAction().
+        AccessibilityNodeInfo freshRoot = freshExactNodeMutationRoot(
+                expectedFingerprint, expectedDesignAnchor);
+        if (freshRoot == null) return false;
+        AccessibilityNodeInfo node = verifiedCompactNode(freshRoot, encodedTarget);
         if (node == null || !node.isVisibleToUser() || !node.isEnabled() || !node.isClickable()) return false;
         return node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
     }
 
-    private boolean setExactNodeText(AccessibilityNodeInfo root, String encodedTarget, String value) {
-        AccessibilityNodeInfo node = verifiedCompactNode(root, encodedTarget);
+    private boolean setExactNodeText(
+            String encodedTarget, String value, String expectedFingerprint, String expectedDesignAnchor) {
+        // SET_NODE_TEXT gets the same last-moment fresh-root proof as CLICK_NODE. A stale
+        // editable node must never retain mutation authority merely because its old object
+        // still exists in Accessibility after the visible Canva tree has changed.
+        AccessibilityNodeInfo freshRoot = freshExactNodeMutationRoot(
+                expectedFingerprint, expectedDesignAnchor);
+        if (freshRoot == null) return false;
+        AccessibilityNodeInfo node = verifiedCompactNode(freshRoot, encodedTarget);
         if (node == null || !node.isVisibleToUser() || !node.isEditable() || !node.isEnabled()) return false;
         Bundle args = new Bundle();
         args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value);
