@@ -74,6 +74,10 @@ public final class DesignAnchorPersistencePolicy {
                     || type == Character.FORMAT
                     || type == Character.LINE_SEPARATOR
                     || type == Character.PARAGRAPH_SEPARATOR
+                    // Undefined/noncharacter code points have no stable textual or visual identity.
+                    // Accessibility corruption can surface them as replacement-like glyphs, so they
+                    // must never become a durable Canva design authority token.
+                    || type == Character.UNASSIGNED
                     // Private-use glyphs have no stable cross-font visual meaning. They can render
                     // as blank/tofu/different symbols across Android/Canva and are therefore unsafe
                     // as a durable visual design identity.
