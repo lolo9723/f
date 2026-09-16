@@ -7,12 +7,8 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 public final class DesignAnchorPersistencePolicyTest {
-    @Test public void allowsSameRunningTeacherSession() {
-        assertTrue(DesignAnchorPersistencePolicy.mayCommit(TaskState.Mode.RUNNING,"session-a","session-a","Existing design"));
-    }
-    @Test public void rejectsTeacherSessionRollover() {
-        assertFalse(DesignAnchorPersistencePolicy.mayCommit(TaskState.Mode.RUNNING,"session-a","session-b","Existing design"));
-    }
+    @Test public void allowsSameRunningTeacherSession() { assertTrue(DesignAnchorPersistencePolicy.mayCommit(TaskState.Mode.RUNNING,"session-a","session-a","Existing design")); }
+    @Test public void rejectsTeacherSessionRollover() { assertFalse(DesignAnchorPersistencePolicy.mayCommit(TaskState.Mode.RUNNING,"session-a","session-b","Existing design")); }
     @Test public void originatingActionSessionMustMatchObservationAndCommit() {
         assertTrue(DesignAnchorPersistencePolicy.mayCommit(TaskState.Mode.RUNNING,"session-a","session-a","session-a","Existing design"));
         assertFalse(DesignAnchorPersistencePolicy.mayCommit(TaskState.Mode.RUNNING,"stale-action","session-a","session-a","Existing design"));
@@ -48,6 +44,13 @@ public final class DesignAnchorPersistencePolicyTest {
         assertFalse(DesignAnchorPersistencePolicy.mayCommit(TaskState.Mode.RUNNING,"session-a","session-a","Design\uDC00spoof"));
         assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity("Existing design", "Existing\uD800design"));
     }
+    @Test public void rejectsUndefinedUnicodeDesignIdentities() {
+        String undefined = "Poster " + new String(Character.toChars(0x0378)) + " identity";
+        assertEquals(Character.UNASSIGNED, Character.getType(0x0378));
+        assertFalse(DesignAnchorPersistencePolicy.mayCommit(TaskState.Mode.RUNNING,"session-a","session-a",undefined));
+        assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity("", undefined));
+        assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity(undefined, undefined));
+    }
     @Test public void rejectsCanonicallyEquivalentButNonNfcAnchors() {
         String nfc = "Caf\u00e9 Poster";
         String decomposed = "Cafe\u0301 Poster";
@@ -57,50 +60,33 @@ public final class DesignAnchorPersistencePolicyTest {
         assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity(decomposed, nfc));
     }
     @Test public void rejectsOversizedAndPrivateUseDesignIdentities() {
-        StringBuilder oversized = new StringBuilder();
-        for (int i = 0; i < 513; i++) oversized.append('A');
-        assertFalse(DesignAnchorPersistencePolicy.mayCommit(
-                TaskState.Mode.RUNNING,"session-a","session-a",oversized.toString()));
+        StringBuilder oversized = new StringBuilder(); for (int i = 0; i < 513; i++) oversized.append('A');
+        assertFalse(DesignAnchorPersistencePolicy.mayCommit(TaskState.Mode.RUNNING,"session-a","session-a",oversized.toString()));
         assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity("", oversized.toString()));
-        assertFalse(DesignAnchorPersistencePolicy.mayCommit(
-                TaskState.Mode.RUNNING,"session-a","session-a","Poster \uE000 identity"));
-        assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity(
-                "Poster \uE000 identity", "Poster \uE000 identity"));
+        assertFalse(DesignAnchorPersistencePolicy.mayCommit(TaskState.Mode.RUNNING,"session-a","session-a","Poster \uE000 identity"));
+        assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity("Poster \uE000 identity", "Poster \uE000 identity"));
     }
     @Test public void acceptsLargeButBoundedUnicodeIdentity() {
-        StringBuilder bounded = new StringBuilder();
-        for (int i = 0; i < 511; i++) bounded.append('A');
-        bounded.appendCodePoint(0x1F3A8);
+        StringBuilder bounded = new StringBuilder(); for (int i = 0; i < 511; i++) bounded.append('A'); bounded.appendCodePoint(0x1F3A8);
         assertEquals(512, bounded.codePointCount(0, bounded.length()));
-        assertTrue(DesignAnchorPersistencePolicy.mayCommit(
-                TaskState.Mode.RUNNING,"session-a","session-a",bounded.toString()));
+        assertTrue(DesignAnchorPersistencePolicy.mayCommit(TaskState.Mode.RUNNING,"session-a","session-a",bounded.toString()));
     }
     @Test public void invalidAnchorIsQuarantinedWithoutReenteringHumanTakeoverAfterExplicitResume() {
         TaskState resumed = new TaskState("goal","fp","Cafe\u0301 Poster","safe","",TaskState.Mode.RUNNING,false,4);
-        assertEquals("", resumed.designAnchor);
-        assertEquals("", resumed.lastSafeSnapshotHash);
-        assertEquals(TaskState.Mode.RUNNING, resumed.mode);
-        assertEquals("", resumed.humanReason);
+        assertEquals("", resumed.designAnchor); assertEquals("", resumed.lastSafeSnapshotHash); assertEquals(TaskState.Mode.RUNNING, resumed.mode); assertEquals("", resumed.humanReason);
     }
     @Test public void invalidAnchorStaysQuarantinedDuringHumanTakeover() {
         TaskState waiting = new TaskState("goal","fp","Cafe\u0301 Poster","safe","verify",TaskState.Mode.HUMAN_TAKEOVER,false,4);
-        assertEquals("", waiting.designAnchor);
-        assertEquals("", waiting.lastSafeSnapshotHash);
-        assertEquals(TaskState.Mode.HUMAN_TAKEOVER, waiting.mode);
-        assertEquals("verify", waiting.humanReason);
+        assertEquals("", waiting.designAnchor); assertEquals("", waiting.lastSafeSnapshotHash); assertEquals(TaskState.Mode.HUMAN_TAKEOVER, waiting.mode); assertEquals("verify", waiting.humanReason);
     }
     @Test public void validRestoredAnchorKeepsRunningAuthority() {
         TaskState restored = new TaskState("goal","fp","Caf\u00e9 Poster","safe","",TaskState.Mode.RUNNING,false,4);
-        assertEquals("Caf\u00e9 Poster", restored.designAnchor);
-        assertEquals("safe", restored.lastSafeSnapshotHash);
-        assertEquals(TaskState.Mode.RUNNING, restored.mode);
+        assertEquals("Caf\u00e9 Poster", restored.designAnchor); assertEquals("safe", restored.lastSafeSnapshotHash); assertEquals(TaskState.Mode.RUNNING, restored.mode);
     }
     @Test public void allowsFirstBindAndIdempotentRebind() {
-        assertTrue(DesignAnchorPersistencePolicy.preservesBoundIdentity("", "Existing design"));
-        assertTrue(DesignAnchorPersistencePolicy.preservesBoundIdentity("Existing design", " Existing design "));
+        assertTrue(DesignAnchorPersistencePolicy.preservesBoundIdentity("", "Existing design")); assertTrue(DesignAnchorPersistencePolicy.preservesBoundIdentity("Existing design", " Existing design "));
     }
     @Test public void rejectsRetargetingAlreadyBoundDesign() {
-        assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity("Existing design", "Different design"));
-        assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity("Existing design", "   "));
+        assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity("Existing design", "Different design")); assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity("Existing design", "   "));
     }
 }
