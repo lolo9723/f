@@ -56,6 +56,25 @@ public final class DesignAnchorPersistencePolicyTest {
         assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity(nfc, decomposed));
         assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity(decomposed, nfc));
     }
+    @Test public void rejectsOversizedAndPrivateUseDesignIdentities() {
+        StringBuilder oversized = new StringBuilder();
+        for (int i = 0; i < 513; i++) oversized.append('A');
+        assertFalse(DesignAnchorPersistencePolicy.mayCommit(
+                TaskState.Mode.RUNNING,"session-a","session-a",oversized.toString()));
+        assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity("", oversized.toString()));
+        assertFalse(DesignAnchorPersistencePolicy.mayCommit(
+                TaskState.Mode.RUNNING,"session-a","session-a","Poster \uE000 identity"));
+        assertFalse(DesignAnchorPersistencePolicy.preservesBoundIdentity(
+                "Poster \uE000 identity", "Poster \uE000 identity"));
+    }
+    @Test public void acceptsLargeButBoundedUnicodeIdentity() {
+        StringBuilder bounded = new StringBuilder();
+        for (int i = 0; i < 511; i++) bounded.append('A');
+        bounded.appendCodePoint(0x1F3A8);
+        assertEquals(512, bounded.codePointCount(0, bounded.length()));
+        assertTrue(DesignAnchorPersistencePolicy.mayCommit(
+                TaskState.Mode.RUNNING,"session-a","session-a",bounded.toString()));
+    }
     @Test public void invalidAnchorIsQuarantinedWithoutReenteringHumanTakeoverAfterExplicitResume() {
         TaskState resumed = new TaskState("goal","fp","Cafe\u0301 Poster","safe","",TaskState.Mode.RUNNING,false,4);
         assertEquals("", resumed.designAnchor);
