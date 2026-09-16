@@ -8,6 +8,13 @@ public class SafetyGateTest {
 
     private TaskState running(boolean allowNewDesign) {
         return new TaskState(
+                "test goal","","test-design-anchor","", "",
+                TaskState.Mode.RUNNING,allowNewDesign,0
+        );
+    }
+
+    private TaskState runningUnbound(boolean allowNewDesign) {
+        return new TaskState(
                 "test goal","","","", "",
                 TaskState.Mode.RUNNING,allowNewDesign,0
         );
@@ -95,7 +102,7 @@ public class SafetyGateTest {
         TeacherExecutionLease.beginGlobal();
         try {
             AgentAction share = new AgentAction(AgentAction.Type.CLICK_TEXT,"Share","",0.999,"open share panel");
-            SafetyGate.Decision d = gate.evaluate(share,running(false),AgentConstants.CANVA_PACKAGE);
+            SafetyGate.Decision d = gate.evaluate(share,runningUnbound(false),AgentConstants.CANVA_PACKAGE);
             assertEquals(SafetyGate.Decision.Kind.BLOCK,d.kind);
             assertTrue(d.reason.contains("BIND_DESIGN"));
         } finally { TeacherExecutionLease.invalidateGlobal(); }
@@ -105,7 +112,7 @@ public class SafetyGateTest {
         TeacherExecutionLease.beginGlobal();
         try {
             AgentAction back = new AgentAction(AgentAction.Type.BACK,"","",0.999,"leave uncertain surface safely");
-            assertEquals(SafetyGate.Decision.Kind.ALLOW,gate.evaluate(back,running(false),AgentConstants.CANVA_PACKAGE).kind);
+            assertEquals(SafetyGate.Decision.Kind.ALLOW,gate.evaluate(back,runningUnbound(false),AgentConstants.CANVA_PACKAGE).kind);
         } finally { TeacherExecutionLease.invalidateGlobal(); }
     }
 
