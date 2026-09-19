@@ -102,9 +102,9 @@ public final class ActionExecutor {
             case BACK:
                 return service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
             case CLICK_TEXT:
-                return clickByTextOrDescription(commitRoot, action.target);
+                return clickFreshText(action.target, commitSnapshotHash, commitState.designAnchor);
             case SET_TEXT:
-                return setText(commitRoot, action.target, action.value);
+                return setFreshText(action.target, action.value, commitSnapshotHash, commitState.designAnchor);
             case CLICK_NODE:
                 return clickExactNode(action.target, commitSnapshotHash, commitState.designAnchor);
             case SET_NODE_TEXT:
@@ -129,7 +129,7 @@ public final class ActionExecutor {
                 && expectedDesignAnchor.equals(currentDesignAnchor);
     }
 
-    private AccessibilityNodeInfo freshExactNodeMutationRoot(
+    private AccessibilityNodeInfo freshMutationRoot(
             String expectedFingerprint, String expectedDesignAnchor) {
         AccessibilityNodeInfo freshRoot = service.getRootInActiveWindow();
         if (freshRoot == null || freshRoot.getPackageName() == null) return null;
@@ -147,12 +147,31 @@ public final class ActionExecutor {
         return freshRoot;
     }
 
+    private boolean clickFreshText(
+            String target, String expectedFingerprint, String expectedDesignAnchor) {
+        // Plain-text fallback must not retain a node from commitRoot. Reacquire the active
+        // Canva tree at the actual mutation boundary, prove it is still the same snapshot,
+        // then resolve uniqueness again on that fresh tree before clicking.
+        AccessibilityNodeInfo freshRoot = freshMutationRoot(expectedFingerprint, expectedDesignAnchor);
+        if (freshRoot == null) return false;
+        return clickByTextOrDescription(freshRoot, target);
+    }
+
+    private boolean setFreshText(
+            String target, String value, String expectedFingerprint, String expectedDesignAnchor) {
+        // SET_TEXT gets the same fail-closed last-moment proof as exact-node mutations. This
+        // prevents a stale editable AccessibilityNodeInfo from surviving UI replacement.
+        AccessibilityNodeInfo freshRoot = freshMutationRoot(expectedFingerprint, expectedDesignAnchor);
+        if (freshRoot == null) return false;
+        return setText(freshRoot, target, value);
+    }
+
     private boolean clickExactNode(
             String encodedTarget, String expectedFingerprint, String expectedDesignAnchor) {
         // Reacquire from a fresh active-window root at the mutation boundary. Never act on
         // the node object that was structurally verified from the earlier commitRoot: Canva
         // may replace the accessibility tree between verification and performAction().
-        AccessibilityNodeInfo freshRoot = freshExactNodeMutationRoot(
+        AccessibilityNodeInfo freshRoot = freshMutationRoot(
                 expectedFingerprint, expectedDesignAnchor);
         if (freshRoot == null) return false;
         AccessibilityNodeInfo node = verifiedCompactNode(freshRoot, encodedTarget);
@@ -165,7 +184,7 @@ public final class ActionExecutor {
         // SET_NODE_TEXT gets the same last-moment fresh-root proof as CLICK_NODE. A stale
         // editable node must never retain mutation authority merely because its old object
         // still exists in Accessibility after the visible Canva tree has changed.
-        AccessibilityNodeInfo freshRoot = freshExactNodeMutationRoot(
+        AccessibilityNodeInfo freshRoot = freshMutationRoot(
                 expectedFingerprint, expectedDesignAnchor);
         if (freshRoot == null) return false;
         AccessibilityNodeInfo node = verifiedCompactNode(freshRoot, encodedTarget);
