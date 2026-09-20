@@ -24,11 +24,6 @@ public final class ActionExecutor {
 
     public boolean execute(AgentAction action) {
         if (action == null) return false;
-        // Keep ownership of the exact teacher execution lease from the final
-        // revalidation through the actual Android mutation. A newer teacher request,
-        // STOP, human takeover or DEVAM ET rotates/invalidates this same monitor;
-        // therefore a stale chain can no longer pass a check and then dispatch after
-        // losing authority in the check-to-act window.
         return TeacherExecutionLease.withGlobalCurrent(
                 action.executionLeaseToken,
                 false,
@@ -46,11 +41,6 @@ public final class ActionExecutor {
         boolean anchorVisible = !state.designAnchor.isEmpty() && snap.containsText(state.designAnchor);
         String currentSnapshotHash = snap.stableFingerprint();
 
-        // Structural target resolution is meaningful only for the exact compact tree that
-        // the teacher saw. This includes fallback CLICK_TEXT/SET_TEXT: uniqueness alone is
-        // not authority if the same label disappeared/reappeared on another control. Consume
-        // the request-scoped snapshot once before any structural target lookup. A mismatch
-        // burns the authority so a stale action cannot wait for the UI to drift back later.
         if (action.requiresTeacherSnapshotAuthority()
                 && !CheckpointRequestGuard.consumeExecutionSnapshotIfMatches(
                         action.executionLeaseToken, currentSnapshotHash)) {
@@ -65,10 +55,6 @@ public final class ActionExecutor {
             return false;
         }
 
-        // Commit-boundary revalidation: the service may have proven the visual/tree context
-        // immediately before calling us, but Accessibility UI can still change between that
-        // proof and the actual mutation. Re-read the active window and persisted design state
-        // here, immediately before dispatch, and fail closed on any drift.
         AccessibilityNodeInfo commitRoot = service.getRootInActiveWindow();
         if (commitRoot == null || commitRoot.getPackageName() == null) return false;
         TaskState commitState = stateRepo.load();
@@ -96,9 +82,9 @@ public final class ActionExecutor {
 
         switch (action.type) {
             case TAP_NORM:
-                return tapNorm(action.target);
+                return tapNorm(action.target, commitSnapshotHash, commitState.designAnchor);
             case DRAG_NORM:
-                return dragNorm(action.target);
+                return dragNorm(action.target, commitSnapshotHash, commitState.designAnchor);
             case BACK:
                 return service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
             case CLICK_TEXT:
@@ -149,9 +135,6 @@ public final class ActionExecutor {
 
     private boolean clickFreshText(
             String target, String expectedFingerprint, String expectedDesignAnchor) {
-        // Plain-text fallback must not retain a node from commitRoot. Reacquire the active
-        // Canva tree at the actual mutation boundary, prove it is still the same snapshot,
-        // then resolve uniqueness again on that fresh tree before clicking.
         AccessibilityNodeInfo freshRoot = freshMutationRoot(expectedFingerprint, expectedDesignAnchor);
         if (freshRoot == null) return false;
         return clickByTextOrDescription(freshRoot, target);
@@ -159,8 +142,6 @@ public final class ActionExecutor {
 
     private boolean setFreshText(
             String target, String value, String expectedFingerprint, String expectedDesignAnchor) {
-        // SET_TEXT gets the same fail-closed last-moment proof as exact-node mutations. This
-        // prevents a stale editable AccessibilityNodeInfo from surviving UI replacement.
         AccessibilityNodeInfo freshRoot = freshMutationRoot(expectedFingerprint, expectedDesignAnchor);
         if (freshRoot == null) return false;
         return setText(freshRoot, target, value);
@@ -168,11 +149,7 @@ public final class ActionExecutor {
 
     private boolean clickExactNode(
             String encodedTarget, String expectedFingerprint, String expectedDesignAnchor) {
-        // Reacquire from a fresh active-window root at the mutation boundary. Never act on
-        // the node object that was structurally verified from the earlier commitRoot: Canva
-        // may replace the accessibility tree between verification and performAction().
-        AccessibilityNodeInfo freshRoot = freshMutationRoot(
-                expectedFingerprint, expectedDesignAnchor);
+        AccessibilityNodeInfo freshRoot = freshMutationRoot(expectedFingerprint, expectedDesignAnchor);
         if (freshRoot == null) return false;
         AccessibilityNodeInfo node = verifiedCompactNode(freshRoot, encodedTarget);
         if (node == null || !node.isVisibleToUser() || !node.isEnabled() || !node.isClickable()) return false;
@@ -181,11 +158,7 @@ public final class ActionExecutor {
 
     private boolean setExactNodeText(
             String encodedTarget, String value, String expectedFingerprint, String expectedDesignAnchor) {
-        // SET_NODE_TEXT gets the same last-moment fresh-root proof as CLICK_NODE. A stale
-        // editable node must never retain mutation authority merely because its old object
-        // still exists in Accessibility after the visible Canva tree has changed.
-        AccessibilityNodeInfo freshRoot = freshMutationRoot(
-                expectedFingerprint, expectedDesignAnchor);
+        AccessibilityNodeInfo freshRoot = freshMutationRoot(expectedFingerprint, expectedDesignAnchor);
         if (freshRoot == null) return false;
         AccessibilityNodeInfo node = verifiedCompactNode(freshRoot, encodedTarget);
         if (node == null || !node.isVisibleToUser() || !node.isEditable() || !node.isEnabled()) return false;
@@ -279,12 +252,6 @@ public final class ActionExecutor {
                 node != null && node.isEditable());
     }
 
-    /**
-     * Must stay equivalent to UiTreeSnapshot.compactForTeacher() admission rules.
-     * Exact-node indexes are copied from that teacher-visible compact tree, so hidden/stale
-     * accessibility nodes must never consume an index here or a structurally correct target
-     * can resolve to a different live node at execution time.
-     */
     static boolean compactIndexEligible(boolean visibleToUser,
                                         CharSequence text,
                                         CharSequence description,
@@ -331,7 +298,7 @@ public final class ActionExecutor {
         return uniqueExactMatch && visible && enabled && editable;
     }
 
-    private boolean tapNorm(String spec) {
+    private boolean tapNorm(String spec, String expectedFingerprint, String expectedDesignAnchor) {
         double[] v = parseCsv(spec, 2);
         if (v == null || !normalizedCoordinate(v[0]) || !normalizedCoordinate(v[1])) return false;
         Rect b = displayBounds();
@@ -341,13 +308,17 @@ public final class ActionExecutor {
         p.moveTo(x, y);
         GestureDescription.StrokeDescription stroke =
                 new GestureDescription.StrokeDescription(p, 0, 80);
+        // Coordinates are especially dangerous if Canva moved after the earlier commit proof.
+        // Reacquire immediately before dispatch and fail closed unless the exact editor tree,
+        // design anchor and RUNNING state still match.
+        if (freshMutationRoot(expectedFingerprint, expectedDesignAnchor) == null) return false;
         return service.dispatchGesture(
                 new GestureDescription.Builder().addStroke(stroke).build(),
                 null, null
         );
     }
 
-    private boolean dragNorm(String spec) {
+    private boolean dragNorm(String spec, String expectedFingerprint, String expectedDesignAnchor) {
         double[] v = parseCsv(spec, 5);
         if (v == null
                 || !normalizedCoordinate(v[0]) || !normalizedCoordinate(v[1])
@@ -365,6 +336,7 @@ public final class ActionExecutor {
         p.lineTo(x2, y2);
         GestureDescription.StrokeDescription stroke =
                 new GestureDescription.StrokeDescription(p, 0, duration);
+        if (freshMutationRoot(expectedFingerprint, expectedDesignAnchor) == null) return false;
         return service.dispatchGesture(
                 new GestureDescription.Builder().addStroke(stroke).build(),
                 null, null
