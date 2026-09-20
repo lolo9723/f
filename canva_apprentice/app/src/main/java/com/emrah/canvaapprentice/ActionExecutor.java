@@ -86,7 +86,7 @@ public final class ActionExecutor {
             case DRAG_NORM:
                 return dragNorm(action.target, commitSnapshotHash, commitState.designAnchor);
             case BACK:
-                return service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
+                return backFresh(commitSnapshotHash, commitState.designAnchor);
             case CLICK_TEXT:
                 return clickFreshText(action.target, commitSnapshotHash, commitState.designAnchor);
             case SET_TEXT:
@@ -131,6 +131,11 @@ public final class ActionExecutor {
             return null;
         }
         return freshRoot;
+    }
+
+    private boolean backFresh(String expectedFingerprint, String expectedDesignAnchor) {
+        if (freshMutationRoot(expectedFingerprint, expectedDesignAnchor) == null) return false;
+        return service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
     }
 
     private boolean clickFreshText(
@@ -308,9 +313,6 @@ public final class ActionExecutor {
         p.moveTo(x, y);
         GestureDescription.StrokeDescription stroke =
                 new GestureDescription.StrokeDescription(p, 0, 80);
-        // Coordinates are especially dangerous if Canva moved after the earlier commit proof.
-        // Reacquire immediately before dispatch and fail closed unless the exact editor tree,
-        // design anchor and RUNNING state still match.
         if (freshMutationRoot(expectedFingerprint, expectedDesignAnchor) == null) return false;
         return service.dispatchGesture(
                 new GestureDescription.Builder().addStroke(stroke).build(),
