@@ -82,19 +82,19 @@ public final class ActionExecutor {
 
         switch (action.type) {
             case TAP_NORM:
-                return tapNorm(action.target, commitSnapshotHash, commitState.designAnchor);
+                return tapNorm(action, action.target, commitSnapshotHash, commitState.designAnchor);
             case DRAG_NORM:
-                return dragNorm(action.target, commitSnapshotHash, commitState.designAnchor);
+                return dragNorm(action, action.target, commitSnapshotHash, commitState.designAnchor);
             case BACK:
-                return backFresh(commitSnapshotHash, commitState.designAnchor);
+                return backFresh(action, commitSnapshotHash, commitState.designAnchor);
             case CLICK_TEXT:
-                return clickFreshText(action.target, commitSnapshotHash, commitState.designAnchor);
+                return clickFreshText(action, action.target, commitSnapshotHash, commitState.designAnchor);
             case SET_TEXT:
-                return setFreshText(action.target, action.value, commitSnapshotHash, commitState.designAnchor);
+                return setFreshText(action, action.target, action.value, commitSnapshotHash, commitState.designAnchor);
             case CLICK_NODE:
-                return clickExactNode(action.target, commitSnapshotHash, commitState.designAnchor);
+                return clickExactNode(action, action.target, commitSnapshotHash, commitState.designAnchor);
             case SET_NODE_TEXT:
-                return setExactNodeText(action.target, action.value, commitSnapshotHash, commitState.designAnchor);
+                return setExactNodeText(action, action.target, action.value, commitSnapshotHash, commitState.designAnchor);
             default:
                 return false;
         }
@@ -116,45 +116,58 @@ public final class ActionExecutor {
     }
 
     private AccessibilityNodeInfo freshMutationRoot(
-            String expectedFingerprint, String expectedDesignAnchor) {
+            AgentAction action, String expectedFingerprint, String expectedDesignAnchor) {
         AccessibilityNodeInfo freshRoot = service.getRootInActiveWindow();
         if (freshRoot == null || freshRoot.getPackageName() == null) return null;
         TaskState freshState = stateRepo.load();
         UiTreeSnapshot freshSnap = UiTreeSnapshot.capture(freshRoot);
+        String freshFingerprint = freshSnap.stableFingerprint();
         if (!executionCommitContextMatches(
                 freshRoot.getPackageName().toString(),
                 expectedFingerprint,
-                freshSnap.stableFingerprint(),
+                freshFingerprint,
                 expectedDesignAnchor,
                 freshState.designAnchor,
                 freshState.mode == TaskState.Mode.RUNNING)) {
             return null;
         }
+        boolean freshAnchorVisible = !freshState.designAnchor.isEmpty()
+                && freshSnap.containsText(freshState.designAnchor);
+        boolean freshMatchesLastSafe = !freshState.lastSafeSnapshotHash.isEmpty()
+                && freshState.lastSafeSnapshotHash.equals(freshFingerprint);
+        if (!DesignContinuityPolicy.allows(
+                action,
+                freshState.designAnchor,
+                freshAnchorVisible,
+                freshSnap.looksLikeCanvaHome(),
+                freshMatchesLastSafe)) {
+            return null;
+        }
         return freshRoot;
     }
 
-    private boolean backFresh(String expectedFingerprint, String expectedDesignAnchor) {
-        if (freshMutationRoot(expectedFingerprint, expectedDesignAnchor) == null) return false;
+    private boolean backFresh(AgentAction action, String expectedFingerprint, String expectedDesignAnchor) {
+        if (freshMutationRoot(action, expectedFingerprint, expectedDesignAnchor) == null) return false;
         return service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
     }
 
     private boolean clickFreshText(
-            String target, String expectedFingerprint, String expectedDesignAnchor) {
-        AccessibilityNodeInfo freshRoot = freshMutationRoot(expectedFingerprint, expectedDesignAnchor);
+            AgentAction action, String target, String expectedFingerprint, String expectedDesignAnchor) {
+        AccessibilityNodeInfo freshRoot = freshMutationRoot(action, expectedFingerprint, expectedDesignAnchor);
         if (freshRoot == null) return false;
         return clickByTextOrDescription(freshRoot, target);
     }
 
     private boolean setFreshText(
-            String target, String value, String expectedFingerprint, String expectedDesignAnchor) {
-        AccessibilityNodeInfo freshRoot = freshMutationRoot(expectedFingerprint, expectedDesignAnchor);
+            AgentAction action, String target, String value, String expectedFingerprint, String expectedDesignAnchor) {
+        AccessibilityNodeInfo freshRoot = freshMutationRoot(action, expectedFingerprint, expectedDesignAnchor);
         if (freshRoot == null) return false;
         return setText(freshRoot, target, value);
     }
 
     private boolean clickExactNode(
-            String encodedTarget, String expectedFingerprint, String expectedDesignAnchor) {
-        AccessibilityNodeInfo freshRoot = freshMutationRoot(expectedFingerprint, expectedDesignAnchor);
+            AgentAction action, String encodedTarget, String expectedFingerprint, String expectedDesignAnchor) {
+        AccessibilityNodeInfo freshRoot = freshMutationRoot(action, expectedFingerprint, expectedDesignAnchor);
         if (freshRoot == null) return false;
         AccessibilityNodeInfo node = verifiedCompactNode(freshRoot, encodedTarget);
         if (node == null || !node.isVisibleToUser() || !node.isEnabled() || !node.isClickable()) return false;
@@ -162,8 +175,8 @@ public final class ActionExecutor {
     }
 
     private boolean setExactNodeText(
-            String encodedTarget, String value, String expectedFingerprint, String expectedDesignAnchor) {
-        AccessibilityNodeInfo freshRoot = freshMutationRoot(expectedFingerprint, expectedDesignAnchor);
+            AgentAction action, String encodedTarget, String value, String expectedFingerprint, String expectedDesignAnchor) {
+        AccessibilityNodeInfo freshRoot = freshMutationRoot(action, expectedFingerprint, expectedDesignAnchor);
         if (freshRoot == null) return false;
         AccessibilityNodeInfo node = verifiedCompactNode(freshRoot, encodedTarget);
         if (node == null || !node.isVisibleToUser() || !node.isEditable() || !node.isEnabled()) return false;
@@ -303,7 +316,7 @@ public final class ActionExecutor {
         return uniqueExactMatch && visible && enabled && editable;
     }
 
-    private boolean tapNorm(String spec, String expectedFingerprint, String expectedDesignAnchor) {
+    private boolean tapNorm(AgentAction action, String spec, String expectedFingerprint, String expectedDesignAnchor) {
         double[] v = parseCsv(spec, 2);
         if (v == null || !normalizedCoordinate(v[0]) || !normalizedCoordinate(v[1])) return false;
         Rect b = displayBounds();
@@ -313,14 +326,14 @@ public final class ActionExecutor {
         p.moveTo(x, y);
         GestureDescription.StrokeDescription stroke =
                 new GestureDescription.StrokeDescription(p, 0, 80);
-        if (freshMutationRoot(expectedFingerprint, expectedDesignAnchor) == null) return false;
+        if (freshMutationRoot(action, expectedFingerprint, expectedDesignAnchor) == null) return false;
         return service.dispatchGesture(
                 new GestureDescription.Builder().addStroke(stroke).build(),
                 null, null
         );
     }
 
-    private boolean dragNorm(String spec, String expectedFingerprint, String expectedDesignAnchor) {
+    private boolean dragNorm(AgentAction action, String spec, String expectedFingerprint, String expectedDesignAnchor) {
         double[] v = parseCsv(spec, 5);
         if (v == null
                 || !normalizedCoordinate(v[0]) || !normalizedCoordinate(v[1])
@@ -338,7 +351,7 @@ public final class ActionExecutor {
         p.lineTo(x2, y2);
         GestureDescription.StrokeDescription stroke =
                 new GestureDescription.StrokeDescription(p, 0, duration);
-        if (freshMutationRoot(expectedFingerprint, expectedDesignAnchor) == null) return false;
+        if (freshMutationRoot(action, expectedFingerprint, expectedDesignAnchor) == null) return false;
         return service.dispatchGesture(
                 new GestureDescription.Builder().addStroke(stroke).build(),
                 null, null
