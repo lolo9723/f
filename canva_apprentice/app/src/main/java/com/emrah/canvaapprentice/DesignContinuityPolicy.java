@@ -29,12 +29,12 @@ public final class DesignContinuityPolicy {
 
         String anchor = norm(boundAnchor);
         if (anchor.isEmpty()) {
-            if (action.type == AgentAction.Type.CLICK_TEXT) {
-                return !isExplicitCreationTarget(action.target);
-            }
-            if (action.type == AgentAction.Type.CLICK_NODE) {
-                return !isExplicitCreationTarget(NodeTargetCodec.label(action.target));
-            }
+            // No durable design identity means there is no authority to mutate or navigate by
+            // teacher-selected UI labels yet. A generic CLICK_TEXT/CLICK_NODE can leave the
+            // user's current design, open another project, or enter a creation flow even when its
+            // label does not look like an explicit "Create" control. Fail closed until the
+            // current editor has supplied a visible, plausible design anchor. BACK remains the
+            // only non-targeted recovery action and cannot create/edit content.
             return action.type == AgentAction.Type.BACK;
         }
 
@@ -112,27 +112,6 @@ public final class DesignContinuityPolicy {
         if (anchor.isEmpty()) return true;
         if (canvaHomeVisible) return false;
         return anchorVisible || matchesLastSafeEditorSnapshot || visualEditorContinuityVerified;
-    }
-
-    private static boolean isExplicitCreationTarget(String rawTarget) {
-        String target = creationNorm(rawTarget);
-        if (target.isEmpty()) return false;
-        return target.equals("create")
-                || target.equals("create a design")
-                || target.equals("create design")
-                || target.equals("create new design")
-                || target.equals("new design")
-                || target.equals("olustur")
-                || target.equals("tasarim olustur")
-                || target.equals("yeni tasarim")
-                || target.equals("yeni bir tasarim olustur");
-    }
-
-    private static String creationNorm(String s) {
-        return norm(s)
-                .replaceAll("[\\p{P}\\p{S}\\p{C}]+", " ")
-                .replaceAll("\\s+", " ")
-                .trim();
     }
 
     private static String norm(String s) {
