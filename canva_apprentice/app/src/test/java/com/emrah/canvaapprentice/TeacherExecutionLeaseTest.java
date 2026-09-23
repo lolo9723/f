@@ -47,12 +47,12 @@ public class TeacherExecutionLeaseTest {
     @Test public void newerTeacherRequestMakesOlderActionFailClosedAtRuntimeGate() {
         TeacherExecutionLease.beginGlobal();
         AgentAction older = new AgentAction(AgentAction.Type.CLICK_TEXT,"Old target","",0.99,"older reply");
-        assertTrue(DesignContinuityPolicy.allows(older,"",true,false,false));
+        assertTrue(DesignContinuityPolicy.allows(older,"Campaign A",true,false,false));
 
         TeacherExecutionLease.beginGlobal();
         AgentAction newer = new AgentAction(AgentAction.Type.CLICK_TEXT,"New target","",0.99,"newer reply");
-        assertFalse(DesignContinuityPolicy.allows(older,"",true,false,false));
-        assertTrue(DesignContinuityPolicy.allows(newer,"",true,false,false));
+        assertFalse(DesignContinuityPolicy.allows(older,"Campaign A",true,false,false));
+        assertTrue(DesignContinuityPolicy.allows(newer,"Campaign A",true,false,false));
     }
 
     @Test public void constructingCandidateActionsDoesNotRotateCurrentLease() {
