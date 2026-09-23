@@ -11,9 +11,16 @@ public final class DesignContinuityPolicyTest {
         return new AgentAction(type, target, value, 0.99, "test");
     }
 
-    @Test public void unboundTaskAllowsNormalExecution() {
-        AgentAction a = action(AgentAction.Type.CLICK_TEXT, "Share", "");
-        assertTrue(DesignContinuityPolicy.allows(a, "", false, false));
+    @Test public void unboundTaskFailsClosedForTargetedExecution() {
+        assertFalse(DesignContinuityPolicy.allows(
+                action(AgentAction.Type.CLICK_TEXT, "Share", ""), "", false, false));
+        assertFalse(DesignContinuityPolicy.allows(
+                action(AgentAction.Type.CLICK_TEXT, "Projects", ""), "", false, true));
+        assertFalse(DesignContinuityPolicy.allows(
+                action(AgentAction.Type.SET_TEXT, "Title", "Hello"), "", false, false));
+        assertFalse(DesignContinuityPolicy.allows(
+                new AgentAction(AgentAction.Type.TAP_NORM, "500,500", "", 0.99, "test", true),
+                "", false, false));
     }
 
     @Test public void unboundTaskRejectsExplicitNewDesignControls() {
@@ -44,6 +51,14 @@ public final class DesignContinuityPolicyTest {
 
     @Test public void unboundTaskRejectsDecoratedCreationLabelInsideExactNodeTarget() {
         String nodeTarget = NodeTargetCodec.encode(0, "＋ Create a design ›", "button", "", "");
+        assertFalse(DesignContinuityPolicy.allows(
+                action(AgentAction.Type.CLICK_NODE, nodeTarget, ""), "", false, true));
+    }
+
+    @Test public void unboundTaskAllowsOnlyBackAsUntargetedRecovery() {
+        assertTrue(DesignContinuityPolicy.allows(
+                action(AgentAction.Type.BACK, "", ""), "", false, false));
+        String nodeTarget = NodeTargetCodec.encode(0, "Campaign A", "button", "", "");
         assertFalse(DesignContinuityPolicy.allows(
                 action(AgentAction.Type.CLICK_NODE, nodeTarget, ""), "", false, true));
     }
