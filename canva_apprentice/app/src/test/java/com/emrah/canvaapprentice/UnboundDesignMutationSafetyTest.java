@@ -26,10 +26,10 @@ public final class UnboundDesignMutationSafetyTest {
                 action(AgentAction.Type.DRAG_NORM, "100,100,800,800,500", "", true), "", false, false));
     }
 
-    @Test public void unboundDesignStillAllowsNonContentRecoveryNavigation() {
-        assertTrue(DesignContinuityPolicy.allows(
+    @Test public void unboundDesignAllowsOnlyUntargetedBackRecovery() {
+        assertFalse(DesignContinuityPolicy.allows(
                 action(AgentAction.Type.CLICK_TEXT, "Projects", "", false), "", false, true));
-        assertTrue(DesignContinuityPolicy.allows(
+        assertFalse(DesignContinuityPolicy.allows(
                 action(AgentAction.Type.CLICK_NODE,
                         NodeTargetCodec.encode(4,"Existing Campaign","android.widget.Button","10 20 300 100","C-"),
                         "", false), "", false, true));
