@@ -29,8 +29,6 @@ public final class DesignAnchorPolicy {
         if (a.length() < 2 || a.length() > 140) return false;
         String n = normalize(a);
         if (GENERIC.contains(n)) return false;
-        // Canva default/placeholder names are not unique design identity. Binding one of these
-        // would let a later editor/home occurrence satisfy the anchor for the wrong design.
         if (n.equals("untitled") || n.startsWith("untitled ")
                 || n.equals("adsiz") || n.startsWith("adsiz ")
                 || n.equals("basliksiz") || n.startsWith("basliksiz ")) return false;
@@ -39,13 +37,13 @@ public final class DesignAnchorPolicy {
     }
 
     /**
-     * A teacher-suggested design anchor is safe to bind only when the exact normalized title is
-     * independently visible in the current accessibility snapshot and the screen is not Canva
-     * home/projects. This prevents a plausible but hallucinated title (or a project-card title on
-     * home) from becoming persistent design identity before the editor context is established.
+     * Initial identity binding requires two independent facts from the live accessibility tree:
+     * the exact plausible title and editor-context evidence. Merely being "not home" is not
+     * positive editor evidence (dialogs/loading/project-detail surfaces can also be not-home).
      */
-    public static boolean mayBindVisibleEditor(String anchor, boolean exactAnchorVisible, boolean canvaHomeVisible) {
-        return isPlausible(anchor) && exactAnchorVisible && !canvaHomeVisible;
+    public static boolean mayBindVisibleEditor(String anchor, boolean exactAnchorVisible,
+                                                boolean canvaHomeVisible, boolean editorContextVisible) {
+        return isPlausible(anchor) && exactAnchorVisible && !canvaHomeVisible && editorContextVisible;
     }
 
     private static String normalize(String s) {
