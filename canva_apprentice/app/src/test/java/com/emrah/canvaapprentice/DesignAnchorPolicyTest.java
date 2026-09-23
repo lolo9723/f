@@ -15,6 +15,23 @@ public class DesignAnchorPolicyTest {
         assertFalse(DesignAnchorPolicy.isPlausible("Create a design"));
     }
 
+    @Test public void rejectsGenericEditorControlsAsPersistentIdentity() {
+        assertFalse(DesignAnchorPolicy.isPlausible("Create"));
+        assertFalse(DesignAnchorPolicy.isPlausible("Oluştur"));
+        assertFalse(DesignAnchorPolicy.isPlausible("Text"));
+        assertFalse(DesignAnchorPolicy.isPlausible("Metin"));
+        assertFalse(DesignAnchorPolicy.isPlausible("Elements"));
+        assertFalse(DesignAnchorPolicy.isPlausible("Öğeler"));
+        assertFalse(DesignAnchorPolicy.isPlausible("Uploads"));
+        assertFalse(DesignAnchorPolicy.isPlausible("Yüklemeler"));
+        assertFalse(DesignAnchorPolicy.isPlausible("Position"));
+        assertFalse(DesignAnchorPolicy.isPlausible("Konum"));
+        assertFalse(DesignAnchorPolicy.isPlausible("Animate"));
+        assertFalse(DesignAnchorPolicy.isPlausible("Canlandır"));
+        assertFalse(DesignAnchorPolicy.isPlausible("Present"));
+        assertFalse(DesignAnchorPolicy.isPlausible("Sun"));
+    }
+
     @Test public void rejectsGenericDesignTypeLabels() {
         assertFalse(DesignAnchorPolicy.isPlausible("Presentation"));
         assertFalse(DesignAnchorPolicy.isPlausible("Sunum"));
@@ -47,5 +64,7 @@ public class DesignAnchorPolicyTest {
 
     @Test public void bindingStillRejectsGenericAnchorEvenWhenVisible() {
         assertFalse(DesignAnchorPolicy.mayBindVisibleEditor("Projects", true, false));
+        assertFalse(DesignAnchorPolicy.mayBindVisibleEditor("Text", true, false));
+        assertFalse(DesignAnchorPolicy.mayBindVisibleEditor("Öğeler", true, false));
     }
 }
