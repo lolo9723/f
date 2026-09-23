@@ -9,9 +9,11 @@ import java.util.Arrays;
 public final class DesignAnchorPolicy {
     private static final Set<String> GENERIC = new HashSet<>(Arrays.asList(
             "canva","home","ana sayfa","projects","projeler","templates","sablonlar",
-            "share","paylas","create a design","tasarim olustur","menu","menu",
+            "share","paylas","create","olustur","create a design","tasarim olustur","menu","menu",
             "undo","geri al","redo","yinele","file","dosya","settings","ayarlar",
-            "download","indir","save","kaydet",
+            "download","indir","save","kaydet","open","ac","edit","duzenle","add","ekle",
+            "text","metin","elements","ogeler","uploads","yuklemeler","apps","uygulamalar",
+            "position","konum","animate","canlandir","present","sun",
             "design","tasarim","presentation","sunum","whiteboard","beyaz tahta",
             "document","dokuman","doc","video","poster","afis","flyer","brosur",
             "logo","resume","ozgecmis","cv","website","web sitesi","instagram post",
