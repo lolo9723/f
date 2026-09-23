@@ -29,12 +29,6 @@ public final class DesignContinuityPolicy {
 
         String anchor = norm(boundAnchor);
         if (anchor.isEmpty()) {
-            // Before an existing design has been bound, the agent may only perform
-            // non-content navigation needed to locate/recover that design. In particular,
-            // text edits and coordinate gestures must not touch an arbitrary editor just
-            // because the task has not established design identity yet. Explicit creation
-            // controls are also forbidden: the user's task is to remain in an existing design,
-            // so an unbound state must never be able to create a replacement by accident.
             if (action.type == AgentAction.Type.CLICK_TEXT) {
                 return !isExplicitCreationTarget(action.target);
             }
@@ -123,19 +117,18 @@ public final class DesignContinuityPolicy {
     private static boolean isExplicitCreationTarget(String rawTarget) {
         String target = creationNorm(rawTarget);
         if (target.isEmpty()) return false;
-        return target.equals("create a design")
+        return target.equals("create")
+                || target.equals("create a design")
                 || target.equals("create design")
                 || target.equals("create new design")
                 || target.equals("new design")
+                || target.equals("olustur")
                 || target.equals("tasarim olustur")
                 || target.equals("yeni tasarim")
                 || target.equals("yeni bir tasarim olustur");
     }
 
     private static String creationNorm(String s) {
-        // Creation controls often carry leading '+' icons, arrows, ellipses or invisible
-        // formatting characters in accessibility labels. Treat those decorations as separators
-        // so a cosmetic label change cannot bypass the existing-design-only guard.
         return norm(s)
                 .replaceAll("[\\p{P}\\p{S}\\p{C}]+", " ")
                 .replaceAll("\\s+", " ")
