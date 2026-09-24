@@ -50,21 +50,26 @@ public class DesignAnchorPolicyTest {
         assertFalse(DesignAnchorPolicy.isPlausible("https://www.canva.com/design/abc"));
     }
 
-    @Test public void bindingRequiresExactVisibleTitleInsideEditor() {
-        assertTrue(DesignAnchorPolicy.mayBindVisibleEditor("30 Ağustos Fakülte Afişi", true, false));
+    @Test public void bindingRequiresExactVisibleTitleAndIndependentEditorEvidence() {
+        assertTrue(DesignAnchorPolicy.mayBindVisibleEditor("30 Ağustos Fakülte Afişi", true, false, true));
+        assertFalse(DesignAnchorPolicy.mayBindVisibleEditor("30 Ağustos Fakülte Afişi", true, false, false));
+    }
+
+    @Test public void legacyBindingSignatureFailsClosedWithoutEditorEvidence() {
+        assertFalse(DesignAnchorPolicy.mayBindVisibleEditor("30 Ağustos Fakülte Afişi", true, false));
     }
 
     @Test public void bindingRejectsPlausibleButHallucinatedTitle() {
-        assertFalse(DesignAnchorPolicy.mayBindVisibleEditor("30 Ağustos Fakülte Afişi", false, false));
+        assertFalse(DesignAnchorPolicy.mayBindVisibleEditor("30 Ağustos Fakülte Afişi", false, false, true));
     }
 
     @Test public void bindingRejectsProjectCardTitleOnCanvaHome() {
-        assertFalse(DesignAnchorPolicy.mayBindVisibleEditor("30 Ağustos Fakülte Afişi", true, true));
+        assertFalse(DesignAnchorPolicy.mayBindVisibleEditor("30 Ağustos Fakülte Afişi", true, true, true));
     }
 
     @Test public void bindingStillRejectsGenericAnchorEvenWhenVisible() {
-        assertFalse(DesignAnchorPolicy.mayBindVisibleEditor("Projects", true, false));
-        assertFalse(DesignAnchorPolicy.mayBindVisibleEditor("Text", true, false));
-        assertFalse(DesignAnchorPolicy.mayBindVisibleEditor("Öğeler", true, false));
+        assertFalse(DesignAnchorPolicy.mayBindVisibleEditor("Projects", true, false, true));
+        assertFalse(DesignAnchorPolicy.mayBindVisibleEditor("Text", true, false, true));
+        assertFalse(DesignAnchorPolicy.mayBindVisibleEditor("Öğeler", true, false, true));
     }
 }

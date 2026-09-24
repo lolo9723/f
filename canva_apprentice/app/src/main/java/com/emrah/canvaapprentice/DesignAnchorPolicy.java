@@ -29,9 +29,13 @@ public final class DesignAnchorPolicy {
         if (n.startsWith("http://") || n.startsWith("https://")) return false;
         return true;
     }
-    /** Compatibility overload for callers being migrated; preserves prior behavior. */
+    /**
+     * Legacy signature deliberately fails closed. A caller that cannot provide
+     * independent live-editor evidence must never establish persistent design identity.
+     */
+    @Deprecated
     public static boolean mayBindVisibleEditor(String anchor, boolean exactAnchorVisible, boolean canvaHomeVisible) {
-        return mayBindVisibleEditor(anchor, exactAnchorVisible, canvaHomeVisible, true);
+        return false;
     }
     /** Positive editor evidence is required in addition to exact title visibility and not-home. */
     public static boolean mayBindVisibleEditor(String anchor, boolean exactAnchorVisible,
