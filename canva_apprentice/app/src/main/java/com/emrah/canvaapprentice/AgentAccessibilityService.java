@@ -216,7 +216,7 @@ public final class AgentAccessibilityService extends AccessibilityService {
             boolean exactTargetVisible=preAction.containsText(action.target);
             boolean mayBind=action.confidence>=0.98
                     && DesignAnchorPolicy.mayBindVisibleEditor(
-                            action.target,exactTargetVisible,preAction.looksLikeCanvaHome());
+                            action.target,exactTargetVisible,preAction.looksLikeCanvaHome(),preAction.hasCanvaEditorContext());
             if(!mayBind || !isActionChainCurrent(action,teacherSessionId)){
                 visualEvidence.clearIfExecutionCurrent(action.executionLeaseToken);
                 pauseForHuman("Tasarım kimliği canlı Canva editöründe bağımsız olarak doğrulanamadı; yanlış tasarıma kilitlenmemek için duruldu.");
