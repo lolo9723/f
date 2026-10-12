@@ -1,5 +1,7 @@
 # Oran Radar Lab
 
+**Android APK 3.7.0:** [Doğrudan indir](https://github.com/lolo9723/f/raw/refs/heads/oran-radar-lab-3.7/oran-radar-lab/downloads/Oran-Radar-Lab-3.7.0.apk) · [Kaynak ZIP](downloads/Oran-Radar-Lab-3.7.0-Source.zip) · [SHA-256](downloads/SHA256SUMS.txt). APK ve uygulama kodu önceki 3.7.0 teslimiyle aynıdır. Bildirilen bağlantı hatası bu kopyada henüz giderilmedi.
+
 Orijinal **alitra34/Oran-Radar** deposuna yazmadan hazırlanmış bağımsız çalışma. Yeni backend `backend_next/`, mobil entegrasyon `mobile/`, sunucusuz dağıtım `infra/template.yaml` içindedir. Eski backend `backend/` altında korunur.
 
 ## Eklenen davranışlar
