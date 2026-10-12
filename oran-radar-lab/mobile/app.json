@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "Oran Radar Lab",
+    "slug": "oran-radar-lab",
+    "scheme": "oranradarlab",
+    "version": "3.7.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.oranradar.lab",
+      "adaptiveIcon": {
+        "backgroundColor": "#09111D",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "versionCode": 10,
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "color": "#5DE1BB",
+          "defaultChannel": "signals"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true,
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ],
+      "expo-router",
+      "expo-status-bar",
+      "./plugins/with-radar-phone"
+    ],
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "backgroundColor": "#09111D"
+  }
+}

@@ -1,0 +1,247 @@
+{
+    "source_repository": "https://github.com/alitra34/Oran-Radar",
+    "source_revision": "d62650d438ba30643e6f28671ed5ee960766f70f",
+    "copied_files": [
+        {
+            "path": "ARCHITECTURE.md",
+            "git_blob_sha": "995213adaa23e82e25bc61dc26b21a41614f3e7c",
+            "size": 8421
+        },
+        {
+            "path": "DEPLOYMENT.md",
+            "git_blob_sha": "1f964a4c60ccd3e7594ef8d28b863fb092bef87b",
+            "size": 2348
+        },
+        {
+            "path": "README.md",
+            "git_blob_sha": "9051fa62ef72eaba111776436d62269961160870",
+            "size": 5521
+        },
+        {
+            "path": "backend/config.py",
+            "git_blob_sha": "de862a3ecbdd18a928f37de0e10d7b811dcc2aae",
+            "size": 956
+        },
+        {
+            "path": "backend/engine.py",
+            "git_blob_sha": "b786a20f17a3272d9b1d8bacd9dfe652cb019b96",
+            "size": 7946
+        },
+        {
+            "path": "backend/http_api.py",
+            "git_blob_sha": "a97d0850c64912a54c2945659994c096fcf46685",
+            "size": 6662
+        },
+        {
+            "path": "backend/main.py",
+            "git_blob_sha": "0699404f2ea7aebc8786eee6ad4644a561ab66d4",
+            "size": 677
+        },
+        {
+            "path": "backend/market.py",
+            "git_blob_sha": "e4bcada562b90845a727bb36cc9eb10879a9d5be",
+            "size": 4280
+        },
+        {
+            "path": "backend/metrics.py",
+            "git_blob_sha": "62ae55d5cea22494b69968e89f34ae0ac23e1361",
+            "size": 3949
+        },
+        {
+            "path": "backend/push.py",
+            "git_blob_sha": "b65d73fbd6a3013558c1f478a31e44240df89478",
+            "size": 1945
+        },
+        {
+            "path": "backend/requirements.txt",
+            "git_blob_sha": "fc77dc6f02946f6f7ac0bc52f6a3b8399884c860",
+            "size": 19
+        },
+        {
+            "path": "backend/service.py",
+            "git_blob_sha": "56c986668bde3f2bad9faf982f727f16c71e4850",
+            "size": 9871
+        },
+        {
+            "path": "backend/storage.py",
+            "git_blob_sha": "ee56ab878ce2ba305cf9773d0571716f918a594b",
+            "size": 16671
+        },
+        {
+            "path": "backend/test_api.py",
+            "git_blob_sha": "0f1ab9d7b5614995d34e537d65806fb1ffc086a4",
+            "size": 1368
+        },
+        {
+            "path": "backend/test_paper.py",
+            "git_blob_sha": "6fb6d93e9e05356da71914f47b68f0676c39460a",
+            "size": 4345
+        },
+        {
+            "path": "backend/test_tracking.py",
+            "git_blob_sha": "6a4f99348fa6ed501b7868893d3d402d4e149265",
+            "size": 3047
+        },
+        {
+            "path": "mobile/App.tsx",
+            "git_blob_sha": "1e3fa7e568f44384df7dc99debf95f779c5e516e",
+            "size": 23335
+        },
+        {
+            "path": "mobile/app.json",
+            "git_blob_sha": "2fc11e3ea62cb1cdf47bea3d8cda10220a3eee41",
+            "size": 1465
+        },
+        {
+            "path": "mobile/assets/android-icon-background.png",
+            "git_blob_sha": "5876b7f45fc72a709b9d2af9bf30afa3f79a490d",
+            "size": 5338
+        },
+        {
+            "path": "mobile/assets/android-icon-foreground.png",
+            "git_blob_sha": "748a349a5f283d6c02cf4973e73c96ce8528c3dd",
+            "size": 85843
+        },
+        {
+            "path": "mobile/assets/android-icon-monochrome.png",
+            "git_blob_sha": "3370c86899d63a80f3a32534d031c29dad5100ea",
+            "size": 56254
+        },
+        {
+            "path": "mobile/assets/favicon.png",
+            "git_blob_sha": "ca327d2999ac5d6e5a1fed5a761f24dbcd74fe46",
+            "size": 2193
+        },
+        {
+            "path": "mobile/assets/icon.png",
+            "git_blob_sha": "706c65e4222550b080ec244856b6fb8c9537bfdf",
+            "size": 67808
+        },
+        {
+            "path": "mobile/assets/splash-icon.png",
+            "git_blob_sha": "a7d2bdf1886afff1091d0d517f3ba77c0bac24d9",
+            "size": 41450
+        },
+        {
+            "path": "mobile/eas.json",
+            "git_blob_sha": "8edc40c585dff5b3e7099171bbeec267535508fc",
+            "size": 290
+        },
+        {
+            "path": "mobile/eslint.config.js",
+            "git_blob_sha": "ba708ed9ff40323440e56550c8f20560ee83940f",
+            "size": 236
+        },
+        {
+            "path": "mobile/index.ts",
+            "git_blob_sha": "1d6e981ef6c4ea336e6fe8f3fbce9487221a075c",
+            "size": 307
+        },
+        {
+            "path": "mobile/package-lock.json",
+            "git_blob_sha": "9010957acd9f17fbbe0f0e6f137966397f21bd61",
+            "size": 418793
+        },
+        {
+            "path": "mobile/package.json",
+            "git_blob_sha": "2bb9fa9b6263a55e961595ecda4134797c1e53f8",
+            "size": 1019
+        },
+        {
+            "path": "mobile/scripts/build_apk.sh",
+            "git_blob_sha": "d2dd2ea23bcfa6f77fd29675d24c387f48aa969d",
+            "size": 1211
+        },
+        {
+            "path": "mobile/scripts/generate_assets.py",
+            "git_blob_sha": "311f7bca28c298648000a21b7946f88a56f1f9f2",
+            "size": 1845
+        },
+        {
+            "path": "mobile/scripts/test_paper.cjs",
+            "git_blob_sha": "5723f8b31eada4f1f6b9a3b897d62b5428638cde",
+            "size": 4208
+        },
+        {
+            "path": "mobile/scripts/verify_apk.py",
+            "git_blob_sha": "d554b7438447d0882030ab54a7fc260e221c15d3",
+            "size": 1314
+        },
+        {
+            "path": "mobile/src/app/_layout.tsx",
+            "git_blob_sha": "a7505bf572c9988b7d0369283842b895bb0cf69a",
+            "size": 336
+        },
+        {
+            "path": "mobile/src/app/active.tsx",
+            "git_blob_sha": "b9a3884ac710bd507d8c016077423a10051a320a",
+            "size": 133
+        },
+        {
+            "path": "mobile/src/app/detail.tsx",
+            "git_blob_sha": "85356820b44aeaf028d76a2ca69be8f856dc1900",
+            "size": 397
+        },
+        {
+            "path": "mobile/src/app/history.tsx",
+            "git_blob_sha": "b00c25084d3a8417a8fee7c40f207d61626a1cd0",
+            "size": 137
+        },
+        {
+            "path": "mobile/src/app/index.tsx",
+            "git_blob_sha": "482c44988629bb9551cac0aab8253e8619e40088",
+            "size": 138
+        },
+        {
+            "path": "mobile/src/app/performance.tsx",
+            "git_blob_sha": "b11a3d1c146f1e4080b27d4fcf5f17e374be3102",
+            "size": 143
+        },
+        {
+            "path": "mobile/src/app/radar.tsx",
+            "git_blob_sha": "4ddd43ee6c935be0a016ffc65f12f46bae2f26b0",
+            "size": 132
+        },
+        {
+            "path": "mobile/src/components/DetailScreen.tsx",
+            "git_blob_sha": "df16653d6fce454dde175f39cfd48401387e2208",
+            "size": 7264
+        },
+        {
+            "path": "mobile/src/components/PaperControls.tsx",
+            "git_blob_sha": "9b843761ef6057e5a4b66ff1154538963ab2aade",
+            "size": 7761
+        },
+        {
+            "path": "mobile/src/lib/api.ts",
+            "git_blob_sha": "5d5ee09af9fe4ca4e7c1d61f8df209250ad984bd",
+            "size": 1369
+        },
+        {
+            "path": "mobile/src/lib/deviceRadar.ts",
+            "git_blob_sha": "5f498ab7437392a36557792d4a01f3cbefc6fa7a",
+            "size": 11902
+        },
+        {
+            "path": "mobile/src/lib/paperCore.ts",
+            "git_blob_sha": "e1563e31bc3485c9f42c2ba438acc2d05967c5ad",
+            "size": 2245
+        },
+        {
+            "path": "mobile/src/lib/paperTracker.ts",
+            "git_blob_sha": "2394266f7743dec49c2d35083ce455b83b7900a0",
+            "size": 9300
+        },
+        {
+            "path": "mobile/tsconfig.json",
+            "git_blob_sha": "b9567f6052d70ca2c9035e33667fded3cc4ed71f",
+            "size": 85
+        },
+        {
+            "path": "render.yaml",
+            "git_blob_sha": "66b68be2abd78de11842c9b8c4033d4fb83f0c73",
+            "size": 651
+        }
+    ],
+    "isolation": "Independent local Git repository with no upstream remote; no source repository writes performed."
+}

@@ -1,0 +1,25 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+apply plugin: 'com.chaquo.python'
+group = 'com.oranradar.phone'
+version = '3.7.0'
+android {
+  namespace 'com.oranradar.phone'
+  defaultConfig { minSdkVersion 24; versionCode 10; versionName '3.7.0'; ndk { abiFilters 'arm64-v8a' } }
+}
+chaquopy {
+  sourceSets { main { srcDir '../../../../backend_next' } }
+  defaultConfig {
+    version = '3.13'
+    if (System.getenv('RADAR_BUILD_PYTHON')) { buildPython(System.getenv('RADAR_BUILD_PYTHON')) }
+    pip { install 'numpy==1.26.2'; install 'certifi==2025.10.5' }
+  }
+}
+dependencies {
+  implementation 'androidx.work:work-runtime-ktx:2.10.1'
+  implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+  testImplementation 'junit:junit:4.13.2'
+  testImplementation 'org.json:json:20240303'
+}

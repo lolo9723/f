@@ -1,0 +1,4 @@
+-r backend_next/requirements.txt
+pytest==8.4.2
+ruff==0.14.0
+moto[dynamodb,s3,sqs]==5.1.14

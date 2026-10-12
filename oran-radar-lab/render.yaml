@@ -1,0 +1,22 @@
+# Free prototype only. Local SQLite is ephemeral on this plan; this file is
+# deployment preparation, not a claim that an analysis server is already live.
+services:
+  - type: web
+    name: oran-radar-paper
+    runtime: python
+    region: frankfurt
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: RADAR_API_TOKEN
+        generateValue: true
+      - key: RADAR_SCAN_SECONDS
+        value: '300'
+      - key: RADAR_PUSH_ENABLED
+        value: '0'
