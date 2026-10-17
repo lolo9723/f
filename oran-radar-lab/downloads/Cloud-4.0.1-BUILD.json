@@ -1,0 +1,10 @@
+{
+  "version": "4.0.1",
+  "package": "com.oranradar.lab.cloud",
+  "source_commit": "38f879eb363fc8c976174cf47346b0654d238b01",
+  "workflow": "https://github.com/lolo9723/f/actions/runs/39047029734",
+  "signing": "Android development certificate; separate test package",
+  "cloud_service_deployed": true,
+  "api_url": "https://br-falling-term-b9315oqi-radar.compute.c-7.eu-central-1.aws.neon.tech",
+  "scan_interval_minutes": 15
+}
