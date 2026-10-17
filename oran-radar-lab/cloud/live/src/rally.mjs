@@ -15,9 +15,10 @@ export function validateCandles(rows,interval,now=Date.now(),requireRecent=true)
  if(requireRecent&&out.length&&out.at(-1).time+2*interval<=now)throw Error('Son kapalı mum güncel değil');
  return out;
 }
-export function rally(hour,minute,book,btcChange=0){
+export function rally(hour,minute,book,btcChange=0,livePrice=null){
  if(hour.length<80||minute.length<60)throw Error('Puan için yeterli kapalı mum yok');
- const c=hour.map(b=>b.close),v=minute.map(b=>b.quote_volume),p=c.at(-1);
+ const c=hour.map(b=>b.close),v=minute.map(b=>b.quote_volume),p=livePrice??c.at(-1);
+ if(!Number.isFinite(p)||p<=0)throw Error('Güncel fiyat geçersiz');
  if(!book.bids?.length||!book.asks?.length)throw Error('Emir defteri boş');
  const b=book.bids.slice(0,10).map(r=>r.map(Number)),a=book.asks.slice(0,10).map(r=>r.map(Number));
  if([...b,...a].some(([p,q])=>!Number.isFinite(p)||!Number.isFinite(q)||p<=0||q<0))throw Error('Geçersiz derinlik');
@@ -28,5 +29,6 @@ export function rally(hour,minute,book,btcChange=0){
  let atr=mean(hour.slice(-14).map((b,i)=>Math.max(b.high-b.low,Math.abs(b.high-hour.at(-15+i).close),Math.abs(b.low-hour.at(-15+i).close))));
  const entry=p-Math.max(.001*p,.35*atr),stop=entry-Math.max(.01*entry,1.5*atr),target=entry+Math.max(.03*entry,2*atr);
  if(stop<=0)throw Error('Plan seviyeleri geçersiz');
- return {score:Math.round(100*Object.entries(parts).reduce((s,[k,v])=>s+v*WEIGHTS[k],0)),components:Object.fromEntries(Object.entries(parts).map(([k,v])=>[k,v*100])),spread_pct:spread*100,volume_ratio:qvol,entry,target,stop,atr,price:p,as_of:minute.at(-1).time+60000,method:'original-rally-v0.1',probability:null};
+ const raw=100*Object.entries(parts).reduce((s,[k,v])=>s+v*WEIGHTS[k],0);
+ return {score:livePrice===null?Math.round(raw):Math.round(raw*10)/10,components:Object.fromEntries(Object.entries(parts).map(([k,v])=>[k,v*100])),spread_pct:spread*100,volume_ratio:qvol,entry,target,stop,atr,price:p,as_of:minute.at(-1).time+60000,method:livePrice===null?'original-rally-v0.1':'live-rally-v1',probability:null};
 }

@@ -51,13 +51,13 @@ function render(){
 }
 function signalCard(){const c=card('Erken ralli adayları','Binance TR spot TRY piyasası · En fazla 48 saat · Sanal işlem');
   if(!data.signals?.length)return empty(c,'Henüz doğrulanmış modelden üretilmiş sinyal yok.');
-  c.append(el('p','Adaylar temel ralli kuralıyla sıralanır; doğrulanmış kârlılık veya kalibre olasılık değildir. Sanal kasa ve optimizasyon ayarları Android uygulamasındadır.'));c.append(table(['Parite','Alış','Hedef','Stop','Olasılık','Model','Üretim'],data.signals.map(s=>[s.symbol_id,s.entry,s.target,s.stop,s.probability===null?'Hesaplanmadı':(s.probability*100).toFixed(1)+'%',s.model_id,time(s.predicted_at)])));return c;}
+  c.append(el('p','Adaylar temel ralli kuralıyla sıralanır; doğrulanmış kârlılık veya kalibre olasılık değildir. Sanal kasa ve optimizasyon ayarları Android uygulamasındadır.'));c.append(table(['Parite','Canlı puan','RSI','MACD','Alış','Hedef','Stop','Puan zamanı'],data.signals.map(s=>[s.symbol_id,s.live_valid===false?'Güncel değil':s.score,s.indicators?.rsi14?.toFixed(1),s.indicators?.macd_histogram>0?'↑':'↓',s.entry,s.target,s.stop,time(s.predicted_at)])));return c;}
 async function load(){const notice=document.querySelector('#notice');notice.replaceChildren();
   document.querySelector('#login').hidden=true;
-  try{const r=await fetch(API+'/v1/public/status',{headers:{Authorization:'Bearer '+token}});if(!r.ok)throw new Error(r.status===401?'Erişim anahtarını kontrol et.':'Sunucu hatası: '+r.status);data=await r.json();document.querySelector('#login').hidden=true;
-    const stale=!data.generated_at_ms||Date.now()-data.generated_at_ms>30*60_000;
-    notice.append(el('div',stale?'Veri aktarımı güncel değil. Son aktarım: '+time(data.generated_at_ms):'Canlı sunucu · 15 dakikalık tarama · Son rapor: '+time(data.generated_at_ms),'banner'+(stale?' error':'')));render();
+  try{const r=await fetch(API+'/v1/live/status',{headers:{Authorization:'Bearer '+token}});if(!r.ok)throw new Error(r.status===401?'Erişim anahtarını kontrol et.':'Sunucu hatası: '+r.status);data=await r.json();document.querySelector('#login').hidden=true;
+    const stale=!data.generated_at_ms||Date.now()-(data.live?.updated_at||0)>90000;
+    notice.append(el('div',stale?'Veri aktarımı güncel değil. Son aktarım: '+time(data.generated_at_ms):'Canlı puan 10 sn · arka plan 1 dk · araştırma 15 dk · Son puan: '+time(data.live?.updated_at),'banner'+(stale?' error':'')));render();
   }catch(e){notice.append(el('div',e.message+(data?' · Son görüntülenen rapor: '+time(data.generated_at_ms):''),'banner error'));document.querySelector('#login').hidden=false;}}
 for(const[id,label]of pages){const b=el('button',label);b.dataset.page=id;b.onclick=()=>{selected=id;render();};document.querySelector('#nav').append(b);}
 document.querySelector('#loginForm').onsubmit=e=>{e.preventDefault();token=document.querySelector('#token').value.trim();sessionStorage.setItem('oran-token',token);document.querySelector('#token').value='';load();};
-document.querySelector('#refresh').onclick=load;render();load();setInterval(load,60000);
+document.querySelector('#refresh').onclick=load;render();load();setInterval(load,10000);

@@ -8,7 +8,7 @@ vm.runInNewContext(code,{module:moduleObject,exports:moduleObject.exports,URL,Da
   require:name=>name==='react-native'?{Platform:{OS:'android'}}:name==='@react-native-async-storage/async-storage'?{getItem:async k=>values.get(k)||null,setItem:async(k,v)=>values.set(k,v)}:name==='expo-secure-store'?{getItemAsync:async k=>secrets.get(k)||null,setItemAsync:async(k,v)=>secrets.set(k,v),deleteItemAsync:async k=>secrets.delete(k)}:{} });
 const c=moduleObject.exports;
 (async()=>{
- const initial=await c.cloudConfig();assert.equal(initial.base,c.DEFAULT_CLOUD_BASE);assert.equal(initial.token,'t'.repeat(40));await c.fetchCloudSnapshot(initial.base,initial.token);assert.match(lastUrl,/v1\/public\/status$/);
+ const initial=await c.cloudConfig();assert.equal(initial.base,c.DEFAULT_CLOUD_BASE);assert.equal(initial.token,'t'.repeat(40));await c.fetchCloudSnapshot(initial.base,initial.token);assert.match(lastUrl,/v1\/live\/status$/);
  assert.equal(c.normalizeCloudBase('https://api.example/'),'https://api.example');
  for(const url of ['http://api.example','https://user:pass@api.example','https://api.example/path'])assert.throws(()=>c.normalizeCloudBase(url));
  assert.throws(()=>c.validateCloudSnapshot({signals:[]}));

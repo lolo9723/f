@@ -1,15 +1,13 @@
 import {randomUUID} from 'node:crypto';
-import {pool,state,setState,walletTransaction} from './db.mjs';
+import {pool,state,setState} from './db.mjs';
 import {historyFeature,researchDecision} from './research.mjs';
 import {learnPairs} from './learning.mjs';
 import {rally,validateCandles} from './rally.mjs';
-import {active,applyTrades,reserve} from './wallet.mjs';
-export async function getJSON(url){
- const r=await fetch(url,{signal:AbortSignal.timeout(12000),redirect:'error'});
- if(!r.ok)throw Error('Kaynak HTTP '+r.status);
- const j=await r.json();if(j&&typeof j==='object'&&!Array.isArray(j)&&Object.hasOwn(j,'code')&&j.code!==0)throw Error('Kaynak API kodu '+j.code);
- return j?.data??j;
-}
+import {active} from './wallet.mjs';
+import {getJSON} from './market-data.mjs';
+export {getJSON} from './market-data.mjs';
+import {getLiveMarket} from './live.mjs';
+import {trackWallets} from './tracking.mjs';
 const BASE='https://api.binance.me';
 async function candles(pair,interval,limit){return validateCandles(await getJSON(BASE+'/api/v1/klines?'+new URLSearchParams({symbol:pair,interval,limit:String(limit)})),interval==='1h'?3600000:60000);}
 export async function refresh(invocationId,scheduledAt=Date.now()){
@@ -56,30 +54,8 @@ export async function refresh(invocationId,scheduledAt=Date.now()){
   await setState('market',market);
   // Mark only outcomes for which the exact hourly observation is present; no interpolated data.
   await pool.query("UPDATE live_patterns p SET outcomes=p.outcomes||jsonb_build_object(h.h::text,jsonb_build_object('return',((c.payload->>'close')::double precision/p.price)-1,'evaluated_at',$1::bigint)) FROM (VALUES(1),(3),(6),(12),(24),(48)) h(h),live_candles c WHERE c.exchange='binance_tr' AND c.symbol=p.symbol AND c.interval='1h' AND c.open_ms=p.observed_at+(h.h-1)::bigint*3600000 AND NOT (p.outcomes ? h.h::text)",[Date.now()]);
-  let requests=0;
-  for(const row of walletRows){
-   const batches=[];
-   for(const o of row.document.orders.filter(active)){
-    let cursor=o.cursor_time??o.created_at,lastId=o.last_trade_id;
-    for(let page=0;page<8&&requests<50;page++){
-     try{const end=Math.min(Date.now(),cursor+3599999),params={symbol:o.pair,limit:'1000'};
-      if(lastId!==null)params.fromId=String(lastId+1);else {params.startTime=String(cursor);params.endTime=String(end);}
-      const trades=await getJSON(BASE+'/api/v1/aggTrades?'+new URLSearchParams(params));requests++;
-      const until=Date.now();batches.push({id:o.id,rows:trades,until,emptyEnd:lastId===null?end:until});
-      if(trades.length){lastId=Number(trades.at(-1).a);cursor=Number(trades.at(-1).T);}
-      else cursor=end+1;
-      if(trades.length<1000||cursor>=until)break;
-     }catch(e){requests++;batches.push({id:o.id,error:e.message});break;}
-    }
-   }
-   try{await walletTransaction(row.user_id,row.revision,w=>{
-    for(const batch of batches){const o=w.orders.find(x=>x.id===batch.id);if(!o||!active(o))continue;
-     if(batch.error){o.tracking_error=batch.error;continue;}
-     try{applyTrades(w,o,batch.rows,batch.until);if(!batch.rows.length){o.cursor_time=batch.emptyEnd+1;o.verified_until=batch.emptyEnd;if(o.state==='WAITING_ENTRY'&&batch.emptyEnd>=o.entry_expires_at){o.state='EXPIRED_UNFILLED';o.closed_at=o.entry_expires_at;}}}catch(e){o.tracking_error=e.message;}
-    }
-    reserve(w,candidates,quotes,Date.now());
-   });}catch(e){if(e.status!==409)errors.push({wallet:'update',error:e.message});}
-  }
+  // Only a new live score may authorize an order; the research snapshot cannot.
+  await trackWallets(await getLiveMarket());
   const size=(await pool.query('SELECT pg_database_size(current_database())::text bytes')).rows[0];
   const researchQueue=chosen.filter(p=>!models[p]||Date.now()-(models[p].attempted_at||models[p].trained_at)>12*3600000);
   const researchUpdates=Number(size.bytes)<750000000?await learnPairs(researchQueue,2):[{status:'quota_pause',reason:'Yeni tarihsel indirme için kapasite sınırı'}];

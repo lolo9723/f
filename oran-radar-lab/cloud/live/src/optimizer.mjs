@@ -12,5 +12,6 @@ export function optimalOpportunity(c,now=Date.now()){
  const loss=(c.entry-c.stop)/c.entry+.003;
  if(!(utility>0&&loss>0&&Number.isFinite(loss)))return {eligible:false,reason:'NO_POSITIVE_HISTORICAL_EDGE'};
  const priority=utility/loss*Math.max(0,c.final_score??c.score)/100;
- return {eligible:true,reason:'HISTORICAL_EDGE_AND_RISK',priority,utility,spread,uncertainty_se:se};
+ const riskScale=Math.max(.15,Math.min(1,r.holdout.effective_n/(r.holdout.effective_n+8)*(r.uncertainty[0]>0?1:.6)));
+ return {eligible:true,risk_scale:riskScale,reason:'HISTORICAL_EDGE_AND_RISK',priority,utility,spread,uncertainty_se:se};
 }

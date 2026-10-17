@@ -100,4 +100,5 @@ def optimal_opportunity(candidate, now):
     if not (utility > 0 and loss > 0 and isfinite(loss)):
         return {'eligible': False, 'reason': 'NO_POSITIVE_HISTORICAL_EDGE'}
     priority = utility/loss*max(0, candidate.get('final_score', candidate['score']))/100
-    return {'eligible': True, 'reason': 'HISTORICAL_EDGE_AND_RISK', 'priority': priority, 'utility': utility, 'spread': spread, 'uncertainty_se': se}
+    risk_scale = max(.15, min(1, holdout['effective_n']/(holdout['effective_n']+8)*(1 if interval[0] > 0 else .6)))
+    return {'eligible': True, 'risk_scale': risk_scale, 'reason': 'HISTORICAL_EDGE_AND_RISK', 'priority': priority, 'utility': utility, 'spread': spread, 'uncertainty_se': se}

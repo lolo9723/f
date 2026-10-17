@@ -33,3 +33,9 @@ Kullanıcı anahtarı: POST `/v1/session`, yalnızca kendi kasa API'sinde kullan
 Neon Free organizasyonunda ücretli plan açılmadı. 0,25 CU, varsayılan ölçek sıfırlama; 100 CU-saat ve servislerin ücretsiz kotası geçerlidir. Kota dolarsa hizmet durabilir. FCM arka plan bildirimi henüz yapılandırılmadı.
 
 Ücretsiz veritabanı yaklaşık 750 MB'a ulaştığında yeni ham geçmiş ve örüntü yazımı duraklatılır; güncel piyasa analizi, mevcut kasaların takibi ve durum raporu için kapasite ayrılır. Ücretli plana kendiliğinden geçilmez.
+
+## İki ayrı güncelleme döngüsü
+
+`/v1/live/status`: ortak 10 saniyelik tazelik penceresiyle canlı puan; `/internal/pulse`: her dakika puan + sanal işlem kontrolü; `/internal/cron`: 15 dakikalık evren/derin tarihsel araştırma. Aktif piyasa çiftleri aynı kalırken puan değişebilir. Saatlik/dakikalık kapalı mumlar yalnızca yeni mum kapanışında yenilenir; fiyatla işaretlenen EMA/RSI/MACD ve fiyat seviyeleri güncel kotasyonla tekrar hesaplanır. Hacim, ATR, ADX, CMF/MFI kapanmış gerçek mum kullanır. Son kaynak zamanları API'de ayrı verilir.
+
+`live.mjs` dağıtık tarama kilidiyle, `tracking.mjs` ayrı kasa kilidiyle çalışır; çakışan kasa yazımları revision denetiminden geçer. Canlı hata eski puanın zamanını yenilemez. Optimal kanıt gücü `risk_scale` olarak tutarı da sınırlar. Gösterge overlay'i betimsel bir kuraldır; mevcut tarihsel modelin yeni indikatörler için ileri dönem kârlılığı doğruladığı iddia edilmez.

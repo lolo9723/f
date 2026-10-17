@@ -5,7 +5,8 @@ import {Platform} from 'react-native';
 export const DEFAULT_CLOUD_BASE = 'https://br-falling-term-b9315oqi-radar.compute.c-7.eu-central-1.aws.neon.tech';
 export const PUBLIC_COVERAGE_URL = 'https://raw.githubusercontent.com/lolo9723/f/oran-radar-cloud-4.0/oran-radar-lab/cloudflare-coverage.json';
 export type ResearchDecision={base_score:number;research_adjustment:number;final_score:number;status:string;reason:string;model_id:string|null;historical_net:number|null;uncertainty:[number,number]|null;samples:number;effective_samples:number;holdout?:{n:number;effective_n:number;mean:number|null}};
-export type CloudSignal = {base_score?:number;final_score?:number;research?:ResearchDecision;signal_id: string;symbol_id: string;predicted_at: number;model_id: string;entry: number;target: number;stop: number;expires_at: number;score: number|null;probability: number|null;expected_return: number|null;mode: string};
+export type LiveIndicators={adjustment:number;rsi14:number;ema20:number;ema50:number;macd_histogram:number;vwap60:number;atr_pct:number;obv_flow20:number;volume_ratio5_55:number;closed_minute_at:number;adx14:number;bollinger_percent_b:number;mfi14:number;cmf20:number;stoch_rsi14:number};
+export type CloudSignal = {live_valid?:boolean;live_error?:string|null;cloud_gate?:{eligible:boolean;reason:string;risk_scale?:number};inputs_at?:{price:number;book:number;minute_close:number;hour_close:number};base_rally_score?:number;indicators?:LiveIndicators;base_score?:number;final_score?:number;research?:ResearchDecision;signal_id: string;symbol_id: string;predicted_at: number;model_id: string;entry: number;target: number;stop: number;expires_at: number;score: number|null;probability: number|null;expected_return: number|null;mode: string};
 export type CloudSnapshot = {
   schema_version:'coverage-v1';generated_at_ms:number|null;status:string;all_history_complete:boolean;
   inventory:Record<string,{known_symbols:number;latest_status:string;sources?:{source:string;status:string;error?:string|null}[]}>;
@@ -17,7 +18,7 @@ export type CloudSnapshot = {
   failed_partitions?:{symbol:string;interval:string;period:string;error:string}[];
   signals:CloudSignal[];models:{model_id:string;status:string;created_at:number}[];
   limitations?:string[];
-  live?:{scanned:number;failed:number;known_symbols:number;quotes:number;updated_at:number;cadence_minutes:number;next_scheduled_at:number;scan_policy:string;errors?:{pair:string;error:string}[]};
+  live?:{score_interval_seconds?:number;background_interval_seconds?:number;deep_scan_at?:number;score_error?:string|null;scanned:number;failed:number;known_symbols:number;quotes:number;updated_at:number;cadence_minutes:number;next_scheduled_at:number;scan_policy:string;errors?:{pair:string;error:string}[]};
   patterns?:{status:string;events:{symbol:string;observed_at:number;features:{score:number};outcomes:Record<string,{return:number}>}[];total:number};
   performance?:{status?:string;trades?:number;win_rate?:number|null;net_expectancy?:number|null};
 };
@@ -59,7 +60,7 @@ export async function cloudJSON(base:string,path:string,token:string,init?:Reque
 export async function fetchCloudSnapshot(base:string,token:string):Promise<CloudResult>{
   const source=base?'api':'github';const cacheKey='oranCloud4.snapshot:'+(base||'public');
   try{
-    const value=base?await cloudJSON(base,base===DEFAULT_CLOUD_BASE?'/v1/public/status':'/v1/status',token):await cloudJSON(PUBLIC_COVERAGE_URL,'','');
+    const value=base?await cloudJSON(base,base===DEFAULT_CLOUD_BASE?'/v1/live/status':'/v1/status',token):await cloudJSON(PUBLIC_COVERAGE_URL,'','');
     const result:CloudResult={data:validateCloudSnapshot(value),fetchedAt:Date.now(),offline:false,error:null,source};
     await AsyncStorage.setItem(cacheKey,JSON.stringify(result));return result;
   }catch(e){

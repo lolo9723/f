@@ -4,6 +4,8 @@ import {parseTriggerDelivery} from '@neon/functions/triggers';
 import worker,{authenticate,digest} from '../../cloudflare/src/index.mjs';
 import {DB,pool,state,transaction,walletTransaction} from './db.mjs';
 import {refresh,getJSON} from './engine.mjs';
+import {getLiveMarket,liveSignals} from './live.mjs';
+import {trackWallets} from './tracking.mjs';
 import {freshWallet,settings,viewWallet,cancel,settle,reserve,manualOrder} from './wallet.mjs';
 const env={...process.env,DB};
 let publicCache={at:0,value:null};
@@ -11,9 +13,16 @@ const json=(x,status=200,extra={})=>Response.json(x,{status,headers:{'Cache-Cont
 function admin(request){const p=request.headers.get('Authorization')||'',e='Bearer '+env.ORAN_ADMIN_TOKEN;return p.length===e.length&&timingSafeEqual(Buffer.from(p),Buffer.from(e));}
 async function body(request){if(!request.headers.get('content-type')?.startsWith('application/json'))throw Object.assign(Error('JSON gerekli'),{status:415});const reader=request.body?.getReader();if(!reader)throw Error('Boş istek');let size=0;const chunks=[];while(true){const r=await reader.read();if(r.done)break;size+=r.value.length;if(size>16000){await reader.cancel();throw Object.assign(Error('İstek büyük'),{status:413});}chunks.push(r.value);}return JSON.parse(Buffer.concat(chunks).toString());}
 async function snapshot(){if(publicCache.value&&Date.now()-publicCache.at<30000)return publicCache.value;const r=(await pool.query("SELECT payload_json FROM snapshots WHERE id='current'")).rows[0];publicCache={at:Date.now(),value:r?JSON.parse(r.payload_json):{status:'not_started',generated_at_ms:null}};return publicCache.value;}
+async function liveSnapshot(update=false){
+ const deep=await snapshot();let fast;
+ try{fast=update?await getLiveMarket():await state('fast_market');}catch(e){fast=await state('fast_market');if(fast)fast={...fast,error:e.message,candidates:fast.candidates.map(c=>({...c,live_valid:false,live_error:e.message}))};}
+ if(!fast)return {...deep,signals:[],live:{...deep.live,updated_at:0,score_interval_seconds:10,background_interval_seconds:60,score_error:'İlk canlı puan hazırlanıyor'}};
+ return {...deep,signals:liveSignals(fast),live:{...deep.live,updated_at:fast.updated_at,deep_scan_at:fast.deep_scan_at,score_interval_seconds:10,background_interval_seconds:60,scanned:fast.candidates.filter(c=>c.live_valid).length,failed:fast.errors?.length||0,errors:fast.errors,score_error:fast.error||null}};
+}
+async function pulse(){let m;try{m=await getLiveMarket();}catch(e){const prior=await state('fast_market')||await state('market')||{candidates:[],quotes:{},updated_at:0};m={...prior,candidates:prior.candidates.map(c=>({...c,live_valid:false,live_error:e.message})),errors:[{pair:'SYSTEM',error:e.message}]};}return {status:'complete',scored:m.candidates.filter(c=>c.live_valid).length,score_at:m.updated_at,wallets:await trackWallets(m)};}
 async function walletAPI(request,path,auth){
  if(!['user','admin'].includes(auth.role))return json({error:'Yetki gerekli'},403);
- const user=auth.user,market=await state('market')||{},quotes=market.quotes||{};
+ const user=auth.user,market=(path==='/v1/wallet/buy'?await getLiveMarket():await state('fast_market'))||await state('market')||{},quotes=market.quotes||{};
  if(request.method==='GET'){
   const row=(await pool.query('SELECT document FROM wallets WHERE user_id=$1',[user])).rows[0];
   return json(row?{initialized:true,...viewWallet(row.document,quotes)}:{initialized:false,settings:settings({}),orders:[]});
@@ -64,15 +73,18 @@ export default {
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...cors,'Access-Control-Allow-Methods':'GET,POST,PUT,OPTIONS','Access-Control-Allow-Headers':'Authorization,Content-Type'}});
   try{
    let response;
-   if(path==='/internal/cron'&&request.method==='POST'){
+   if(['/internal/cron','/internal/pulse'].includes(path)&&request.method==='POST'){
     const parsed=await parseTriggerDelivery(request);if(!parsed.ok)return json({error:parsed.error},401);
     if(parsed.invocation.type!=='schedule')return json({error:'schedule gerekli'},400);
-    response=json(await refresh(parsed.invocation.invocationId,Date.parse(parsed.invocation.data.scheduledAt)));
+    response=json(path==='/internal/pulse'?await pulse():await refresh(parsed.invocation.invocationId,Date.parse(parsed.invocation.data.scheduledAt)));publicCache.at=0;
+   }else if(path==='/v1/admin/pulse'&&request.method==='POST'){
+    if(!admin(request))return json({error:'Unauthorized'},401);response=json(await pulse());
    }else if(path==='/v1/admin/refresh'&&request.method==='POST'){
     if(!admin(request))return json({error:'Unauthorized'},401);
     response=json(await refresh());publicCache.at=0;
-   }else if(path==='/v1/health')response=json({service:'Oran Radar Cloud 4.0',modes:['MANUAL','OPTIMAL'],version:'4.0.1',deployed:true,real_trading:false,scheduler:'Neon Function Trigger',cadence_minutes:15});
-   else if(path==='/v1/public/status'&&request.method==='GET')response=json(await snapshot(),200,{'Cache-Control':'public,max-age=30'});
+   }else if(path==='/v1/health')response=json({service:'Oran Radar Cloud 4.0',modes:['MANUAL','OPTIMAL'],version:'4.0.2',deployed:true,real_trading:false,scheduler:'Neon Function Trigger',cadence_minutes:15,score_interval_seconds:10,background_interval_seconds:60});
+   else if(path==='/v1/public/status'&&request.method==='GET')response=json(await liveSnapshot());
+   else if(path==='/v1/live/status'&&request.method==='GET')response=json(await liveSnapshot(true));
    else if(path==='/v1/session'&&request.method==='POST'){
     // Capacity is global and checked under a transaction lock. Existing devices never re-register.
     const token=randomBytes(40).toString('base64url'),hash=await digest(token),now=Date.now();
@@ -80,7 +92,7 @@ export default {
     response=json({token,expires_at:now+365*86400000},201);
    }else if(path.startsWith('/v1/wallet'))response=await walletAPI(request,path,await authenticate(request,env));
    else if(path==='/v1/market'&&request.method==='GET'){
-    await authenticate(request,env);const m=await state('market')||{};response=json(m);
+    await authenticate(request,env);const m=await getLiveMarket();response=json(m);
    }else if(path==='/v1/runs'&&request.method==='GET'){
     await authenticate(request,env);const rows=(await pool.query('SELECT id,started_at::text,finished_at::text,status,details FROM live_runs ORDER BY started_at DESC LIMIT 15')).rows;response=json({runs:rows});
    }else if(path.startsWith('/v1/'))response=await worker.fetch(request,env);
