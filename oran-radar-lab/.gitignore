@@ -17,3 +17,5 @@ mobile/android/
 *.p12
 mobile/modules/radar-phone/android/src/main/python/radar/
 mobile/modules/radar-phone/android/build/
+
+mobile/web-preview/

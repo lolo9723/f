@@ -1,0 +1,12 @@
+import pg from 'pg';
+import {attachDatabasePool} from '@neon/functions';
+export const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,max:3,idleTimeoutMillis:5000,connectionTimeoutMillis:10000});
+attachDatabasePool(pool);
+export async function transaction(fn){const c=await pool.connect();try{await c.query('BEGIN');const value=await fn(c);await c.query('COMMIT');return value;}catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}}
+function translate(sql){let n=0;const ignore=sql.startsWith('INSERT OR IGNORE');return sql.replace('INSERT OR IGNORE','INSERT').replace(/\?/g,()=>'$'+(++n))+(ignore?' ON CONFLICT DO NOTHING':'');}
+function convert(row){if(!row)return null;for(const[k,v]of Object.entries(row))if(['expires_at','revoked_at','created_at','updated_at','generated_at','due_at'].includes(k)&&v!==null)row[k]=Number(v);return row;}
+class Statement{constructor(sql,args=[]){this.sql=translate(sql);this.args=args;}bind(...args){this.args=args;return this;}async first(){return convert((await pool.query(this.sql,this.args)).rows[0]);}async all(){return {results:(await pool.query(this.sql,this.args)).rows.map(convert)};}async run(){const r=await pool.query(this.sql,this.args);return {meta:{changes:r.rowCount}};}}
+export const DB={prepare:sql=>new Statement(sql),batch:stmts=>transaction(async c=>{const out=[];for(const s of stmts){const r=await c.query(s.sql,s.args);out.push({meta:{changes:r.rowCount}});}return out;})};
+export async function state(id){return (await pool.query('SELECT payload FROM live_state WHERE id=$1',[id])).rows[0]?.payload;}
+export async function setState(id,payload){await pool.query('INSERT INTO live_state VALUES($1,$2,$3) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at',[id,JSON.stringify(payload),Date.now()]);}
+export async function walletTransaction(user,expected,fn){return transaction(async c=>{const r=await c.query('SELECT revision,document FROM wallets WHERE user_id=$1 FOR UPDATE',[user]);if(!r.rows.length)throw Object.assign(Error('Önce sanal kasa açılmalı'),{status:404});const {document:w,revision}=r.rows[0];if(expected!==undefined&&expected!==revision)throw Object.assign(Error('Kasa güncellendi; yenileyip tekrar kaydet'),{status:409});await fn(w);w.revision=revision+1;await c.query('UPDATE wallets SET revision=$2,document=$3,updated_at=$4 WHERE user_id=$1',[user,w.revision,JSON.stringify(w),Date.now()]);return w;});}

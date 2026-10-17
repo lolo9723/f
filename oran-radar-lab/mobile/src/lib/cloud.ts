@@ -1,8 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
+import {Platform} from 'react-native';
 
+export const DEFAULT_CLOUD_BASE = 'https://br-falling-term-b9315oqi-radar.compute.c-7.eu-central-1.aws.neon.tech';
 export const PUBLIC_COVERAGE_URL = 'https://raw.githubusercontent.com/lolo9723/f/oran-radar-cloud-4.0/oran-radar-lab/cloudflare-coverage.json';
-export type CloudSignal = {signal_id: string;symbol_id: string;predicted_at: number;model_id: string;entry: number;target: number;stop: number;expires_at: number;score: number|null;probability: number|null;expected_return: number|null;mode: string};
+export type ResearchDecision={base_score:number;research_adjustment:number;final_score:number;status:string;reason:string;model_id:string|null;historical_net:number|null;uncertainty:[number,number]|null;samples:number;effective_samples:number;holdout?:{n:number;effective_n:number;mean:number|null}};
+export type CloudSignal = {base_score?:number;final_score?:number;research?:ResearchDecision;signal_id: string;symbol_id: string;predicted_at: number;model_id: string;entry: number;target: number;stop: number;expires_at: number;score: number|null;probability: number|null;expected_return: number|null;mode: string};
 export type CloudSnapshot = {
   schema_version:'coverage-v1';generated_at_ms:number|null;status:string;all_history_complete:boolean;
   inventory:Record<string,{known_symbols:number;latest_status:string;sources?:{source:string;status:string;error?:string|null}[]}>;
@@ -14,22 +17,30 @@ export type CloudSnapshot = {
   failed_partitions?:{symbol:string;interval:string;period:string;error:string}[];
   signals:CloudSignal[];models:{model_id:string;status:string;created_at:number}[];
   limitations?:string[];
+  live?:{scanned:number;failed:number;known_symbols:number;quotes:number;updated_at:number;cadence_minutes:number;next_scheduled_at:number;scan_policy:string;errors?:{pair:string;error:string}[]};
+  patterns?:{status:string;events:{symbol:string;observed_at:number;features:{score:number};outcomes:Record<string,{return:number}>}[];total:number};
   performance?:{status?:string;trades?:number;win_rate?:number|null;net_expectancy?:number|null};
 };
 export type CloudResult={data:CloudSnapshot;fetchedAt:number;offline:boolean;error:string|null;source:'github'|'api'};
 const BASE_KEY='oranCloud4.base',TOKEN_KEY='oranCloud4.userToken';
+const tokenStore={get:async()=>Platform.OS==='web'?globalThis.localStorage?.getItem(TOKEN_KEY):SecureStore.getItemAsync(TOKEN_KEY),set:async(v:string)=>{if(Platform.OS==='web')globalThis.localStorage?.setItem(TOKEN_KEY,v);else await SecureStore.setItemAsync(TOKEN_KEY,v);},remove:async()=>{if(Platform.OS==='web')globalThis.localStorage?.removeItem(TOKEN_KEY);else await SecureStore.deleteItemAsync(TOKEN_KEY);}};
 export function normalizeCloudBase(value:string){
   const v=value.trim().replace(/\/+$/,'');if(!v)return '';
   const u=new URL(v);
   if(u.protocol!=='https:'||u.username||u.password||u.search||u.hash||u.pathname!=='/')throw new Error('API adresi https:// ile başlayan bir ana adres olmalı.');
   return u.origin;
 }
-export async function cloudConfig(){return {base:(await AsyncStorage.getItem(BASE_KEY))||'',token:(await SecureStore.getItemAsync(TOKEN_KEY))||''};}
+export async function cloudConfig(){
+ const stored=await AsyncStorage.getItem(BASE_KEY),base=stored==='github'?'':stored||DEFAULT_CLOUD_BASE;
+ let token=(await tokenStore.get())||'';
+ if(base===DEFAULT_CLOUD_BASE&&!token){try{const session=await cloudJSON(base,'/v1/session','',{method:'POST',body:'{}'});token=session.token;await tokenStore.set(token);}catch{/* Public market data can load while device registration is retried. */}}
+ return {base,token};
+}
 export async function saveCloudConfig(base:string,token:string){
   const normalized=normalizeCloudBase(base);
   if(normalized&&token.trim().length<32)throw new Error('Kullanıcı erişim anahtarı en az 32 karakter olmalı.');
-  if(token.trim())await SecureStore.setItemAsync(TOKEN_KEY,token.trim());else await SecureStore.deleteItemAsync(TOKEN_KEY);
-  await AsyncStorage.setItem(BASE_KEY,normalized);
+  if(token.trim())await tokenStore.set(token.trim());else await tokenStore.remove();
+  await AsyncStorage.setItem(BASE_KEY,normalized||'github');
 }
 export function validateCloudSnapshot(v:unknown):CloudSnapshot{
   const x=v as CloudSnapshot;
@@ -41,14 +52,14 @@ export async function cloudJSON(base:string,path:string,token:string,init?:Reque
   const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),15000);
   try{
     const response=await fetch(base+path,{...init,signal:controller.signal,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{}),...init?.headers}});
-    if(!response.ok){const e=Object.assign(new Error('Bulut sunucusu HTTP '+response.status),{status:response.status});throw e;}
+    if(!response.ok){let message='Bulut sunucusu HTTP '+response.status;try{const body=await response.json();if(typeof body.error==='string')message+=' · '+body.error;}catch{}const e=Object.assign(new Error(message),{status:response.status});throw e;}
     return await response.json();
   }finally{clearTimeout(timer);}
 }
 export async function fetchCloudSnapshot(base:string,token:string):Promise<CloudResult>{
   const source=base?'api':'github';const cacheKey='oranCloud4.snapshot:'+(base||'public');
   try{
-    const value=base?await cloudJSON(base,'/v1/status',token):await cloudJSON(PUBLIC_COVERAGE_URL,'','');
+    const value=base?await cloudJSON(base,base===DEFAULT_CLOUD_BASE?'/v1/public/status':'/v1/status',token):await cloudJSON(PUBLIC_COVERAGE_URL,'','');
     const result:CloudResult={data:validateCloudSnapshot(value),fetchedAt:Date.now(),offline:false,error:null,source};
     await AsyncStorage.setItem(cacheKey,JSON.stringify(result));return result;
   }catch(e){

@@ -1,0 +1,2 @@
+import {defineConfig} from '@neon/config/v1';
+export default defineConfig({functions:{radar:{name:'Oran Radar Cloud Live',source:'src/index.mjs',env:{ORAN_ADMIN_TOKEN:process.env.ORAN_ADMIN_TOKEN!,ORAN_INGEST_TOKEN:process.env.ORAN_INGEST_TOKEN!,CORS_ORIGIN:process.env.CORS_ORIGIN!}}},triggers:{'market-quarter-hour':{type:'schedule',function:'radar',cron:'*/15 * * * *',functionPath:'/internal/cron'}}});

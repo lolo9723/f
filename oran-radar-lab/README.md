@@ -1,3 +1,22 @@
+# Oran Radar Cloud 4.0.1 — Canlı
+
+Binance TR araştırma merkezi bulutta yayımlandı. APK varsayılan olarak canlı servise bağlanır; telefon kapalıyken 15 dakikalık sunucu zamanlayıcısı veri, örüntü ve sanal işlem takibini sürdürür.
+
+- [Güncel APK](downloads/Oran-Radar-Cloud-4.0.1.apk)
+- [Canlı API sağlık durumu](https://br-falling-term-b9315oqi-radar.compute.c-7.eu-central-1.aws.neon.tech/v1/health)
+- [Canlı piyasa raporu](https://br-falling-term-b9315oqi-radar.compute.c-7.eu-central-1.aws.neon.tech/v1/public/status)
+- [Canlı mimari, sanal kasa ayarları ve sınırlar](cloud/live/README.md)
+
+Sanal kasa ve optimizasyon doğrudan ana sekmelerdedir. Puan eşiği, otomatik/sabit TL, piyasa/limit, risk, bütçe, hedef, stop ve coin bazlı fiyat ayarları bulutta saklanır. İlk kurulumda otomasyon kapalıdır; başlangıç bakiyesi kullanıcı tarafından belirlenir. Eski telefon radarı ayrı menüden erişilebilir.
+
+Yeni APK 4.0.1 / versionCode 13 / `com.oranradar.lab.cloud`, ARM64, release JS paketi ve geliştirme imzasıyla oluşturulur. İlk 3.8.0 `com.oranradar.lab.preview` uygulamasının yanında kurulur. Derleme, Python kaynak eşleşmesi, DEX/Hermes, imza ve 16 KB hizalama kontrolleri Actions'ta çalışır.
+
+Temel ralli puanı, kronolojik ayrı testle değerlendirilen tarihsel araştırma katkısıyla nihai puana dönüşür; ayrıntıda temel puan/katkı/gerekçe görülebilir. Bu puan başarı olasılığı değildir. Tarihsel banka kısmi; kalibre model terfisi ve Firebase arka plan bildirimi henüz etkin değildir. Gerçek para emirleri verilmez.
+
+Önceki kaynak/mimari notları aşağıdadır; canlı dağıtım için yukarıdaki 4.0.1 belgesi esas alınır.
+
+---
+
 # Oran Radar Cloud 4.0
 
 [Android APK](https://github.com/lolo9723/f/raw/refs/heads/oran-radar-cloud-4.0/oran-radar-lab/downloads/Oran-Radar-Cloud-4.0.0.apk) · [APK derlemesi](https://github.com/lolo9723/f/actions/workflows/oran-cloud-4.yml) · [Gerçek veri kapsamı](cloudflare-coverage.json)
