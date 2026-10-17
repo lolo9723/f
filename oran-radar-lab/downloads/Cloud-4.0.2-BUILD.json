@@ -1,0 +1,13 @@
+{
+  "version": "4.0.2",
+  "package": "com.oranradar.lab.cloud",
+  "source_commit": "51b40b29b3383fc177df714a631c200e8e8a6fc9",
+  "workflow": "https://github.com/lolo9723/f/actions/runs/39050990294",
+  "signing": "Android development certificate; separate test package",
+  "cloud_service_deployed": true,
+  "api_url": "https://br-falling-term-b9315oqi-radar.compute.c-7.eu-central-1.aws.neon.tech",
+  "scan_interval_minutes": 15,
+  "score_interval_seconds": 10,
+  "background_interval_seconds": 60,
+  "display_name": "Oran Radar Cloud 4.0"
+}
