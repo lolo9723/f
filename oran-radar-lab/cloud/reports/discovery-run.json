@@ -1,0 +1,14 @@
+{
+  "https://data-api.binance.vision": {
+    "status": "complete",
+    "count": 3729
+  },
+  "https://www.binance.tr": {
+    "status": "failed",
+    "error": "HTTP 451: https://www.binance.tr/open/v1/common/symbols; access restriction respected"
+  },
+  "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision": {
+    "status": "complete",
+    "count": 3745
+  }
+}

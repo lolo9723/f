@@ -1,0 +1,37 @@
+name: Bounded durable data update
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 2 * * *'
+permissions:
+  contents: read
+concurrency:
+  group: oran-cloud-single-writer
+  cancel-in-progress: false
+jobs:
+  update:
+    if: vars.ORAN_ENABLE_SCHEDULE == 'true'
+    runs-on: ${{ vars.ORAN_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 18
+    env:
+      ORAN_DATA: ${{ vars.ORAN_DATA || 'data' }}
+      ORAN_R2_APPROVED: ${{ vars.ORAN_R2_APPROVED }}
+      ORAN_PERSISTENT_RUNNER: ${{ vars.ORAN_PERSISTENT_RUNNER }}
+      ORAN_R2_ENDPOINT: ${{ vars.ORAN_R2_ENDPOINT }}
+      ORAN_R2_BUCKET: ${{ vars.ORAN_R2_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.ORAN_R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.ORAN_R2_SECRET_ACCESS_KEY }}
+      ORAN_API_URL: ${{ vars.ORAN_API_URL }}
+      ORAN_INGEST_TOKEN: ${{ secrets.ORAN_INGEST_TOKEN }}
+      ORAN_BATCH_FILES: '350'
+      ORAN_CATALOG_BATCH: '100'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[r2]'
+      - run: python scripts/update_data.py
+      # No cache or Actions artifacts are used as permanent market-data storage.

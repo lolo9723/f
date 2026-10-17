@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.venv/
+node_modules/
+.wrangler/
+.env
+.dev.vars
+data/
+pilot-data/
+dist/
+*.apk
+*.keystore
+*.jks

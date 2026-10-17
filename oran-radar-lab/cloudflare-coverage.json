@@ -1,0 +1,1033 @@
+{
+  "schema_version": "coverage-v1",
+  "generated_at": "2026-10-17T10:17:54.228000+00:00",
+  "generated_at_ms": 1792232274228,
+  "status": "partial",
+  "scope": "All discovered spot symbols; history is complete only for individually verified tasks",
+  "all_history_complete": false,
+  "inventory": {
+    "binance_global": {
+      "known_symbols": 3754,
+      "latest_status": "complete",
+      "latest_observed_at": "2026-10-17T09:56:35.368000+00:00",
+      "sources": [
+        {
+          "id": "a529b5592bfa2a69459f03cb7265aef0a4ad7f423edd8e7e60437106a44e80c8",
+          "exchange": "binance_global",
+          "source": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision",
+          "observed_at": 1792230995368,
+          "status": "complete",
+          "count": 3745,
+          "error": null
+        },
+        {
+          "id": "613af868551b429e8a919c92b2e7ca11bb047c3f4e3ea716da1c10d0c70564dc",
+          "exchange": "binance_global",
+          "source": "https://data-api.binance.vision",
+          "observed_at": 1792230980783,
+          "status": "complete",
+          "count": 3729,
+          "error": null
+        }
+      ]
+    },
+    "binance_tr": {
+      "known_symbols": 0,
+      "latest_status": "failed",
+      "latest_observed_at": "2026-10-17T09:56:27.032000+00:00",
+      "sources": [
+        {
+          "id": "d2738146cee526347cd79fa5b2705eb8d553606829286a3b453f617c78e5a0b2",
+          "exchange": "binance_tr",
+          "source": "https://www.binance.tr",
+          "observed_at": 1792230987032,
+          "status": "failed",
+          "count": null,
+          "error": "HTTP 451: https://www.binance.tr/open/v1/common/symbols; access restriction respected"
+        }
+      ]
+    }
+  },
+  "tasks": {
+    "complete": 571,
+    "failed": 43,
+    "partial": 42
+  },
+  "archive_catalog": {
+    "files": 654,
+    "scans": [
+      {
+        "status": "complete",
+        "scans": 6
+      }
+    ]
+  },
+  "verified_planned_fraction": 0.8704268292682927,
+  "totals": {
+    "partitions": 613,
+    "rows": 217954,
+    "parquet_bytes": 15420079,
+    "first_ms": 1502928000000,
+    "last_ms": 1790812799999,
+    "first_utc": "2017-08-17T00:00:00+00:00",
+    "last_utc": "2026-09-30T23:59:59.999000+00:00",
+    "physical_object_bytes": 20781217
+  },
+  "intervals": [
+    {
+      "exchange": "binance_global",
+      "interval": "1d",
+      "symbols": 3,
+      "rows": 9915,
+      "first_ms": 1502928000000,
+      "last_ms": 1790812799999
+    },
+    {
+      "exchange": "binance_global",
+      "interval": "1h",
+      "symbols": 3,
+      "rows": 208039,
+      "first_ms": 1502942400000,
+      "last_ms": 1790812799999
+    }
+  ],
+  "unresolved_issues": 133,
+  "historical_symbols": 3,
+  "symbols_without_downloaded_history": 3751,
+  "quality": {
+    "validated_source_partitions": 613,
+    "rejected_source_partitions": 41,
+    "downloaded_file_validation_rate": 0.9373088685015291,
+    "complete_coverage_partitions": 571,
+    "definition": "Row/schema/hash validation; distinct from temporal coverage completeness."
+  },
+  "failed_partitions": [
+    {
+      "exchange": "binance_global",
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "period": "2017-09",
+      "start_ms": 1504224000000,
+      "end_ms": 1506816000000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "period": "2017-09",
+      "start_ms": 1504224000000,
+      "end_ms": 1506816000000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BNBUSDT",
+      "interval": "1h",
+      "period": "2017-12",
+      "start_ms": 1512086400000,
+      "end_ms": 1514764800000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "period": "2017-12",
+      "start_ms": 1512086400000,
+      "end_ms": 1514764800000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "period": "2017-12",
+      "start_ms": 1512086400000,
+      "end_ms": 1514764800000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BNBUSDT",
+      "interval": "1h",
+      "period": "2018-01",
+      "start_ms": 1514764800000,
+      "end_ms": 1517443200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "period": "2018-01",
+      "start_ms": 1514764800000,
+      "end_ms": 1517443200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "period": "2018-01",
+      "start_ms": 1514764800000,
+      "end_ms": 1517443200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BNBUSDT",
+      "interval": "1h",
+      "period": "2018-02",
+      "start_ms": 1517443200000,
+      "end_ms": 1519862400000,
+      "attempts": 2,
+      "error": "44 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "period": "2018-02",
+      "start_ms": 1517443200000,
+      "end_ms": 1519862400000,
+      "attempts": 2,
+      "error": "44 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "period": "2018-02",
+      "start_ms": 1517443200000,
+      "end_ms": 1519862400000,
+      "attempts": 2,
+      "error": "44 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BNBUSDT",
+      "interval": "1h",
+      "period": "2018-07",
+      "start_ms": 1530403200000,
+      "end_ms": 1533081600000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "period": "2018-07",
+      "start_ms": 1530403200000,
+      "end_ms": 1533081600000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "period": "2018-07",
+      "start_ms": 1530403200000,
+      "end_ms": 1533081600000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BNBUSDT",
+      "interval": "1h",
+      "period": "2019-06",
+      "start_ms": 1559347200000,
+      "end_ms": 1561939200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "period": "2019-06",
+      "start_ms": 1559347200000,
+      "end_ms": 1561939200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "period": "2019-06",
+      "start_ms": 1559347200000,
+      "end_ms": 1561939200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BNBUSDT",
+      "interval": "1h",
+      "period": "2020-02",
+      "start_ms": 1580515200000,
+      "end_ms": 1583020800000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "period": "2020-02",
+      "start_ms": 1580515200000,
+      "end_ms": 1583020800000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "period": "2020-02",
+      "start_ms": 1580515200000,
+      "end_ms": 1583020800000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BNBUSDT",
+      "interval": "1h",
+      "period": "2020-03",
+      "start_ms": 1583020800000,
+      "end_ms": 1585699200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "period": "2020-03",
+      "start_ms": 1583020800000,
+      "end_ms": 1585699200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "period": "2020-03",
+      "start_ms": 1583020800000,
+      "end_ms": 1585699200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BNBUSDT",
+      "interval": "1h",
+      "period": "2020-12",
+      "start_ms": 1606780800000,
+      "end_ms": 1609459200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "period": "2020-12",
+      "start_ms": 1606780800000,
+      "end_ms": 1609459200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "period": "2020-12",
+      "start_ms": 1606780800000,
+      "end_ms": 1609459200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BNBUSDT",
+      "interval": "1h",
+      "period": "2021-02",
+      "start_ms": 1612137600000,
+      "end_ms": 1614556800000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "period": "2021-02",
+      "start_ms": 1612137600000,
+      "end_ms": 1614556800000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "period": "2021-02",
+      "start_ms": 1612137600000,
+      "end_ms": 1614556800000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BNBUSDT",
+      "interval": "1h",
+      "period": "2021-04",
+      "start_ms": 1617235200000,
+      "end_ms": 1619827200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "period": "2021-04",
+      "start_ms": 1617235200000,
+      "end_ms": 1619827200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "period": "2021-04",
+      "start_ms": 1617235200000,
+      "end_ms": 1619827200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BNBUSDT",
+      "interval": "1h",
+      "period": "2021-08",
+      "start_ms": 1627776000000,
+      "end_ms": 1630454400000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "period": "2021-08",
+      "start_ms": 1627776000000,
+      "end_ms": 1630454400000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "period": "2021-08",
+      "start_ms": 1627776000000,
+      "end_ms": 1630454400000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BNBUSDT",
+      "interval": "1h",
+      "period": "2021-12",
+      "start_ms": 1638316800000,
+      "end_ms": 1640995200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "period": "2021-12",
+      "start_ms": 1638316800000,
+      "end_ms": 1640995200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "period": "2021-12",
+      "start_ms": 1638316800000,
+      "end_ms": 1640995200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BNBUSDT",
+      "interval": "1h",
+      "period": "2023-03",
+      "start_ms": 1677628800000,
+      "end_ms": 1680307200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "period": "2023-03",
+      "start_ms": 1677628800000,
+      "end_ms": 1680307200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "period": "2023-03",
+      "start_ms": 1677628800000,
+      "end_ms": 1680307200000,
+      "attempts": 2,
+      "error": "1 invalid rows quarantined; no checkpoint advanced"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BNBUSDT",
+      "interval": "1h",
+      "period": "2017-08",
+      "start_ms": 1501545600000,
+      "end_ms": 1504224000000,
+      "attempts": 3,
+      "error": "404 Client Error: Not Found for url: https://data.binance.vision/data/spot/monthly/klines/BNBUSDT/1h/BNBUSDT-1h-2017-08.zip"
+    },
+    {
+      "exchange": "binance_global",
+      "symbol": "BNBUSDT",
+      "interval": "1d",
+      "period": "2017-08",
+      "start_ms": 1501545600000,
+      "end_ms": 1504224000000,
+      "attempts": 4,
+      "error": "404 Client Error: Not Found for url: https://data.binance.vision/data/spot/monthly/klines/BNBUSDT/1d/BNBUSDT-1d-2017-08.zip"
+    }
+  ],
+  "unavailable_or_failed_symbols": 3,
+  "gaps": [
+    {
+      "issue_id": "f7324aef81050c2401a8507d9c5600946252f775bcd80714f8107bbfd9187c2f",
+      "task_id": "3095a8137246cb247dc3f59a730cf8311c960d09cddedcb38062db2bac8c9426",
+      "kind": "missing_range",
+      "start_ms": 1501545600000,
+      "end_ms": 1502928000000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231330390,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "2b698ea312f18caf702498cc72e1fd5be3158772a320860eb4cd64674d7958bf",
+      "task_id": "2632835a50aab6c0225258aca5c5a24c43617d7ec42866071f70fe4c4a3d9515",
+      "kind": "missing_range",
+      "start_ms": 1501545600000,
+      "end_ms": 1502928000000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231330813,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "25cd2ea983027408246d7e9bab0e66866021d7c125f1d1dfcbaac65eef09c397",
+      "task_id": "3f802449ae63bab4642b8cfe1fdaa2d3dad56851640e710f5bb47c217a4cf033",
+      "kind": "missing_range",
+      "start_ms": 1501545600000,
+      "end_ms": 1502942400000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231338409,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "cb158f5bb5d1e6dd9e64fd22c6ebd2ed382fe91f26ddc245de26924af57cfc0f",
+      "task_id": "164edd9f4a3cab7b331a9ea291b8931e7aecaa30e126addc44c2d3b406c5780f",
+      "kind": "missing_range",
+      "start_ms": 1501545600000,
+      "end_ms": 1502942400000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231339325,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "70df8273a9b17cc279940327ccd39f674207c47653f26fc12571c8b7bc2b7246",
+      "task_id": "0756ab8b8a98d84eab44016a15bd38451a08bfa7afa563282890c80b50f5b282",
+      "kind": "missing_range",
+      "start_ms": 1509494400000,
+      "end_ms": 1509926400000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231621745,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "bae3aca6ec1719085622d75b0c0556bf6a5269f54f3a6d75cf2a5fbbf4ea618f",
+      "task_id": "e2236e8e5d1b80d2f7aa46a3e13eca78677b7f0fc4c71aff2f9b150fc67e1f01",
+      "kind": "missing_range",
+      "start_ms": 1509494400000,
+      "end_ms": 1509937200000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231838969,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "d3bd0f21eb7a3248cb6c4f4ce8bf7abaa1c79ea639b6b39801600a1edd1295fd",
+      "task_id": "a06586c85588e84455841cd7608cde1b844cf555526db3127e189df892caa6c1",
+      "kind": "missing_range",
+      "start_ms": 1529978400000,
+      "end_ms": 1530014400000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231855924,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "caf099b6d26bff0bcc2b1f1492c47ebce87177840d11bd8abb03187531db4fb3",
+      "task_id": "a06586c85588e84455841cd7608cde1b844cf555526db3127e189df892caa6c1",
+      "kind": "missing_range",
+      "start_ms": 1530104400000,
+      "end_ms": 1530108000000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231855924,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "f0ac7128ea64ad1e8001e550c312a54a62c65374059b815980fc8437d9824ca9",
+      "task_id": "7f8a60a9bdc80a1d515d6f482b1b4ec7be957f094eaf079cc62311a7c982b9c0",
+      "kind": "missing_range",
+      "start_ms": 1529978400000,
+      "end_ms": 1530014400000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231856488,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "51770a4e0db929647655284c21b44eb8a95f7ed7d23f28744fedf80389560f48",
+      "task_id": "7f8a60a9bdc80a1d515d6f482b1b4ec7be957f094eaf079cc62311a7c982b9c0",
+      "kind": "missing_range",
+      "start_ms": 1530104400000,
+      "end_ms": 1530108000000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231856488,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "b52b6cc78ae43e0b4a4917ee3ac131021c8ec3ff12cd3f02c2f8dca45f9773a4",
+      "task_id": "d0f45e5ba8a01e5fdad05a99729fe7107659982402c47f07d10379812f3e1666",
+      "kind": "missing_range",
+      "start_ms": 1529978400000,
+      "end_ms": 1530014400000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231857320,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "b613c6c8aa704cb4aa75eba7501a2f2b52f890e3c091cad70eb68f7bf10bb4dc",
+      "task_id": "d0f45e5ba8a01e5fdad05a99729fe7107659982402c47f07d10379812f3e1666",
+      "kind": "missing_range",
+      "start_ms": 1530104400000,
+      "end_ms": 1530108000000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231857320,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "1b50f1f24f71a0563a36794d100cc72ba10cdefac7ed6fa2f6e7e78e6fb6d842",
+      "task_id": "ae5253e1c90e8e6e5941c11bc0803b823e51c6ac1ac4b344c1a561df484e4ab7",
+      "kind": "missing_range",
+      "start_ms": 1539928800000,
+      "end_ms": 1539939600000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231865035,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "2edfe6d5246e5721ba40fc21343c38f4edd1e27dcabc66002f411f018b91d51d",
+      "task_id": "ae26f96b9ab9197585546bea56a47ed3b445490fda0467129ac2648a8c47f058",
+      "kind": "missing_range",
+      "start_ms": 1539928800000,
+      "end_ms": 1539939600000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231865547,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "1c9a34b16a78a83e26317402b82f8b35dc91ce288be2f0f473b6cdcfb5deeced",
+      "task_id": "1ce804d500b9d6e2a550fd6bc5f1bed07c74f58f025bbc89f1c57b04b2cf5a1e",
+      "kind": "missing_range",
+      "start_ms": 1539928800000,
+      "end_ms": 1539939600000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231866105,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "67001cb48b68eb07c46e41cc65292a18c4e86fe67d645bbcd3e8baec144a2913",
+      "task_id": "bef19fcdba546c1b46380ae9f54b560675618d755f1a2bac8476c2e710421cd0",
+      "kind": "missing_range",
+      "start_ms": 1542160800000,
+      "end_ms": 1542186000000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231866667,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "ddd26bc36d8d8252fd6853cb6b77995907c3bc4f5d389b5bafc7c6fde62c4c71",
+      "task_id": "0e568fca92457a56818fdfec5b2e9ed69d66fea586184ad75574fb0c95d300c5",
+      "kind": "missing_range",
+      "start_ms": 1542160800000,
+      "end_ms": 1542186000000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231867714,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "b0f47f1d7fbbd778e65c9a29722dd28289ba737bf9a4f3500ae454446c5cbb3b",
+      "task_id": "0d114dedcbdd3a31a0b063f783ce327f10e303deef2f7740db7d543a44dc6b5a",
+      "kind": "missing_range",
+      "start_ms": 1542160800000,
+      "end_ms": 1542186000000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231868504,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "a2adab4af49e07a21bb1086479304bd924d7ee5b351dbbc896a8c1d0bb884544",
+      "task_id": "03183ef9462c7fcf3dfc86b24a50f1671dbcdd1ef4d64fcdf6a547c72a7e4164",
+      "kind": "missing_range",
+      "start_ms": 1552356000000,
+      "end_ms": 1552377600000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231875737,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "e6da539e4323f01683475cd5cbe3ca1804569c6e24b9e14b16d4daea38f0af4c",
+      "task_id": "046dbba0ae05cedfb91fa9dc14f46c98c166dd56bb6cc2b17a4740aa4df28da4",
+      "kind": "missing_range",
+      "start_ms": 1552356000000,
+      "end_ms": 1552377600000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231876278,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "22373ea549e92dfa028dcdf4af2313596197852a6d544f7ba8ffbc5dc1b0b897",
+      "task_id": "c5d62ad5c4c61d0c0c914ab183e004aad10d5fc4ea68705bab21adffed56949b",
+      "kind": "missing_range",
+      "start_ms": 1552356000000,
+      "end_ms": 1552377600000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231876814,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "7d6c03f5a847f9eeec0948f1641fff1499b6a647837b43a49c4c3d5e6fb6d910",
+      "task_id": "376b37cf73d2f5ad91d49aca873139ffadd240fc668dc1f031eefd4aa10d1ffe",
+      "kind": "missing_range",
+      "start_ms": 1557889200000,
+      "end_ms": 1557925200000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231880177,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "3761308c17bd9647fdc461ac67fdcca9be35936f5e4d8c5967e2aa6d2b4bd71b",
+      "task_id": "e2bc187d6efd3c3051c3b9d6fac1079942f3249794f063ff7890fd1cf71c9fb1",
+      "kind": "missing_range",
+      "start_ms": 1557889200000,
+      "end_ms": 1557925200000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231880857,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "be0adad7c6c81b51219421dc493118eea5d72726d95a174721d6c89db9f5cbd8",
+      "task_id": "9bf9b9efde3d2118967c5c7a9761b10959bee0420a8355ef5848c27aa4846afd",
+      "kind": "missing_range",
+      "start_ms": 1557889200000,
+      "end_ms": 1557925200000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231881369,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "c83860b483c5f90bcdda72c2e705f40b81c7e26fb036c5c3e347e2ec020f3ec2",
+      "task_id": "cd4d845d1b74d6fb81dbbe9aabeb9ebb487cab3d7acc448245253a58e3c2e9c4",
+      "kind": "missing_range",
+      "start_ms": 1565834400000,
+      "end_ms": 1565863200000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231886985,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "29c1fdff81e29133f1ba710271236641734e53ddd6482d9f78d222553f9c580c",
+      "task_id": "4507e6c29c70027d5d9010abf44b0df954b69a1c7bb75b2bd7490ebb029d244f",
+      "kind": "missing_range",
+      "start_ms": 1565834400000,
+      "end_ms": 1565863200000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231887806,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "b815067024d24e55b96895c1afc2a3097003abc342aa95896d1af1e154776aed",
+      "task_id": "bb009f94c60b25963af19a8721c7b935d5e02171d731f07bcca80fdf4b898de6",
+      "kind": "missing_range",
+      "start_ms": 1565834400000,
+      "end_ms": 1565863200000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231888672,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "4f0a3e30c31b1ec957b7cea4b242024d3f426dfb86594931171b8e0daad5d78e",
+      "task_id": "3ad9a02953f1b92a29b106390fdced46684dbdc0c7713e5f97c515d9fea3e17b",
+      "kind": "missing_range",
+      "start_ms": 1573610400000,
+      "end_ms": 1573617600000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231893537,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "f64838c4ee3930b79a0a92a996fdc5bd27cddb6358d7aac5c044dd6d8758eed8",
+      "task_id": "3ad9a02953f1b92a29b106390fdced46684dbdc0c7713e5f97c515d9fea3e17b",
+      "kind": "missing_range",
+      "start_ms": 1574647200000,
+      "end_ms": 1574654400000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231893537,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "f6771694e67a9b2c2680f5680799e7a79d4396bf56ed15b6d7829e686dcee54c",
+      "task_id": "c846ad7102224a85043f0b9845e270703bd4c582cbc8892190be8179790d3fb8",
+      "kind": "missing_range",
+      "start_ms": 1573610400000,
+      "end_ms": 1573617600000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231894034,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "4960b206593c611bd65de4621ea3f27c55965e344fdf731e94942aa2e2b34b30",
+      "task_id": "c846ad7102224a85043f0b9845e270703bd4c582cbc8892190be8179790d3fb8",
+      "kind": "missing_range",
+      "start_ms": 1574647200000,
+      "end_ms": 1574654400000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231894034,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "c71b7c02df92063316be7d3e04739117b324879e3dc230596f9f7c14b19e4d4f",
+      "task_id": "0853ba4e7b76e393c35b1c5bf6ff09c8c306e0d6117700440ae442ea54856854",
+      "kind": "missing_range",
+      "start_ms": 1573610400000,
+      "end_ms": 1573617600000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231894591,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "84ecc9dc6ff4096f1ea3891dae9bf77a61a9500b0afedefe59518cb546e00f26",
+      "task_id": "0853ba4e7b76e393c35b1c5bf6ff09c8c306e0d6117700440ae442ea54856854",
+      "kind": "missing_range",
+      "start_ms": 1574647200000,
+      "end_ms": 1574654400000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231894591,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "1e39050a368e5031bcacc741d4b65fc6a13f67f5767f8425cb59d99bf63442fc",
+      "task_id": "90c0f6c8f4d2c19a226a3fcfbc0ace925e03e2883f0ff63fc3316ac9c42ca916",
+      "kind": "missing_range",
+      "start_ms": 1587780000000,
+      "end_ms": 1587787200000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231905269,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "4529492b02d9c64b6e1037bc31c3116c516d24aef8d2b2c010a90a3e3433768e",
+      "task_id": "d69e607be45136e0937bdaf7476830ba4cedb9484cefec38ad7d6d03e9597c61",
+      "kind": "missing_range",
+      "start_ms": 1587780000000,
+      "end_ms": 1587787200000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231906049,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "7ca0ad6a12285f5a5a1341c2338b12ed625a8a9b086a14c2f552ce4fc77a2bc1",
+      "task_id": "64f1a7106546f493ae5746fdcce54298a404ed16d16b9944d8162a6ac21a7d78",
+      "kind": "missing_range",
+      "start_ms": 1587780000000,
+      "end_ms": 1587787200000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231906697,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "c0462f2f02f8c2649b330edfd05efb2882128d065eb2a1fae6c672461f990c6b",
+      "task_id": "cc6e575e33d4bfbe861e23d1e82ead3d999ee1a8f8f5589ec144f6e57c2eb097",
+      "kind": "missing_range",
+      "start_ms": 1593309600000,
+      "end_ms": 1593320400000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231910333,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "c18059ed047fa733c423e5099a9950b902996d17a19731eef0ed493272e528a1",
+      "task_id": "5fe369eaa6603785e72cc75fdb9043a4d950a8be2f0a0eb88ac2a6439f0a3129",
+      "kind": "missing_range",
+      "start_ms": 1593309600000,
+      "end_ms": 1593320400000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231910848,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "741e296d52675ddd9daded3fdd69d2d1450e2dbc1849b6f8bb1ce5ab21283177",
+      "task_id": "b59d07833d5e0db51afef4b3ffbbd4dcdee33965ebc8a94ad3566874cf561dbb",
+      "kind": "missing_range",
+      "start_ms": 1593309600000,
+      "end_ms": 1593320400000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231911424,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "669d780a67dc7dfe76732817ac64caeb3474b8ca8363b0d6268112b893026553",
+      "task_id": "a428997e36a8912bd8226579e0665717e0e41643853bce587ec92ee330d3b171",
+      "kind": "missing_range",
+      "start_ms": 1606716000000,
+      "end_ms": 1606719600000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231922545,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "5d1f45f72873623c1e808c6ad782067fbc80b30abfd8f29f6a29f6aec5135600",
+      "task_id": "3d4e16361cd5c59a2a3a6449031415aaf655ccf11cd393918545d4f924fb54d4",
+      "kind": "missing_range",
+      "start_ms": 1606716000000,
+      "end_ms": 1606719600000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231923582,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "5b1eaf5caf3afc8df4c0595fce8854624f97c40c8c4790e53262d6580e57749a",
+      "task_id": "93bd0e0be846f4e7e210cb4549bf7cefcdf5cd5ce95a8fd0445de6c7bd165c43",
+      "kind": "missing_range",
+      "start_ms": 1606716000000,
+      "end_ms": 1606719600000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231924457,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "5377e3dd2fcd5d300df9c353aa763bcff633f8468de95f5164e2d607295ff0cc",
+      "task_id": "3b48e1e3d64e9d4e43e7695a580d4b8c8c94b25b5cbc22f0287b65903c01aca0",
+      "kind": "missing_range",
+      "start_ms": 1614996000000,
+      "end_ms": 1614999600000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231932653,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "4ad2d2bd8af3f118dd5936c6fa829cbbcaa1bd98ece77eb69cc2f31143333bdd",
+      "task_id": "e138ac67d4c21cc59982c16fa71caa12f14c9a332b434ecad10cbfa5ed282353",
+      "kind": "missing_range",
+      "start_ms": 1614996000000,
+      "end_ms": 1614999600000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231933417,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "3f01558aaf3fd4d3eb69df9c9413008c0cfb65e729952d7754645e4047cbe036",
+      "task_id": "0a77b3c54fcd046e6858104c5ce1d150bf3ef8b58fe8f0a9db6c62e45654b596",
+      "kind": "missing_range",
+      "start_ms": 1614996000000,
+      "end_ms": 1614999600000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231934425,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "ef8a76eaf64c18f0107922053795ddaf2df6ae8eaf80b36b284e6ba85fe678f2",
+      "task_id": "a51710a3d6932bd48f5d24a0c331897c694e45379eacbb3ad2dbc6d3b56d2966",
+      "kind": "missing_range",
+      "start_ms": 1632898800000,
+      "end_ms": 1632906000000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231946014,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "2be9dbcaaa20e047918733048b137918e1ac23d45e8e679438c8d84ff62afec6",
+      "task_id": "dbd7490d8e49b99f538084044b0dbad61d42eb50661ef908eaa613ab279ec380",
+      "kind": "missing_range",
+      "start_ms": 1632898800000,
+      "end_ms": 1632906000000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231946662,
+      "resolved_at": null
+    },
+    {
+      "issue_id": "f70fdc79cf6a4306ae780c6620b45ba9ba8da9fa9c583d065e50dd8a11307f33",
+      "task_id": "7444de7531cba987f5bee6c3caf90a9526233f5411f6d00b7dd417097db61938",
+      "kind": "missing_range",
+      "start_ms": 1632898800000,
+      "end_ms": 1632906000000,
+      "detail": "No candle; trading status for this range unverified",
+      "created_at": 1792231947781,
+      "resolved_at": null
+    }
+  ],
+  "models": [
+    {
+      "model_id": "research-212bc7c15e084e4a6c10",
+      "status": "challenger",
+      "created_at": 1792232178553
+    }
+  ],
+  "signals": [],
+  "jobs": [],
+  "limitations": [
+    "TR coverage requires a successful independent TR inventory and TR kline download.",
+    "No proven model or live trading performance is implied by ingestion completion.",
+    "SQLite/Parquet on a local disk is not continuously online cloud storage."
+  ]
+}

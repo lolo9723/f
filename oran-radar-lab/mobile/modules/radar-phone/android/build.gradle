@@ -4,10 +4,10 @@ plugins {
 }
 apply plugin: 'com.chaquo.python'
 group = 'com.oranradar.phone'
-version = '3.7.0'
+version = '4.0.0'
 android {
   namespace 'com.oranradar.phone'
-  defaultConfig { minSdkVersion 24; versionCode 10; versionName '3.7.0'; ndk { abiFilters 'arm64-v8a' } }
+  defaultConfig { minSdkVersion 24; versionCode 12; versionName '4.0.0'; ndk { abiFilters 'arm64-v8a' } }
 }
 chaquopy {
   sourceSets { main { srcDir '../../../../backend_next' } }

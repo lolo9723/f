@@ -1,0 +1,8 @@
+{
+  "audited_at_ms": 1792232276884,
+  "verified_partitions_read": 613,
+  "verified_rows_read": 217954,
+  "unique_logical_candles": 217954,
+  "hash_or_row_failures": [],
+  "scope": "Verified manifest entries only; rejected/missing files and entire universe are excluded."
+}

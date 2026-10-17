@@ -1,0 +1,41 @@
+{
+  "runtime": "Wrangler local / workerd + D1",
+  "checks": [
+    {
+      "check": "health",
+      "passed": true
+    },
+    {
+      "check": "anonymous denied",
+      "passed": true
+    },
+    {
+      "check": "publish measured coverage",
+      "passed": true
+    },
+    {
+      "check": "real D1 snapshot read",
+      "passed": true
+    },
+    {
+      "check": "scoped settings write",
+      "passed": true
+    },
+    {
+      "check": "user cannot publish",
+      "passed": true
+    },
+    {
+      "check": "CORS origin denied",
+      "passed": true
+    },
+    {
+      "check": "token revocation",
+      "passed": true
+    },
+    {
+      "check": "scheduled queue",
+      "passed": true
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+
+ ⛅️ wrangler 4.151.1
+────────────────────
+✨ Read 4 files from the assets directory /workspace/scratch/dd9adb6fb679/oran-radar-cloud/cloudflare/public
+Total Upload: 14.13 KiB / gzip: 4.73 KiB
+Your Worker has access to the following bindings:
+Binding                           Resource                  
+env.DB (oran-radar)               D1 Database               
+env.ASSETS                        Assets                    
+env.CORS_ORIGIN ("")              Environment Variable      
+env.FREE_MODE ("true")            Environment Variable      
+
+--dry-run: exiting now.

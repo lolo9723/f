@@ -1,0 +1,5 @@
+{
+  "status": "not_run",
+  "reason": "Visual check explicitly skipped; Chromium required.",
+  "source_static_syntax_check": "passed"
+}

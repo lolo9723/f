@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "oran-radar-cloud",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "assets": {"directory":"./public", "binding":"ASSETS", "run_worker_first":["/v1/*"]},
+  "d1_databases": [{"binding":"DB", "database_name":"oran-radar", "database_id":"REPLACE_WITH_CREATED_D1_ID", "migrations_dir":"../migrations"}],
+  "vars": {"CORS_ORIGIN":"", "FREE_MODE":"true"},
+  "triggers": {"crons":["*/5 * * * *"]}
+  // R2 binding is deliberately absent. Add only after explicit subscription approval.
+  // Secrets: ORAN_ADMIN_TOKEN, ORAN_INGEST_TOKEN; optional FCM_SERVICE_ACCOUNT_JSON.
+}

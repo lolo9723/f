@@ -1,0 +1,115 @@
+name: Oran Radar Cloud 4 APK
+on:
+  push:
+    branches: [oran-radar-cloud-4.0]
+    paths:
+      - 'oran-radar-lab/mobile/**'
+      - 'oran-radar-lab/backend_next/**'
+      - 'oran-radar-lab/cloud/**'
+      - '.github/workflows/oran-cloud-4.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: oran-cloud-apk-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  cloud-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: oran-radar-lab/cloud
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[test]'
+      - run: python -m pytest -q
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: oran-radar-lab/cloud/cloudflare
+      - run: npm test
+        working-directory: oran-radar-lab/cloud/cloudflare
+      - run: npx wrangler deploy --dry-run
+        working-directory: oran-radar-lab/cloud/cloudflare
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: oran-radar-lab/mobile
+    env:
+      CI: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      GRADLE_OPTS: '-Dorg.gradle.daemon=false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: android-actions/setup-android@v3
+      - name: Android SDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+      - name: Mobile dependencies and checks
+        run: |
+          npm ci --no-audit --no-fund
+          npx tsc --noEmit
+          npx expo lint
+          npm run test:cloud
+          npm run test:paper
+          npm run test:backend-control
+          npm run test:phone
+          npm run test:trade-plan
+          npm run test:score-refresh
+          npm run test:live-prices
+      - name: Native project
+        run: npx expo prebuild --platform android --no-install
+      - name: Build standalone ARM64 APK
+        run: |
+          export RADAR_BUILD_PYTHON="$(command -v python)"
+          cd android
+          ./gradlew :app:assembleRelease :radar-phone:testReleaseUnitTest --no-daemon --max-workers=2 -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=1024m' -PreactNativeArchitectures=arm64-v8a
+      - name: Verify APK and source
+        run: |
+          python scripts/verify_apk.py android/app/build/outputs/apk/release/app-release.apk
+          python scripts/verify_phone_apk.py android/app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose android/app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 4 android/app/build/outputs/apk/release/app-release.apk
+          mkdir -p ../downloads
+          cp android/app/build/outputs/apk/release/app-release.apk ../downloads/Oran-Radar-Cloud-4.0.0.apk
+          sha256sum ../downloads/Oran-Radar-Cloud-4.0.0.apk > ../downloads/Oran-Radar-Cloud-4.0.0.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Oran-Radar-Cloud-4.0.0-APK
+          path: |
+            oran-radar-lab/downloads/Oran-Radar-Cloud-4.0.0.apk
+            oran-radar-lab/downloads/Oran-Radar-Cloud-4.0.0.sha256
+          retention-days: 3
+          if-no-files-found: error
+      - name: Publish verified APK to this branch
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+          BUILD_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python - <<'PY'
+          import os,json,pathlib
+          pathlib.Path('../downloads/Cloud-4.0-BUILD.json').write_text(json.dumps({'version':'4.0.0','package':'com.oranradar.lab.cloud','source_commit':os.environ['SOURCE_COMMIT'],'workflow':os.environ['BUILD_URL'],'signing':'Android development certificate; separate test package','cloud_service_deployed':False},indent=2))
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f ../downloads/Oran-Radar-Cloud-4.0.0.apk ../downloads/Oran-Radar-Cloud-4.0.0.sha256 ../downloads/Cloud-4.0-BUILD.json
+          git commit -m 'Publish verified Oran Radar Cloud 4.0 APK [skip ci]'
+          git push origin HEAD:${{ github.ref_name }}

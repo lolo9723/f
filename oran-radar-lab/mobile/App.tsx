@@ -251,6 +251,7 @@ export default function Dashboard({ tab }: { tab: Tab }) {
     <View style={styles.header}>
       <View><Text style={styles.eyebrow}>BINANCE TR · PAPER TRADING</Text>
         <Text style={styles.title}>ORAN RADAR<Text style={{ color: TEAL }}>.</Text></Text></View>
+      <TouchableOpacity accessibilityLabel="Cloud 4.0 merkezi" onPress={()=>router.replace('/cloud')} style={styles.settings}><Text style={{color:TEAL,fontSize:12,fontWeight:'800'}}>CLOUD</Text></TouchableOpacity>
       <TouchableOpacity accessibilityLabel="Sunucu ve bildirim ayarları" onPress={() => {
         setDraft(base); setSettingError(''); setEditing(true);
       }} style={styles.settings}><Text style={{ color: WHITE }}>⚙</Text></TouchableOpacity>
@@ -361,7 +362,7 @@ export default function Dashboard({ tab }: { tab: Tab }) {
         <TouchableOpacity style={styles.buttonSecondary} onPress={enablePush}>
           <Text style={styles.light}>Push bildirimlerini aç</Text></TouchableOpacity>
         {!!pushStatus && <Text style={styles.muted}>{pushStatus}</Text>}
-        <Text style={[styles.small, { marginTop: 12 }]}>v3.7 Lab · Canlı fiyat akışı · Araştırma puanı</Text>
+        <Text style={[styles.small, { marginTop: 12 }]}>v4.0 Cloud · Veri bankası · Telefon motoru</Text>
         <TouchableOpacity onPress={() => setEditing(false)}><Text style={[styles.muted, { textAlign: 'center', marginTop: 16 }]}>Kapat</Text></TouchableOpacity>
       </View></View>
     </Modal>

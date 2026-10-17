@@ -1,6 +1,6 @@
 {
   "name": "oran-radar-lab-mobile",
-  "version": "3.7.0",
+  "version": "4.0.0",
   "main": "expo-router/entry",
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
@@ -11,6 +11,7 @@
     "expo-linking": "~57.0.11",
     "expo-notifications": "~57.0.21",
     "expo-router": "~57.0.23",
+    "expo-secure-store": "~57.0.4",
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.4",
     "react": "19.2.3",
@@ -40,7 +41,8 @@
     "test:phone": "node scripts/test_phone_bridge.cjs",
     "test:trade-plan": "node scripts/test_trade_plan.cjs",
     "test:score-refresh": "node scripts/test_score_refresh.cjs",
-    "test:live-prices": "node scripts/test_live_prices.cjs"
+    "test:live-prices": "node scripts/test_live_prices.cjs",
+    "test:cloud": "node scripts/test_cloud.cjs"
   },
   "private": true
 }

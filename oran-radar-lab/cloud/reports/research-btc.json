@@ -1,0 +1,111 @@
+{
+  "model_id": "research-212bc7c15e084e4a6c10",
+  "scope": "historical_candidate_only",
+  "exchange": "binance_global",
+  "symbol": "BTCUSDT",
+  "training_n": 35239,
+  "holdout_n": 8821,
+  "dataset_hash": "411af349b86567fabf45fef0e805a0305de8de39617cb9ba3b3bf682e0e5d425",
+  "runtime": {
+    "python": "3.12.14",
+    "numpy": "2.3.5",
+    "sklearn": "1.8.0"
+  },
+  "feature_set_id": "98fc5da4cd1f7ce5b8bb9b20a51e08a9c711fc221412eeec0c23917368ba6d86",
+  "feature_version": "causal-v1",
+  "features": [
+    "momentum_1",
+    "momentum_window",
+    "volume_z",
+    "volatility",
+    "ma_distance",
+    "range_fraction",
+    "taker_buy_fraction"
+  ],
+  "selected": "logistic",
+  "comparison": [
+    {
+      "fold": 0,
+      "model": "base_rate",
+      "train_n": 11764,
+      "test_n": 11713,
+      "test_start": 1586768400000,
+      "brier": 0.2200231392223592,
+      "log_loss": 0.6320556535176642,
+      "status": "research_only; forward validation and calibration still required"
+    },
+    {
+      "fold": 0,
+      "model": "logistic",
+      "train_n": 11764,
+      "test_n": 11713,
+      "test_start": 1586768400000,
+      "brier": 0.2194056244619288,
+      "log_loss": 0.630570763273322,
+      "status": "research_only; forward validation and calibration still required"
+    },
+    {
+      "fold": 0,
+      "model": "gradient_boosting",
+      "train_n": 11764,
+      "test_n": 11713,
+      "test_start": 1586768400000,
+      "brier": 0.22355937555661395,
+      "log_loss": 0.6423718621979296,
+      "status": "research_only; forward validation and calibration still required"
+    },
+    {
+      "fold": 1,
+      "model": "base_rate",
+      "train_n": 23485,
+      "test_n": 11713,
+      "test_start": 1658592000000,
+      "brier": 0.19607767765291675,
+      "log_loss": 0.5816939457593167,
+      "status": "research_only; forward validation and calibration still required"
+    },
+    {
+      "fold": 1,
+      "model": "logistic",
+      "train_n": 23485,
+      "test_n": 11713,
+      "test_start": 1658592000000,
+      "brier": 0.19475996152802894,
+      "log_loss": 0.5785057123012699,
+      "status": "research_only; forward validation and calibration still required"
+    },
+    {
+      "fold": 1,
+      "model": "gradient_boosting",
+      "train_n": 23485,
+      "test_n": 11713,
+      "test_start": 1658592000000,
+      "brier": 0.19631782661584787,
+      "log_loss": 0.5831752899041195,
+      "status": "research_only; forward validation and calibration still required"
+    }
+  ],
+  "final_holdout_brier": 0.1722510687235197,
+  "final_holdout_log_loss": 0.5297084813596321,
+  "excluded": {
+    "ambiguous": 258,
+    "unfilled": 24407,
+    "unverifiable": 318
+  },
+  "forward_trades": 0,
+  "calibrated": false,
+  "probability_definition": "target before stop within 48h, conditional on estimated fill",
+  "trade_policy": {
+    "net_target": 0.03,
+    "stop_fraction": 0.02,
+    "entry_discount": 0.003,
+    "entry_wait_hours": 3,
+    "fee_bps": 10,
+    "slippage_bps": 5
+  },
+  "limitations": [
+    "Overlapping labels are purged across splits, not independent trials.",
+    "Holdout results may not be reused repeatedly for model selection.",
+    "Global data does not establish Binance TR execution performance."
+  ]
+}

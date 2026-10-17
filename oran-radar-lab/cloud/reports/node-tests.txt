@@ -1,0 +1,24 @@
+
+> oran-radar-cloud-api@4.0.0 test
+> node --test tests/*.test.mjs
+
+✔ anonymous status denied (4.435332ms)
+✔ health discloses no private state (0.8653ms)
+✔ ingest token cannot edit user settings (7.295806ms)
+✔ malformed settings rejected (1.51828ms)
+✔ unconfigured report has no invented signals (1.369557ms)
+✔ untrusted Origin rejected (0.648024ms)
+✔ oversized request rejected (1.278691ms)
+✔ invalid snapshot cannot become current (1.232852ms)
+✔ user token provisioning restricted (0.965751ms)
+✔ client never accepts cleartext server (0.509125ms)
+✔ offline cache preserves timestamp and reports error (0.743807ms)
+✔ authorization failure cannot masquerade as offline data (0.293511ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 99.952234
