@@ -2,12 +2,16 @@ import React,{useEffect,useState} from 'react';
 import {Modal,ScrollView,StyleSheet,Text,TextInput,TouchableOpacity,View} from 'react-native';
 import {cloudJSON} from '../lib/cloud';
 export type ManualPlan={pair:string;entry:number;target:number;stop:number};
+type Preferences={entry_mode:string;amount_mode:string;fixed_try:number;target_pct:number|null;stop_pct:number|null;entry_prices:Record<string,number>};
+const priceText=(v:number)=>String(Number(v.toPrecision(10)));
+const levels=(p:string,price:number,plan:ManualPlan|undefined,prefs:Preferences)=>{const entry=prefs.entry_mode==='MARKET'?price:(prefs.entry_prices[p]||plan?.entry||price*.997);return {entry,target:prefs.target_pct===null?(plan?.target??entry*1.03):entry*(1+prefs.target_pct/100),stop:prefs.stop_pct===null?(plan?.stop??entry*.98):entry*(1-prefs.stop_pct/100)};};
 type Market={quotes:Record<string,{price:number}>;candidates:ManualPlan[]};
-export default function ManualOrderForm({base,token,seed,busy,error,onClose,onSubmit}:{base:string;token:string;seed?:ManualPlan|null;busy:boolean;error:string;onClose:()=>void;onSubmit:(body:Record<string,unknown>)=>void}){
- const [market,setMarket]=useState<Market|null>(null),[pair,setPair]=useState(seed?.pair||''),[query,setQuery]=useState(''),[entryMode,setEntryMode]=useState('LIMIT');
- const [amount,setAmount]=useState('100'),[entry,setEntry]=useState(seed?String(seed.entry):''),[target,setTarget]=useState(seed?String(seed.target):''),[stop,setStop]=useState(seed?String(seed.stop):''),[loadError,setLoadError]=useState('');
+export default function ManualOrderForm({base,token,seed,preferences,busy,error,onClose,onSubmit}:{base:string;token:string;seed?:ManualPlan|null;preferences:Preferences;busy:boolean;error:string;onClose:()=>void;onSubmit:(body:Record<string,unknown>)=>void}){
+ const [market,setMarket]=useState<Market|null>(null),[pair,setPair]=useState(seed?.pair||''),[query,setQuery]=useState(''),[entryMode,setEntryMode]=useState(preferences.entry_mode);
+ const initial=seed?levels(seed.pair,seed.entry,seed,preferences):null;
+ const [amount,setAmount]=useState(preferences.amount_mode==='FIXED'?String(preferences.fixed_try):'100'),[entry,setEntry]=useState(initial?priceText(initial.entry):''),[target,setTarget]=useState(initial?priceText(initial.target):''),[stop,setStop]=useState(initial?priceText(initial.stop):''),[loadError,setLoadError]=useState('');
  useEffect(()=>{let live=true;cloudJSON(base,'/v1/market',token).then(m=>{if(live)setMarket(m as Market);}).catch(e=>{if(live)setLoadError(e.message);});return()=>{live=false;};},[base,token]);
- const choose=(p:string)=>{const q=market?.quotes[p],c=market?.candidates.find(x=>x.pair===p);if(!q)return;setPair(p);setEntry(String(c?.entry??q.price*.997));setTarget(String(c?.target??q.price*1.03));setStop(String(c?.stop??q.price*.98));setQuery('');};
+ const choose=(p:string)=>{const q=market?.quotes[p],c=market?.candidates.find(x=>x.pair===p);if(!q)return;setPair(p);const plan=levels(p,q.price,c,{...preferences,entry_mode:entryMode});setEntry(priceText(plan.entry));setTarget(priceText(plan.target));setStop(priceText(plan.stop));setQuery('');};
  const field=(label:string,value:string,set:(v:string)=>void)=><View style={{marginTop:13}}><Text style={s.label}>{label}</Text><TextInput accessibilityLabel={label} style={s.input} value={value} onChangeText={set} keyboardType="decimal-pad"/></View>;
  const n=(value:string)=>Number(value.trim().replace(',','.'));
  return <Modal visible transparent animationType="slide" onRequestClose={onClose}><View style={s.overlay}><View style={s.sheet}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{padding:22,paddingBottom:32}}><View style={s.row}><Text style={s.title}>Manuel sanal alış</Text><TouchableOpacity accessibilityRole="button" onPress={onClose}><Text style={s.link}>Kapat</Text></TouchableOpacity></View><Text style={s.note}>Coini, tutarı ve fiyat seviyelerini sen belirlersin. Kasa ve risk sınırları yine uygulanır.</Text>

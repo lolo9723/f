@@ -24,6 +24,7 @@ let initialized=false,revision=0,manualCount=0,currentSettings={...defaults};con
    await page.getByRole('tab',{name:/Kasa/}).click();if(!initialized){await page.getByText('Sanal kasanı oluştur',{exact:true}).waitFor();await page.getByText('Sanal kasayı başlat',{exact:true}).click();}
    await page.getByText('Buluttaki sanal kasa',{exact:true}).waitFor();await page.screenshot({path:path.join(out,'kasa-'+width+'.png'),fullPage:false});
    await page.getByText('Manuel sanal alış +',{exact:true}).click();await page.getByText('Manuel sanal alış',{exact:true}).waitFor();
+   await page.getByRole('button',{name:'Limit',exact:true}).click();
    const selected=Object.keys(market.quotes)[0];await page.getByLabel('Manuel coin ara').fill(selected.replace(/TRY$/,''));await page.getByRole('button',{name:selected.replace(/TRY$/,''),exact:true}).click();await page.getByLabel('Alış tutarı (TL)',{exact:true}).fill('25');
    await page.screenshot({path:path.join(out,'manuel-'+width+'.png'),fullPage:false});await page.getByRole('button',{name:'Sanal emri oluştur',exact:true}).click();await page.getByText('Manuel sanal alış',{exact:true}).waitFor({state:'hidden'});
    await page.getByRole('tab',{name:/Ayarlar/}).click();await page.getByText('İşlem modu ve bütçe',{exact:true}).waitFor();await page.getByRole('button',{name:/Optimal Kararı buluta bırak/}).click();await page.getByLabel('Çalışma bütçesi (TL)',{exact:true}).fill('500');
