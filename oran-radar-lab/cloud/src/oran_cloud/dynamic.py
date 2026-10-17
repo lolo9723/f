@@ -77,3 +77,27 @@ def apply_to_payload(payload, research):
     decision = historical_adjustment(base, research['neighbor_returns'], research['holdout'])
     updated.update(base_score=base, research_adjustment=decision['research_adjustment'], score=decision['final_score'], dynamic_research=decision)
     return updated
+
+
+def optimal_opportunity(candidate, now):
+    """Budget allocator priority mirrored by the live Node backend; no forecast claim."""
+    r = candidate.get('research') or {}
+    holdout = r.get('holdout') or {}
+    if not r.get('model_id') or r.get('status') not in ('historical_support', 'limited_historical_evidence') or r.get('samples', 0) < 20 or holdout.get('effective_n', 0) < 8:
+        return {'eligible': False, 'reason': 'RESEARCH_NOT_READY'}
+    trained = r.get('trained_at')
+    if trained is None or not isfinite(trained) or trained > now or now-trained > 86400000:
+        return {'eligible': False, 'reason': 'RESEARCH_NOT_CURRENT'}
+    spread = candidate.get('spread_pct', float('nan'))/100
+    if not isfinite(spread) or spread < 0 or spread > .015:
+        return {'eligible': False, 'reason': 'SPREAD_TOO_WIDE'}
+    mean, test_mean, interval = r.get('historical_net'), holdout.get('mean'), r.get('uncertainty')
+    if mean is None or test_mean is None or not isfinite(mean) or not isfinite(test_mean) or not interval or len(interval) != 2 or not all(isfinite(x) for x in interval):
+        return {'eligible': False, 'reason': 'RESEARCH_NOT_READY'}
+    se = max(0, (interval[1]-interval[0])/3.92)
+    utility = min(mean, test_mean)-.5*se-spread
+    loss = (candidate['entry']-candidate['stop'])/candidate['entry']+.003
+    if not (utility > 0 and loss > 0 and isfinite(loss)):
+        return {'eligible': False, 'reason': 'NO_POSITIVE_HISTORICAL_EDGE'}
+    priority = utility/loss*max(0, candidate.get('final_score', candidate['score']))/100
+    return {'eligible': True, 'reason': 'HISTORICAL_EDGE_AND_RISK', 'priority': priority, 'utility': utility, 'spread': spread, 'uncertainty_se': se}

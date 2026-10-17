@@ -1,5 +1,6 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
-import {freshWallet,settings,reserve,balances,applyTrades,cancel,viewWallet} from '../src/wallet.mjs';
+import {freshWallet,settings,reserve as reserveCandidate,balances,applyTrades,cancel,viewWallet} from '../src/wallet.mjs';
+const reserve=(w,c,q,n)=>reserveCandidate(w,c,q,n,c[0]?.pair);
 const now=1792235000000,c={pair:'ETHTRY',score:90,entry:100,target:104,stop:98,as_of:now,model_id:'rule'},quotes={ETHTRY:{price:100,observed_at:now}};
 function wallet(mode='MARKET'){const w=freshWallet(1000);w.settings=settings({enabled:true,entry_mode:mode,coin_cap_try:1000,max_coin_pct:100,risk_pct:100,portfolio_risk_pct:100,cooldown_hours:0});return w;}
 test('3.8 settings contract and strict schema',()=>{assert.equal(settings({}).amount_mode,'AUTO');assert.equal(settings({}).max_positions,5);assert.throws(()=>settings({enabled:'true'}));assert.throws(()=>settings({threshold:71}));assert.throws(()=>settings({risk_pct:NaN}));assert.throws(()=>settings({unknown:1}));});

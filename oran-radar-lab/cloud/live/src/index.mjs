@@ -3,8 +3,8 @@ import {randomBytes,randomUUID,timingSafeEqual} from 'node:crypto';
 import {parseTriggerDelivery} from '@neon/functions/triggers';
 import worker,{authenticate,digest} from '../../cloudflare/src/index.mjs';
 import {DB,pool,state,transaction,walletTransaction} from './db.mjs';
-import {refresh} from './engine.mjs';
-import {freshWallet,settings,viewWallet,cancel,settle,reserve} from './wallet.mjs';
+import {refresh,getJSON} from './engine.mjs';
+import {freshWallet,settings,viewWallet,cancel,settle,reserve,manualOrder} from './wallet.mjs';
 const env={...process.env,DB};
 let publicCache={at:0,value:null};
 const json=(x,status=200,extra={})=>Response.json(x,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...extra}});
@@ -26,6 +26,16 @@ async function walletAPI(request,path,auth){
   return json({initialized:true,...viewWallet(w,quotes)},201);
  }
  if(!Number.isSafeInteger(d.revision))return json({error:'Güncel kasa sürümü gerekli'},400);
+ if(['/v1/wallet/buy','/v1/wallet/close','/v1/wallet/manual-order'].includes(path)){
+  let pair=d.pair;
+  if(path.endsWith('/close')){const prior=(await pool.query('SELECT document FROM wallets WHERE user_id=$1',[user])).rows[0]?.document;pair=prior?.orders.find(o=>o.id===d.id)?.pair;}
+  if(typeof pair!=='string'||!Object.hasOwn(quotes,pair))throw Error('Güncel TR paritesi gerekli');
+  // Network work finishes before the wallet transaction; manual fills never reuse a 15-minute-old quote.
+  const tick=await getJSON('https://api.binance.me/api/v1/ticker/24hr?symbol='+encodeURIComponent(pair));
+  const price=Number(tick.lastPrice);if(tick.symbol!==pair||!Number.isFinite(price)||price<=0)throw Error('Güncel piyasa fiyatı doğrulanamadı');
+  quotes[pair]={...(quotes[pair]||{}),price,observed_at:Date.now()};
+ }
+
  const w=await walletTransaction(user,d.revision,w=>{
   if(path==='/v1/wallet/settings'&&request.method==='PUT')w.settings=settings(d.settings,w.settings);
   else if(path==='/v1/wallet/cancel'&&request.method==='POST')cancel(w,d.id);
@@ -33,6 +43,9 @@ async function walletAPI(request,path,auth){
    const o=w.orders.find(x=>x.id===d.id),q=o&&quotes[o.pair];
    if(!o||o.state!=='TRACKING'||!q||Date.now()-q.observed_at>20*60000)throw Error('Güncel fiyat ve aktif pozisyon gerekli');
    settle(w,o,q.price*.999,Date.now(),'MANUALLY_CLOSED');
+  }else if(path==='/v1/wallet/manual-order'&&request.method==='POST'){
+   if(Date.now()-(market.updated_at||0)>20*60000)throw Error('Güncel TR envanteri gerekli');
+   manualOrder(w,d,quotes);
   }else if(path==='/v1/wallet/buy'&&request.method==='POST'){
    if(Date.now()-(market.updated_at||0)>20*60000)throw Error('Güncel bulut taraması gerekli');
    if(typeof d.pair!=='string'||!market.candidates?.some(c=>c.pair===d.pair))throw Error('Güncel TR adayı gerekli');
@@ -58,7 +71,7 @@ export default {
    }else if(path==='/v1/admin/refresh'&&request.method==='POST'){
     if(!admin(request))return json({error:'Unauthorized'},401);
     response=json(await refresh());publicCache.at=0;
-   }else if(path==='/v1/health')response=json({service:'Oran Radar Cloud',version:'4.0.1',deployed:true,real_trading:false,scheduler:'Neon Function Trigger',cadence_minutes:15});
+   }else if(path==='/v1/health')response=json({service:'Oran Radar Cloud 4.0',modes:['MANUAL','OPTIMAL'],version:'4.0.1',deployed:true,real_trading:false,scheduler:'Neon Function Trigger',cadence_minutes:15});
    else if(path==='/v1/public/status'&&request.method==='GET')response=json(await snapshot(),200,{'Cache-Control':'public,max-age=30'});
    else if(path==='/v1/session'&&request.method==='POST'){
     // Capacity is global and checked under a transaction lock. Existing devices never re-register.

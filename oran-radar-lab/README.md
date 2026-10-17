@@ -1,57 +1,22 @@
-# Oran Radar Cloud 4.0.1 — Canlı
-
-Binance TR araştırma merkezi bulutta yayımlandı. APK varsayılan olarak canlı servise bağlanır; telefon kapalıyken 15 dakikalık sunucu zamanlayıcısı veri, örüntü ve sanal işlem takibini sürdürür.
-
-- [Güncel APK](downloads/Oran-Radar-Cloud-4.0.1.apk)
-- [Canlı API sağlık durumu](https://br-falling-term-b9315oqi-radar.compute.c-7.eu-central-1.aws.neon.tech/v1/health)
-- [Canlı piyasa raporu](https://br-falling-term-b9315oqi-radar.compute.c-7.eu-central-1.aws.neon.tech/v1/public/status)
-- [Canlı mimari, sanal kasa ayarları ve sınırlar](cloud/live/README.md)
-
-Sanal kasa ve optimizasyon doğrudan ana sekmelerdedir. Puan eşiği, otomatik/sabit TL, piyasa/limit, risk, bütçe, hedef, stop ve coin bazlı fiyat ayarları bulutta saklanır. İlk kurulumda otomasyon kapalıdır; başlangıç bakiyesi kullanıcı tarafından belirlenir. Eski telefon radarı ayrı menüden erişilebilir.
-
-Yeni APK 4.0.1 / versionCode 13 / `com.oranradar.lab.cloud`, ARM64, release JS paketi ve geliştirme imzasıyla oluşturulur. İlk 3.8.0 `com.oranradar.lab.preview` uygulamasının yanında kurulur. Derleme, Python kaynak eşleşmesi, DEX/Hermes, imza ve 16 KB hizalama kontrolleri Actions'ta çalışır.
-
-Temel ralli puanı, kronolojik ayrı testle değerlendirilen tarihsel araştırma katkısıyla nihai puana dönüşür; ayrıntıda temel puan/katkı/gerekçe görülebilir. Bu puan başarı olasılığı değildir. Tarihsel banka kısmi; kalibre model terfisi ve Firebase arka plan bildirimi henüz etkin değildir. Gerçek para emirleri verilmez.
-
-Önceki kaynak/mimari notları aşağıdadır; canlı dağıtım için yukarıdaki 4.0.1 belgesi esas alınır.
-
----
-
 # Oran Radar Cloud 4.0
 
-[Android APK](https://github.com/lolo9723/f/raw/refs/heads/oran-radar-cloud-4.0/oran-radar-lab/downloads/Oran-Radar-Cloud-4.0.0.apk) · [APK derlemesi](https://github.com/lolo9723/f/actions/workflows/oran-cloud-4.yml) · [Gerçek veri kapsamı](cloudflare-coverage.json)
+[Android APK](downloads/Oran-Radar-Cloud-4.0.1.apk) · [Canlı panel](https://br-falling-term-b9315oqi-radar.compute.c-7.eu-central-1.aws.neon.tech) · [Derleme](https://github.com/lolo9723/f/actions/workflows/oran-cloud-4.yml)
 
-Cloud 4.0, `mobile/` içindeki mevcut Expo/Android uygulamasıyla `cloud/` içindeki yeni tarihsel veri bankası ve API'yi birleştirir. Açılış ekranı Cloud merkezidir. Çakışan sürüm/bağlantı yapılandırmalarında yeni Cloud 4.0 esas alınır. Telefon motoru ve önceki sanal işlem ekranlarına Cloud merkezinden ulaşılır.
+Uygulama canlı bulut servisine hazır bağlıdır. Telefon kapalıyken 15 dakikalık sunucu zamanlayıcısı TR piyasasını, geçmiş örüntüleri ve sanal işlemleri takip eder. Ücretli plan veya hizmet açılmadı; Neon Free kotaları geçerlidir.
 
-## Bu sürümde çalışanlar
+- **Manuel:** Coin, TL tutarı, piyasa/limit alış, hedef ve stop kullanıcı tarafından seçilir. Otomatik yeni alış açılmaz. Açık işlemler bulutta izlenir.
+- **Optimal:** Kullanıcı çalışma bütçesini ve risk sınırlarını belirler. Bulut; nihai puanı, benzer tarihsel olayların maliyet sonrası sonucunu, ayrı testi, belirsizliği ve güncel spread'i birlikte değerlendirerek coin, araştırılmış limit fiyatı ve tutarı seçer. Uygun kanıt veya fırsat yoksa nakitte bekler.
+- **Sanal kasa:** Başlangıç bakiyesi bir kez belirlenir. Açık ve bekleyen emirler bütçeden birlikte sayılır. Coin yoğunlaşması, işlem/portföy riski, bekleme ve eşzamanlı işlem sınırları korunur. İstanbul gününe göre gerçekleşen net K/Z gösterilir.
+- **Sade arayüz:** Radar, Kasa ve Ayarlar. Eski optimizasyon kontrolleri gelişmiş ayarlarda, telefon radarı sistem menüsünde bulunur.
 
-- GitHub'da yayımlanmış gerçek veri kapsamını otomatik okuma; API hesabı olmadan rapor görüntüleme. İlk raporda 3.754 Global parite envanteri, BTC/ETH/BNB için 217.954 doğrulanmış mum bulunuyor. Bütün paritelerin geçmişi tamamlanmadı.
-- Sekiz Türkçe Cloud sayfası, son aktarım zamanı ve çevrimdışı önbellek. API bağlantısı HTTPS ile doğrulanır; kullanıcı anahtarı Android güvenli deposunda tutulur.
-- Cloudflare Worker + D1 kaynakları, gerçek dosya kataloğuna dayalı kontrollü backfill, SHA256 doğrulaması, Parquet, karantina ve kaldığı yerden devam. R2 isteğe bağlıdır.
-- Nedensel göstergeler, kronolojik/purged model karşılaştırmaları, maliyetli limit simülasyonu, aday model kayıtları ve kanıt gerektiren model geçişi.
-- Mevcut cihaz içi Python/Chaquopy motoru, canlı TRY fiyat takibi ve sanal işlemler korunur.
+Geçmiş araştırma temel puanı, nihai puanı ve alış/hedef/stop politikasını gerçekten değiştirir. Python ve canlı Node motoru aynı saf fonksiyonlarla karşılaştırılır. Politika yalnızca kronolojik doğrulama döneminden seçilir; ayrı test politika seçmez. Puan kazanma olasılığı değildir. Günlük kâr ve her gün işlem garantisi yoktur. Gerçek para emirleri verilmez. Bütün tarihsel banka tamamlanmadı; Firebase arka plan bildirimi henüz etkin değil.
 
-## APK
+APK adı **Oran Radar Cloud 4.0**, Android sürümü 4.0.1 / versionCode 14 / `com.oranradar.lab.cloud`, ARM64. Release JS/Hermes paketi ve geliştirme imzasıyla bağımsız kurulur; Expo Go gerekmez. İlk 3.8.0 uygulamasının yanında kurulur. Actions; mobil kontrolleri, 360/390 px ekran testlerini, Python kaynak eşleşmesini, DEX/Hermes, imza ve 16 KB hizalamayı doğrular.
 
-`Oran Radar Cloud Test`, sürüm 4.0.0, versionCode 12, paket `com.oranradar.lab.cloud`. ARM64 içindir. JavaScript/Hermes ve telefon motoru APK içine paketlenir; Expo Go/Metro gerekmez. Geliştirme sertifikalı test dağıtımıdır; eski Lab kurulumunun yanına ayrı uygulama olarak kurulur. Yeni paket kimliği, önceki Lab imzalama anahtarına erişim gerektirmeden derlenmesini sağlar.
+[Canlı mimari ve API](cloud/live/README.md) · [Eski telefon motoru](docs/LEGACY_3.7_README.md)
 
-GitHub Actions derlemesi APK içeriğini, telefon Python kaynak eşleşmesini, imzayı ve 16 KB hizalamayı denetler; başarılı APK'yi `downloads/` altına ve Actions artifact'ına koyar. [Derleme bilgisi](downloads/Cloud-4.0-BUILD.json) kaynak commit'ini ve iş adresini içerir.
+## Geliştirme
 
-## Çevrimiçi hizmet durumu
+Mobil: `cd mobile && npm ci`, ardından `npx tsc --noEmit`, `npx expo lint`, `npm run test:cloud`.
 
-Varsayılan GitHub kanalı yayımlanmış **tarihsel kapsam raporudur**. Uygulamanın açılmasından bağımsız güncellenen bir piyasa analiz sunucusu bu depoya kod yüklemekle kurulmuş olmaz. Sürekli veri toplama için [Cloud kurulumunu](cloud/docs/SETUP.md) tamamlamak gerekir. Cloud API ekranından gerçek sunucu adresi ve sınırlı kullanıcı anahtarı bağlanabilir.
-
-Bu teslimde Workers/D1/R2/Firebase hesap yayını yapılmadı. TR API bu çalışma ortamında HTTP 451 döndü; engel aşılmadı. Global veri TR işlem fiyatı olarak kullanılmaz. FCM native cihaz kaydı hazırlanmıştır; kapalı uygulamada gerçek bildirim teslimi Firebase yapılandırması ve cihaz testi bekler. Gerçek para emirleri kapalıdır.
-
-## Geliştirme ve test
-
-```bash
-cd mobile
-npm ci
-npx tsc --noEmit
-npx expo lint
-npm run test:cloud
-npx expo prebuild --platform android --no-install
-```
-
-Cloud motoru için `cd cloud`, `python -m pip install -e '.[test]'`, `python -m pytest -q`. Ayrıntılar: [Cloud rehberi](cloud/README.md), [API](cloud/docs/API.md), [kotalar](cloud/docs/FREE-TIER.md), [ölçülmüş doğrulama](cloud/reports/VALIDATION.md). Önceki cihaz motorunun ayrıntıları [teknik arşivde](docs/LEGACY_3.7_README.md).
+Canlı backend: `cd cloud/live && npm ci && npm test && npm run build`. Python araştırma: `cd cloud && python -m pip install -e '.[test]' && python -m pytest -q`.

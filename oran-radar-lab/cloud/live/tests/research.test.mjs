@@ -12,7 +12,7 @@ test('research contribution is dynamic, bounded and stale-safe',()=>{const learn
  assert.equal(researchDecision({...m,holdout:{effective_n:2}},feature,68,1000001).research_adjustment,0);
 });
 test('BASE and FINAL actually change the wallet eligibility decision',()=>{const now=Date.now(),c={pair:'TESTTRY',score:72,base_score:68,final_score:72,research:{research_adjustment:4},entry:100,stop:98,target:104,as_of:now};const q={TESTTRY:{price:100,observed_at:now}};
- const w=freshWallet(1000);w.settings=settings({enabled:true,threshold:70,score_source:'BASE'});reserve(w,[c],q,now);assert.equal(w.orders.length,0);w.settings.score_source='FINAL';reserve(w,[c],q,now);assert.equal(w.orders.length,1);assert.equal(w.orders[0].score,72);assert.equal(w.orders[0].research_adjustment,4);
+ const w=freshWallet(1000);w.settings=settings({enabled:true,threshold:70,score_source:'BASE'});reserve(w,[c],q,now,c.pair);assert.equal(w.orders.length,0);w.settings.score_source='FINAL';reserve(w,[c],q,now,c.pair);assert.equal(w.orders.length,1);assert.equal(w.orders[0].score,72);assert.equal(w.orders[0].research_adjustment,4);
 });
 test('Python and cloud agree on original score, policy plan and historical contribution',()=>{
  const hourly=fixture.slice(-120),minute=fixture.slice(-120).map((x,i)=>({...x,time:i*60000}));const book={bids:[[hourly.at(-1).close*.999,2]],asks:[[hourly.at(-1).close*1.001,1]]};const base=rally(hourly,minute,book,.012);
