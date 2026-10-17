@@ -1,0 +1,8 @@
+{
+  "version": "4.0.0",
+  "package": "com.oranradar.lab.cloud",
+  "source_commit": "b34b60fb5fe6251468e2ecc6c807ac6a71d54335",
+  "workflow": "https://github.com/lolo9723/f/actions/runs/39025407285",
+  "signing": "Android development certificate; separate test package",
+  "cloud_service_deployed": false
+}
