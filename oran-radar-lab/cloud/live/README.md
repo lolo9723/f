@@ -4,11 +4,11 @@ Ana sunucu: https://br-gentle-glade-bai48xkz-radar.compute.c-8.eu-central-1.aws.
 
 Yedek sunucu: https://br-falling-term-b9315oqi-radar.compute.c-7.eu-central-1.aws.neon.tech
 
-Her iki sunucu da gerçek Binance TR envanteri ve type-1 resmî piyasa uç noktalarını kullanır. Kamuya açık `/v1/live/status` ve `/v1/public/status`, 10 saniyelik ortak önbellek ve tek uçuş kontrolüyle hesaplanır. 16 likit + 8 dönüşümlü TRY paritesi 15 dakikada bir seçilir. Kapalı ve ardışık 1m/1h mumlar, güncel fiyat, BTC bağlamı ve emir defteri zamanları ayrı doğrulanır. Eski puanın zamanı hatada yenilenmez.
+Her iki sunucu da gerçek Binance TR envanteri ve type-1 resmî piyasa uç noktalarını kullanır. Kamuya açık `/v1/live/status` ve `/v1/public/status`, 10 saniyelik ortak önbellek ve tek uçuş kontrolüyle hesaplanır. 16 likit + 8 dönüşümlü TRY paritesi 15 dakikada bir seçilir. Dönüşüm saat dilimine bağlı ve deterministiktir; soğuk başlangıç veya yedek sunucuya geçiş sırayı başa döndürmez. Kapalı ve ardışık 1m/1h mumlar, güncel fiyat, BTC bağlamı ve emir defteri zamanları ayrı doğrulanır. Eski puanın zamanı hatada yenilenmez.
 
 ## Kota düzeltmesi
 
-Önceki sürüm aynı büyük model JSON'larını ve piyasa durumunu sık sık PostgreSQL'den okuyordu. Eski projenin 5 GB aylık aktarım sınırı aşıldı. Yeni piyasa motoru (`market-memory.mjs`) sıfır PostgreSQL sorgusuyla çalışır. Modeller dağıtımda gerçek TR geçmişinden hazırlanan başlangıç verisini ve sıkıştırılmış **özel** nesne deposunu kullanır; depo anahtarları platformdan sunucuya enjekte edilir. Öğrenme vektörleri telefona veya kamuya açık API'ye verilmez. Sıcak süreçte nesne deposu okuması altı saatte birle sınırlıdır; model 24 saati aşarsa araştırma katkısı sıfırlanır.
+Önceki sürüm aynı büyük model JSON'larını ve piyasa durumunu sık sık PostgreSQL'den okuyordu. Eski projenin 5 GB aylık aktarım sınırı aşıldı. Yeni piyasa motoru (`market-memory.mjs`) sıfır PostgreSQL sorgusuyla çalışır. Modeller dağıtımda gerçek TR geçmişinden hazırlanan başlangıç verisini ve sıkıştırılmış **özel** nesne deposunu kullanır; depo anahtarları platformdan sunucuya enjekte edilir. Öğrenme vektörleri telefona veya kamuya açık API'ye verilmez. Her yeni süreç özel depodaki güncel modelleri bir kez yükler; sıcak süreçte okuma altı saatte birle sınırlıdır. Depo erişilemezse paketlenmiş başlangıç modelleri kullanılır; model 24 saati aşarsa araştırma katkısı sıfırlanır.
 
 APK iki sabit, güvenilen sunucu arasında otomatik geçer. HTTP 429/503, bağlantı hatası ve güncel puan bulunamaması yedeği tetikler. Retry-After ve artan bekleme süresi uygulanır. Kamuya açık piyasa istekleri cihaz anahtarı taşımaz. Her iki kaynak da doğrulanamazsa eski kayıt açıkça çevrimdışı gösterilir.
 

@@ -1,5 +1,6 @@
 // Market computation has NO database imports. The same engine runs independently
 // on both HTTP servers, even when the wallet database has hit a free allowance.
+import {selectUniverse} from './universe.mjs';
 import {storedModels,saveModels} from './model-store.mjs';
 import seed from './research-seed.json' with {type:'json'};
 import coverage from '../../../cloudflare-coverage.json' with {type:'json'};
@@ -8,7 +9,7 @@ import {bars,liveCandidate,liveSignals,LIVE_INTERVAL_MS} from './live.mjs';
 import {fitResearch} from './research.mjs';
 import {validateCandles} from './rally.mjs';
 const BASE='https://api.binance.me',models={...seed.models},bookCache=new Map();
-let inventory=null,inventoryAt=0,universe=[],deepAt=0,rotation=0,quoteCache=null,quoteAt=0,market=null,inflight=null,training=null,modelsCheckedAt=0;
+let inventory=null,inventoryAt=0,universe=[],deepAt=0,quoteCache=null,quoteAt=0,market=null,inflight=null,training=null,modelsCheckedAt=0;
 export const marketMetrics={pg_reads:0,pg_writes:0,source_requests:0};
 async function source(url){marketMetrics.source_requests++;return getJSON(url);}
 async function allQuotes(){
@@ -20,12 +21,12 @@ async function allQuotes(){
  if(!quotes.BTCTRY||Object.keys(quotes).length<20)throw Error('TR kotasyon kapsamı yetersiz');quoteCache=quotes;quoteAt=started;return quotes;
 }
 async function book(pair){const old=bookCache.get(pair);if(old&&Date.now()-old.at<15000)return old;const at=Date.now(),value=await source(BASE+'/api/v3/depth?'+new URLSearchParams({symbol:pair,limit:'20'})),row={at,value};bookCache.set(pair,row);return row;}
-function choose(quotes){if(universe.length&&Date.now()-deepAt<900000)return;const all=Object.keys(quotes).sort(),liquid=[...all].sort((a,b)=>quotes[b].quote_volume-quotes[a].quote_volume);const rotating=[...all.slice(rotation),...all.slice(0,rotation)].slice(0,8);universe=[...new Set([...liquid.slice(0,16),...rotating])].slice(0,24);rotation=(rotation+8)%all.length;deepAt=Date.now();}
+function choose(quotes){if(universe.length&&Date.now()-deepAt<900000)return;const selected=selectUniverse(quotes);universe=selected.pairs;deepAt=selected.deep_scan_at;}
 async function calculate(){
  if(market&&Date.now()-market.last_attempt_at<LIVE_INTERVAL_MS)return market;
- // One model-object read per warm process per six hours. A valid packaged
- // seed serves initial requests without touching either database or storage.
- if(Date.now()-seed.generated_at>6*3600000&&Date.now()-modelsCheckedAt>6*3600000){modelsCheckedAt=Date.now();try{const saved=await storedModels();for(const [pair,m]of Object.entries(saved?.models||{}))if((m.trained_at||0)>(models[pair]?.trained_at||0))models[pair]=m;}catch{/* Stale research contributes zero; price scoring remains available. */}}
+ // Hydrate once on a cold start, then at most once per six hours. A storage
+ // failure uses the packaged seed; stale evidence always contributes zero.
+ if(Date.now()-modelsCheckedAt>6*3600000){modelsCheckedAt=Date.now();try{const saved=await storedModels();for(const [pair,m]of Object.entries(saved?.models||{}))if((m.trained_at||0)>(models[pair]?.trained_at||0))models[pair]=m;}catch{/* Stale research contributes zero; price scoring remains available. */}}
  let quotes=await allQuotes();choose(quotes);const candidates=[],errors=[];
  const btcMinute=await bars('BTCTRY','1m',Date.now());
  for(let i=0;i<universe.length;i+=6){if(Date.now()-quoteAt>=10000)quotes=await allQuotes();await Promise.all(universe.slice(i,i+6).map(async pair=>{try{

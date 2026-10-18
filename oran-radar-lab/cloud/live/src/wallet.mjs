@@ -101,7 +101,8 @@ export function invalidatePending(w,candidates,now=Date.now()){
  for(const o of w.orders.filter(o=>o.state==='WAITING_ENTRY'&&o.execution_mode==='OPTIMAL')){
   // Replay all trades first. Never retrospectively cancel a fill that has already occurred.
   if(o.tracking_error||now-(o.verified_until??0)>90000)continue;
-  const c=candidates.find(c=>c.pair===o.pair),valid=c?.live_valid===true&&now-c.as_of<=90000&&(c.final_score??c.score)>=s.threshold&&optimalOpportunity(c,now).eligible;
+  const c=candidates.find(c=>c.pair===o.pair);if(!c)continue; // A rotating scan is not negative evidence.
+  const valid=c.live_valid===true&&now-c.as_of<=90000&&(c.final_score??c.score)>=s.threshold&&optimalOpportunity(c,now).eligible;
   if(!valid){o.state='CANCELLED';o.closed_at=o.verified_until;o.cancel_reason='LIVE_SIGNAL_INVALIDATED';decision(w,o.pair,'LIVE_SIGNAL_INVALIDATED',now);}
  }
 }

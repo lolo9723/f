@@ -1,0 +1,85 @@
+{
+  "product": "Oran Radar Cloud 4.0",
+  "patch_version": "4.0.3",
+  "validated_at_utc": "2026-10-18T12:08:33.889453+00:00",
+  "mobile_source_commit": "db584285ec48efe578f295ff48d8b8a83d440a58",
+  "workflow": "https://github.com/lolo9723/f/actions/runs/39125233495",
+  "tests": {
+    "python_ci": 50,
+    "worker_ci": 12,
+    "live_backend_local": 37,
+    "mobile_checks": "passed including automatic failover and write request identity",
+    "visual_widths": [
+      360,
+      390
+    ],
+    "physical_android_device_tested": false
+  },
+  "live_market": {
+    "primary": {
+      "valid": 24,
+      "total": 24,
+      "research_nonzero": 14,
+      "pg_reads": 0,
+      "pg_writes": 0,
+      "latency_seconds": 9.5,
+      "updated_at": 1792325015070
+    },
+    "backup": {
+      "valid": 24,
+      "total": 24,
+      "research_nonzero": 14,
+      "pg_reads": 0,
+      "pg_writes": 0,
+      "latency_seconds": 8.58,
+      "updated_at": 1792325014185
+    }
+  },
+  "live_paper_wallet": {
+    "passed": true,
+    "duplicate_write_debits_once": true,
+    "optimal_market_filled": true,
+    "scores": [
+      61,
+      51.1,
+      50.6,
+      54.6
+    ],
+    "final_mode": "MANUAL",
+    "open_positions": 0,
+    "orders": 4
+  },
+  "scheduler": {
+    "generated_at": 1792324816111,
+    "generated_at_utc": "2026-10-18T12:00:16.111000+00:00",
+    "last_modified": "Sun, 18 Oct 2026 12:00:16 GMT",
+    "models": 26,
+    "private_storage": true
+  },
+  "exact_score_80_regression": "synthetic fixture, immediate MARKET paper fill, research absent; passed",
+  "legacy_wallet": "preserved in the original project, provider quota blocks reads, NOT migrated",
+  "paid_plan_enabled": false,
+  "free_plan": "Neon free_v3; finite provider allowances remain",
+  "deployments": {
+    "primary": 5,
+    "backup": 9
+  },
+  "post_build_backend_fixes": [
+    "Rotation derives from the quarter-hour timestamp, surviving cold starts and failover",
+    "A pair omitted by a rotating scan does not cancel its pending limit order",
+    "Private stored models hydrate before serving new market processes"
+  ],
+  "apk_verification": {
+    "filename": "Oran-Radar-Cloud-4.0-Update.apk",
+    "bytes": 65983963,
+    "sha256": "a03417086e8ef8b3c87de9670cbbb010387d401bb2d91b3fae27a33eed2f5360",
+    "certificate_sha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+    "same_signer_as_4_0_0": true,
+    "display_name": "Oran Radar Cloud 4.0",
+    "version": "4.0.3",
+    "version_code": 16,
+    "package": "com.oranradar.lab.cloud",
+    "embedded_manual_optimal_and_failover_urls": true,
+    "server_secrets_absent": true
+  }
+}
