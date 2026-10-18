@@ -15,3 +15,6 @@ CREATE TABLE IF NOT EXISTS engine_lock(id text PRIMARY KEY,lease_until bigint NO
 
 CREATE TABLE IF NOT EXISTS live_models(pair text PRIMARY KEY,model_id text NOT NULL,payload jsonb NOT NULL,updated_at bigint NOT NULL);
 CREATE TABLE IF NOT EXISTS live_model_versions(model_id text PRIMARY KEY,pair text NOT NULL,created_at bigint NOT NULL,metadata jsonb NOT NULL);
+
+CREATE TABLE IF NOT EXISTS wallet_archive(user_id text NOT NULL,order_id text NOT NULL,closed_at bigint NOT NULL,document jsonb NOT NULL,PRIMARY KEY(user_id,order_id));
+CREATE INDEX IF NOT EXISTS wallet_archive_page ON wallet_archive(user_id,closed_at DESC);

@@ -64,11 +64,12 @@ export function researchDecision(model,feature,baseScore,now=Date.now()){
  const neighbors=model.learning.map(r=>({...r,distance:Math.sqrt(mean(r.vector.map((x,i)=>((x-feature.vector[i])/model.scale[i])**2)))})).sort((a,b)=>a.distance-b.distance).slice(0,40);
  if(neighbors.length<20||neighbors[0].distance>4)return {...neutral,reason:'Bu piyasa koşuluna yeterli benzer örüntü yok',model_id:model.model_id};
  const values=neighbors.map(r=>r.net),m=mean(values),effective=Math.min(model.holdout.effective_n,values.length/9),se=sd(values)/Math.sqrt(Math.max(1,effective));
- const reliability=effective/(effective+16),interval=[m-1.96*se,m+1.96*se];
- // Limited evidence can move the descriptive index by at most 4; stronger historical evidence by 12.
+ const reliability=effective/(effective+4),interval=[m-1.96*se,m+1.96*se];
+ // Limited evidence can move the descriptive index by at most 8; stronger historical evidence by 20.
  // No calibration or forward success is claimed. Automatic real-money orders do not exist.
- const strong=(interval[0]>0&&model.holdout.interval[0]>0)||(interval[1]<0&&model.holdout.interval[1]<0),cap=strong?12:4;
- const adjustment=Math.round(clip(12*reliability*Math.tanh(m/Math.max(.01,2*se)),-cap,cap)*10)/10;
+ const strong=(interval[0]>0&&model.holdout.interval[0]>0)||(interval[1]<0&&model.holdout.interval[1]<0),cap=strong?20:8;
+ const evidenceMean=.65*m+.35*(Number.isFinite(model.holdout.mean)?model.holdout.mean:m);
+ const adjustment=Math.round(clip(24*reliability*Math.tanh(evidenceMean/Math.max(.01,2*se)),-cap,cap)*10)/10;
  const policy=POLICIES.find(p=>p.id===model.selected_policy)||POLICIES[1],plan=policyPlan(feature,policy);
- return {...neutral,...plan,base_score:baseScore,research_adjustment:adjustment,final_score:clip(Math.round((baseScore+adjustment)*10)/10,0,100),status:strong?'historical_support':'limited_historical_evidence',reason:strong?'Ayrı test ve benzer geçmiş koşullar aynı yönde':'Sınırlı tarihsel kanıt; katkı en fazla ±4 puan',historical_net:m,uncertainty:interval,samples:neighbors.length,effective_samples:effective,model_id:model.model_id,trained_at:model.trained_at,holdout:model.holdout,selected_policy:model.selected_policy,calibrated:false};
+ return {...neutral,...plan,base_score:baseScore,research_adjustment:adjustment,final_score:clip(Math.round((baseScore+adjustment)*10)/10,0,100),status:strong?'historical_support':'limited_historical_evidence',reason:strong?'Ayrı test ve benzer geçmiş koşullar aynı yönde; katkı en fazla ±20 puan':'Sınırlı tarihsel kanıt; katkı en fazla ±8 puan',historical_net:m,uncertainty:interval,samples:neighbors.length,effective_samples:effective,model_id:model.model_id,trained_at:model.trained_at,holdout:model.holdout,selected_policy:model.selected_policy,calibrated:false};
 }

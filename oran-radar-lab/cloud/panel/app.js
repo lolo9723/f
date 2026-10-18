@@ -56,7 +56,7 @@ async function load(){const notice=document.querySelector('#notice');notice.repl
   document.querySelector('#login').hidden=true;
   try{const r=await fetch(API+'/v1/live/status',{headers:{Authorization:'Bearer '+token}});if(!r.ok)throw new Error(r.status===401?'Erişim anahtarını kontrol et.':'Sunucu hatası: '+r.status);data=await r.json();document.querySelector('#login').hidden=true;
     const stale=!data.generated_at_ms||Date.now()-(data.live?.updated_at||0)>90000;
-    notice.append(el('div',stale?'Veri aktarımı güncel değil. Son aktarım: '+time(data.generated_at_ms):'Canlı puan 10 sn · arka plan 1 dk · araştırma 15 dk · Son puan: '+time(data.live?.updated_at),'banner'+(stale?' error':'')));render();
+    notice.append(el('div',stale?'Veri aktarımı güncel değil. Son aktarım: '+time(data.generated_at_ms):'Canlı puan 10 sn · uygulama açıkken kasa 1 dk · kapalıyken 15 dk · araştırma 15 dk · Son puan: '+time(data.live?.updated_at),'banner'+(stale?' error':'')));render();
   }catch(e){notice.append(el('div',e.message+(data?' · Son görüntülenen rapor: '+time(data.generated_at_ms):''),'banner error'));document.querySelector('#login').hidden=false;}}
 for(const[id,label]of pages){const b=el('button',label);b.dataset.page=id;b.onclick=()=>{selected=id;render();};document.querySelector('#nav').append(b);}
 document.querySelector('#loginForm').onsubmit=e=>{e.preventDefault();token=document.querySelector('#token').value.trim();sessionStorage.setItem('oran-token',token);document.querySelector('#token').value='';load();};

@@ -1,3 +1,7 @@
+## Cloud 4.0 güncel düzeltme: 4.0.3
+
+Ücretsiz ana + yedek piyasa API'si, PostgreSQL'den bağımsız canlı puanlama, eşik odaklı Optimal sanal alış ve güçlendirilmiş araştırma katkısı. [Canlı kurulum ve kota düzeltmesi](cloud/live/README.md). APK: `downloads/Oran-Radar-Cloud-4.0.3.apk` (CI doğrulamasından sonra yayımlanır). Önceki kasalar silinmedi; eski proje kotası nedeniyle bakiye aktarımı henüz tamamlanamaz. Uygulama bu durumu açıkça gösterir.
+
 # Oran Radar Cloud 4.0
 
 [Android APK](downloads/Oran-Radar-Cloud-4.0.2.apk) · [Canlı panel](https://br-falling-term-b9315oqi-radar.compute.c-7.eu-central-1.aws.neon.tech) · [Derleme](https://github.com/lolo9723/f/actions/workflows/oran-cloud-4.yml)
@@ -21,10 +25,6 @@ Mobil: `cd mobile && npm ci`, ardından `npx tsc --noEmit`, `npx expo lint`, `np
 
 Canlı backend: `cd cloud/live && npm ci && npm test && npm run build`. Python araştırma: `cd cloud && python -m pip install -e '.[test]' && python -m pytest -q`.
 
-## Canlı karar katmanı (4.0.2)
+## Canlı karar katmanı (4.0.3)
 
-Temel puan güncel TR fiyatı, defter, BTC bağlamı ve kapalı dakika/saat mumlarıyla tekrar hesaplanır. EMA20/50, MACD12/26/9, RSI14, Stoch RSI, Bollinger %B/genişlik, ADX14, CCI20, VWAP60, MFI14, CMF20, OBV akışı, göreli hacim, 1/5/15 dakika getirileri, Donchian20 ve ATR14 kullanılır. Trend/momentum/hacim/risk grupları korelasyonlu göstergelerin tekrar sayılmasını sınırlar; ADX trend/yatay rejim ağırlıklarını değiştirir. İndikatör katkısı ±10 puanla sınırlıdır. Bunlar kalibre kâr tahmini veya ileri dönemde kanıtlanmış üstünlük değildir.
-
-Bulut araştırması yalnızca ek puan değildir: ayrı test ve benzer geçmiş koşullar otomatik alışa izin verir/vermez, seçilmiş limit/hedef/stop politikasını belirler, tarihsel kanıtın gücü işlem risk tutarını küçültür. Puan 90 saniyeden eskiyse veya bir kaynağı doğrulanamıyorsa yeni otomatik alış açılmaz. Bekleyen Optimal emirler önce gerçekleşmiş işlemler sırayla doğrulandıktan sonra bozulmuş sinyal nedeniyle iptal edilebilir; dolmuş pozisyonun hedef/stopu geriye dönük değiştirilmez.
-
-Daha sık arka plan çalışması Neon Free işlem kotasını daha hızlı tüketir. Kota dolarsa servis durabilir; ücretli plana otomatik geçiş yapılmaz. Saniyelik kesintisiz 7/24 hizmet veya günlük kâr garantisi verilmez.
+Puan 10 saniyede güncellenir. Nihai puan seçilen eşiği geçtiğinde, güncellik ve kasa sınırları uygunsa Optimal sanal alış açar. Araştırma puanı güçlü kanıtta ±20 puana kadar etkiler; ek araştırma vetosu yoktur. Piyasa/Limit seçimi uygulanır. Uygulama açıkken kasa dakikada bir, kapalıyken sunucu 15 dakikada bir kontrol eder. Ana ve yedek piyasa hesaplamaları PostgreSQL'den bağımsızdır. Ayrıntılar [canlı backend belgesinde](cloud/live/README.md).

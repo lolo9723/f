@@ -7,7 +7,7 @@ const fixture=bars();
 test('features do not change when future candles change',()=>{const a=historyFeature(fixture,100),other=structuredClone(fixture);other[101].close*=4;assert.deepEqual(historyFeature(other,100),a);});
 test('training/validation label windows are purged and test never selects policy',()=>{const r=fitResearch(fixture,'TESTTRY');assert(r.training_n>40);assert(r.test_n>20);assert.equal(r.purge_hours,54);assert(r.learning.every(x=>x.as_of+54*3600000<r.test_start));assert.equal(r.calibrated,false);});
 test('research contribution is dynamic, bounded and stale-safe',()=>{const learning=Array.from({length:40},(_,i)=>({vector:Array(8).fill(0),net:.02+i*.0001}));const m={model_id:'test-only',trained_at:1000000,holdout:{effective_n:20,interval:[.01,.03]},learning,scale:Array(8).fill(1),selected_policy:'atr-patient'};
- const feature={vector:Array(8).fill(0),price:100,atr:2};const a=researchDecision(m,feature,68,1000001);assert(a.final_score>68);assert(a.research_adjustment<=12);assert.equal(a.probability,null);assert(a.entry<100&&a.stop<a.entry&&a.target>a.entry);
+ const feature={vector:Array(8).fill(0),price:100,atr:2};const a=researchDecision(m,feature,68,1000001);assert(a.final_score>68);assert(a.research_adjustment<=20);assert.equal(a.probability,null);assert(a.entry<100&&a.stop<a.entry&&a.target>a.entry);
  assert.equal(researchDecision(m,feature,68,1000000+25*3600000).research_adjustment,0);
  assert.equal(researchDecision({...m,holdout:{effective_n:2}},feature,68,1000001).research_adjustment,0);
 });

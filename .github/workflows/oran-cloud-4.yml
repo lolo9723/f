@@ -76,6 +76,7 @@ jobs:
           npx tsc --noEmit
           npx expo lint
           npm run test:cloud
+          npm run test:failover
           npm run test:paper
           npm run test:backend-control
           npm run test:phone
@@ -105,14 +106,14 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose android/app/build/outputs/apk/release/app-release.apk
           "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 4 android/app/build/outputs/apk/release/app-release.apk
           mkdir -p ../downloads
-          cp android/app/build/outputs/apk/release/app-release.apk ../downloads/Oran-Radar-Cloud-4.0.2.apk
-          sha256sum ../downloads/Oran-Radar-Cloud-4.0.2.apk > ../downloads/Oran-Radar-Cloud-4.0.2.sha256
+          cp android/app/build/outputs/apk/release/app-release.apk ../downloads/Oran-Radar-Cloud-4.0.3.apk
+          sha256sum ../downloads/Oran-Radar-Cloud-4.0.3.apk > ../downloads/Oran-Radar-Cloud-4.0.3.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: Oran-Radar-Cloud-4.0.2-APK
+          name: Oran-Radar-Cloud-4.0.3-APK
           path: |
-            oran-radar-lab/downloads/Oran-Radar-Cloud-4.0.2.apk
-            oran-radar-lab/downloads/Oran-Radar-Cloud-4.0.2.sha256
+            oran-radar-lab/downloads/Oran-Radar-Cloud-4.0.3.apk
+            oran-radar-lab/downloads/Oran-Radar-Cloud-4.0.3.sha256
           retention-days: 3
           if-no-files-found: error
       - name: Publish verified APK to this branch
@@ -122,11 +123,11 @@ jobs:
         run: |
           python - <<'PY'
           import os,json,pathlib
-          pathlib.Path('../downloads/Cloud-4.0.2-BUILD.json').write_text(json.dumps({'version':'4.0.2','package':'com.oranradar.lab.cloud','source_commit':os.environ['SOURCE_COMMIT'],'workflow':os.environ['BUILD_URL'],'signing':'Android development certificate; separate test package','cloud_service_deployed':True,'api_url':'https://br-falling-term-b9315oqi-radar.compute.c-7.eu-central-1.aws.neon.tech','scan_interval_minutes':15,'score_interval_seconds':10,'background_interval_seconds':60,'display_name':'Oran Radar Cloud 4.0'},indent=2))
+          pathlib.Path('../downloads/Cloud-4.0.3-BUILD.json').write_text(json.dumps({'version':'4.0.3','package':'com.oranradar.lab.cloud','source_commit':os.environ['SOURCE_COMMIT'],'workflow':os.environ['BUILD_URL'],'signing':'Android development certificate; separate test package','cloud_service_deployed':True,'api_url':'https://br-gentle-glade-bai48xkz-radar.compute.c-8.eu-central-1.aws.neon.tech','scan_interval_minutes':15,'score_interval_seconds':10,'background_interval_seconds':900,'display_name':'Oran Radar Cloud 4.0'},indent=2))
           PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f ../downloads/screenshots/*.png
-          git add -f ../downloads/Oran-Radar-Cloud-4.0.2.apk ../downloads/Oran-Radar-Cloud-4.0.2.sha256 ../downloads/Cloud-4.0.2-BUILD.json
+          git add -f ../downloads/Oran-Radar-Cloud-4.0.3.apk ../downloads/Oran-Radar-Cloud-4.0.3.sha256 ../downloads/Cloud-4.0.3-BUILD.json
           git commit -m 'Publish verified Oran Radar Cloud 4.0 APK [skip ci]'
           git push origin HEAD:${{ github.ref_name }}

@@ -1,4 +1,5 @@
 import pg from 'pg';
+import {archiveWallet} from './wallet-retention.mjs';
 import {attachDatabasePool} from '@neon/functions';
 export const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,max:3,idleTimeoutMillis:5000,connectionTimeoutMillis:10000});
 attachDatabasePool(pool);
@@ -9,4 +10,4 @@ class Statement{constructor(sql,args=[]){this.sql=translate(sql);this.args=args;
 export const DB={prepare:sql=>new Statement(sql),batch:stmts=>transaction(async c=>{const out=[];for(const s of stmts){const r=await c.query(s.sql,s.args);out.push({meta:{changes:r.rowCount}});}return out;})};
 export async function state(id){return (await pool.query('SELECT payload FROM live_state WHERE id=$1',[id])).rows[0]?.payload;}
 export async function setState(id,payload){await pool.query('INSERT INTO live_state VALUES($1,$2,$3) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at',[id,JSON.stringify(payload),Date.now()]);}
-export async function walletTransaction(user,expected,fn){return transaction(async c=>{const r=await c.query('SELECT revision,document FROM wallets WHERE user_id=$1 FOR UPDATE',[user]);if(!r.rows.length)throw Object.assign(Error('Önce sanal kasa açılmalı'),{status:404});const {document:w,revision}=r.rows[0];if(expected!==undefined&&expected!==revision)throw Object.assign(Error('Kasa güncellendi; yenileyip tekrar kaydet'),{status:409});await fn(w);w.revision=revision+1;await c.query('UPDATE wallets SET revision=$2,document=$3,updated_at=$4 WHERE user_id=$1',[user,w.revision,JSON.stringify(w),Date.now()]);return w;});}
+export async function walletTransaction(user,expected,fn){return transaction(async c=>{const r=await c.query('SELECT revision,document FROM wallets WHERE user_id=$1 FOR UPDATE',[user]);if(!r.rows.length)throw Object.assign(Error('Önce sanal kasa açılmalı'),{status:404});const {document:w,revision}=r.rows[0];if(expected!==undefined&&expected!==revision)throw Object.assign(Error('Kasa güncellendi; yenileyip tekrar kaydet'),{status:409});await fn(w);await archiveWallet(c,user,w);w.revision=revision+1;await c.query('UPDATE wallets SET revision=$2,document=$3,updated_at=$4 WHERE user_id=$1',[user,w.revision,JSON.stringify(w),Date.now()]);return w;});}

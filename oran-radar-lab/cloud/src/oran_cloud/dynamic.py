@@ -50,7 +50,7 @@ def select_policy(validation):
 def historical_adjustment(base_score, returns, holdout):
     """Bound a non-probabilistic research contribution using held-out evidence.
 
-    Small / uncertain historical evidence moves the index by at most four points.
+    Small / uncertain historical evidence moves the index by at most eight points.
     Strong evidence needs same-sign intervals in both the neighbors and holdout.
     It is still historical paper evidence, not verified forward profitability.
     """
@@ -61,8 +61,9 @@ def historical_adjustment(base_score, returns, holdout):
     se = pstdev(returns)/sqrt(max(1, effective))
     interval = [mean-1.96*se, mean+1.96*se]
     strong = (interval[0] > 0 and holdout['interval'][0] > 0) or (interval[1] < 0 and holdout['interval'][1] < 0)
-    cap = 12 if strong else 4
-    points = floor(clip(12*effective/(effective+16)*tanh(mean/max(.01, 2*se)), -cap, cap)*10+.5)/10
+    cap = 20 if strong else 8
+    evidence_mean = .65*mean + .35*(holdout.get("mean") if holdout.get("mean") is not None else mean)
+    points = floor(clip(24*effective/(effective+4)*tanh(evidence_mean/max(.01, 2*se)), -cap, cap)*10+.5)/10
     return {'base_score': base_score, 'research_adjustment': points, 'final_score': clip(floor((base_score+points)*10+.5)/10, 0, 100),
             'status': 'historical_support' if strong else 'limited_historical_evidence', 'historical_net': mean,
             'uncertainty': interval, 'effective_samples': effective, 'probability': None}
@@ -80,25 +81,23 @@ def apply_to_payload(payload, research):
 
 
 def optimal_opportunity(candidate, now):
-    """Budget allocator priority mirrored by the live Node backend; no forecast claim."""
+    """Final score controls eligibility; evidence sizes a paper position."""
     r = candidate.get('research') or {}
     holdout = r.get('holdout') or {}
-    if not r.get('model_id') or r.get('status') not in ('historical_support', 'limited_historical_evidence') or r.get('samples', 0) < 20 or holdout.get('effective_n', 0) < 8:
-        return {'eligible': False, 'reason': 'RESEARCH_NOT_READY'}
-    trained = r.get('trained_at')
-    if trained is None or not isfinite(trained) or trained > now or now-trained > 86400000:
-        return {'eligible': False, 'reason': 'RESEARCH_NOT_CURRENT'}
     spread = candidate.get('spread_pct', float('nan'))/100
+    loss = (candidate['entry']-candidate['stop'])/candidate['entry']+.003
     if not isfinite(spread) or spread < 0 or spread > .015:
         return {'eligible': False, 'reason': 'SPREAD_TOO_WIDE'}
-    mean, test_mean, interval = r.get('historical_net'), holdout.get('mean'), r.get('uncertainty')
-    if mean is None or test_mean is None or not isfinite(mean) or not isfinite(test_mean) or not interval or len(interval) != 2 or not all(isfinite(x) for x in interval):
-        return {'eligible': False, 'reason': 'RESEARCH_NOT_READY'}
-    se = max(0, (interval[1]-interval[0])/3.92)
-    utility = min(mean, test_mean)-.5*se-spread
-    loss = (candidate['entry']-candidate['stop'])/candidate['entry']+.003
-    if not (utility > 0 and loss > 0 and isfinite(loss)):
-        return {'eligible': False, 'reason': 'NO_POSITIVE_HISTORICAL_EDGE'}
-    priority = utility/loss*max(0, candidate.get('final_score', candidate['score']))/100
-    risk_scale = max(.15, min(1, holdout['effective_n']/(holdout['effective_n']+8)*(1 if interval[0] > 0 else .6)))
-    return {'eligible': True, 'risk_scale': risk_scale, 'reason': 'HISTORICAL_EDGE_AND_RISK', 'priority': priority, 'utility': utility, 'spread': spread, 'uncertainty_se': se}
+    if not (loss > 0 and isfinite(loss) and candidate['target'] > candidate['entry'] and candidate['stop'] > 0):
+        return {'eligible': False, 'reason': 'INVALID_PLAN'}
+    trained = r.get('trained_at')
+    current = trained is not None and isfinite(trained) and trained <= now and now-trained <= 86400000
+    mean, test_mean = r.get('historical_net'), holdout.get('mean')
+    evidence = bool(current and r.get('model_id') and mean is not None and isfinite(mean) and test_mean is not None and isfinite(test_mean))
+    interval = r.get('uncertainty')
+    se = max(0, (interval[1]-interval[0])/3.92) if evidence and interval and len(interval) == 2 and all(isfinite(x) for x in interval) else 0
+    utility = min(mean, test_mean)-.5*se-spread if evidence else None
+    strength = tanh(utility/.03) if evidence else 0
+    risk_scale = max(.5, min(1, .5+.5*holdout['effective_n']/(holdout['effective_n']+8)*(1+strength)/2)) if evidence else .7
+    score = max(0, candidate.get('final_score', candidate['score']))
+    return {'eligible': True, 'risk_scale': risk_scale, 'reason': 'FINAL_SCORE_THRESHOLD', 'priority': max(.001, score/100)**2*(1+.2*strength)/max(.01, loss), 'utility': utility, 'spread': spread, 'uncertainty_se': se, 'research_current': evidence}

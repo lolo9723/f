@@ -35,7 +35,7 @@ export function balances(w,quotes={}){
  const equity=w.cash_cents+market,available=w.cash_cents-reserved;
  return {initial_try:money(w.initial_cents),cash_try:money(w.cash_cents),reserved_try:money(reserved),invested_try:money(invested),available_try:money(available),equity_try:money(equity),realized_pnl_try:money(w.cash_cents+invested-w.initial_cents),unrealized_pnl_try:money(unrealized),planned_risk_try:money(risk),valuation:'LAST_VERIFIED_QUOTE_OR_TRADE',budget_room_try:w.settings.total_cap_try===null?money(available):Math.max(0,w.settings.total_cap_try-money(invested+reserved))};
 }
-function decision(w,pair,reason,now){w.decisions.push({pair,reason,at:now});w.decisions=w.decisions.slice(-200);}
+export function decision(w,pair,reason,now,details={}){const last=w.decisions.at(-1);if(last?.pair===pair&&last.reason===reason&&now-last.at<60000)return;w.decisions.push({pair,reason,at:now,...details});w.decisions=w.decisions.slice(-60);}
 function orderCap(w,quotes,pair,entry,stop,riskScale=1){
  const s=w.settings,b=balances(w,quotes),loss=(entry-stop)/entry+.003;
  const coinUsed=w.orders.filter(o=>o.pair===pair&&active(o)).reduce((sum,o)=>sum+o.amount_cents,0)/100;
@@ -75,19 +75,21 @@ export function reserve(w,candidates,quotes,now=Date.now(),onlyPair=null){
  let eligible=[...new Map(candidates.map(c=>[c.pair,c])).values()].map(c=>({...c,selected_score:source==='BASE'?(c.base_score??c.score):(c.final_score??c.score)})).filter(c=>(!onlyPair||c.pair===onlyPair)&&c.live_valid!==false&&c.selected_score>=s.threshold&&Number.isFinite(c.as_of)&&now-c.as_of<(c.max_age_ms??(optimal?90000:20*60000))&&c.as_of<=now+1000);
  if(optimal){eligible=eligible.map(c=>({...c,allocation:optimalOpportunity(c,now)}));for(const c of eligible)if(!c.allocation.eligible)decision(w,c.pair,c.allocation.reason,now);eligible=eligible.filter(c=>c.allocation.eligible);}
  eligible.sort((a,b)=>optimal?b.allocation.priority-a.allocation.priority:b.selected_score-a.selected_score);
+ const slots=Math.max(0,s.max_positions-w.orders.filter(active).length);
+ if(optimal)eligible=eligible.slice(0,Math.max(1,slots));
  const totalWeight=eligible.reduce((sum,c)=>sum+(optimal?c.allocation.priority:c.selected_score),0)||1;
  const batch=Math.min(balances(w,quotes).available_try,balances(w,quotes).budget_room_try);
  for(const c of eligible){
   const reason=availablePair(w,c.pair,now);if(reason){decision(w,c.pair,reason,now);continue;}
   const q=quotes[c.pair];if(!q||now-q.observed_at>(c.max_age_ms??(optimal?90000:20*60000))||q.observed_at>now+1000){decision(w,c.pair,'PRICE_NOT_CURRENT',now);continue;}
   // Optimal uses the validation-selected research policy; manual price overrides cannot change it.
-  const entryMode=optimal?'LIMIT':s.entry_mode,entry=entryMode==='MARKET'?q.price:(optimal?c.entry:(s.entry_prices[c.pair]||c.entry));
+  const entryMode=s.entry_mode,entry=entryMode==='MARKET'?q.price:(optimal?c.entry:(s.entry_prices[c.pair]||c.entry));
   const target=optimal||s.target_pct===null?entry*(c.target/c.entry):entry*(1+s.target_pct/100);
   const stop=optimal||s.stop_pct===null?entry*(c.stop/c.entry):entry*(1-s.stop_pct/100);
   if(!(stop>0&&stop<entry&&target>entry&&entry<=q.price*1.001)){decision(w,c.pair,'INVALID_PLAN',now);continue;}
   const {cap}=orderCap(w,quotes,c.pair,entry,stop,optimal?c.allocation.risk_scale:1);
-  const amount=!optimal&&s.amount_mode==='FIXED'?s.fixed_try:Math.min(cap,batch*(optimal?c.allocation.priority:c.selected_score)/totalWeight);
-  if(amount<10||amount>cap+.0001){decision(w,c.pair,'BUDGET_OR_RISK_LIMIT',now);continue;}
+  const amount=!optimal&&s.amount_mode==='FIXED'?s.fixed_try:Math.min(cap,Math.max(10,batch*(optimal?c.allocation.priority:c.selected_score)/totalWeight));
+  if(amount<10||amount>cap+.0001){decision(w,c.pair,'BUDGET_OR_RISK_LIMIT',now,{score:c.selected_score,threshold:s.threshold,max_try:Math.floor(cap*100)/100});continue;}
   createOrder(w,{pair:c.pair,entry,target,stop,amount,entry_mode:entryMode,quote:q,trace:{execution_mode:optimal?'OPTIMAL':'MANUAL',score:c.selected_score,base_score:c.base_score??c.score,research_adjustment:c.research?.research_adjustment||0,score_source:source,model_id:c.research?.model_id||c.model_id,cloud_risk_scale:optimal?c.allocation.risk_scale:1,score_at:c.as_of,score_inputs_at:c.inputs_at||null,indicator_adjustment:c.indicators?.adjustment||0,allocation:optimal?c.allocation:null}},now);
  }
  if(optimal&&!eligible.length)decision(w,'TRY','WAIT_IN_CASH',now);

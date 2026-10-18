@@ -1,41 +1,35 @@
-# Canlı Oran Radar Cloud 4.0
+# Oran Radar Cloud 4.0 — düzeltme 4.0.3
 
-- Kalıcı API: https://br-falling-term-b9315oqi-radar.compute.c-7.eu-central-1.aws.neon.tech
-- Piyasa rapor paneli: aynı API adresinin `/` yolu; ek hosting veya ücretli hizmet açılmadı.
-- Sağlık: `/v1/health`. Kamuya açık piyasa raporu: `/v1/public/status`.
-- Neon projesi: `floral-dew-92290233`, production: `br-falling-term-b9315oqi`.
-- Her 15 dakikada Neon Function Trigger `/internal/cron` çağırır. APK ve bilgisayar kapalıyken çalışır. Bu, saniyelik bir akış veya kesintisizlik garantisi değildir.
-- TRY evreni yalnızca TR resmî sembol listesiyle belirlenir. Type 1 verileri TR belgelerinin gösterdiği `api.binance.me` uç noktalarından alınır. Global pariteler TR evrenine kendiliğinden eklenmez.
-- Her tur: en likit 16 + sıradaki 8 + açık pozisyon pariteleri; en çok 36 analiz. Kapalı ve ardışık saatlik/dakikalık mumlar ve güncel emir defteri gerekir.
-- İlk gerçek tarama: 309 TR fiyatı, 24 başarılı analiz, 0 hata. Eski gerçek tarihsel banka: 217.954 mum; bütün paritelerin bütün geçmişi tamamlanmış değildir.
-- Temel ralli kuralı önceki Python motorunun aynı altı ağırlığını kullanır. Her turda sıradaki iki TR paritesinde en fazla 4.000 saatlik gerçek geçmiş indirilir. Dört önceden belirlenmiş limit/stop/hedef politikası kronolojik eğitim/doğrulama/test ayrımıyla karşılaştırılır; 54 saatlik etiket boşluğu uygulanır. Politika yalnızca doğrulama döneminden seçilir. Ayrı testte en az 8 etkin gözlem yoksa katkı sıfırdır. Benzer geçmiş olayların maliyet sonrası getirisi nihai puanı ±4 (sınırlı kanıt) / ±12 (aynı yönlü tarihsel aralıklar) üst sınırı içinde değiştirir. Etkin örnek ağırlığı katkıyı ayrıca küçültür. Aynı araştırma seçilen alış/stop/hedef politikasını da değiştirir. Varsayılan puan kaynağı FINAL'dir; BASE seçeneği korunur. Puan ve tarihsel ortalama getiri kalibre gelecek olasılığı değildir. Forward sonuçlar henüz olgunlaşmadı; otomatik üretim şampiyonu terfisi yapılmaz.
+Ana sunucu: https://br-gentle-glade-bai48xkz-radar.compute.c-8.eu-central-1.aws.neon.tech
 
-Python `src/oran_cloud/dynamic.py` ve bulut `src/research.mjs` aynı katkı ve politika kuralını kullanır. Parite testi orijinal Python ralli puanını, planı ve araştırma etkisini karşılaştırır. Sanal kasa eşik testinde BASE altında elenen ve FINAL katkısıyla kabul edilen aday kontrol edilir. Gerçek ilk örnek: TIA/TRY temel 30 → tarihsel katkı -0,3 → nihai 29,7. Bu bir kazanç doğrulaması değildir.
+Yedek sunucu: https://br-falling-term-b9315oqi-radar.compute.c-7.eu-central-1.aws.neon.tech
 
-## Sanal kasa / optimizasyon
+Her iki sunucu da gerçek Binance TR envanteri ve type-1 resmî piyasa uç noktalarını kullanır. Kamuya açık `/v1/live/status` ve `/v1/public/status`, 10 saniyelik ortak önbellek ve tek uçuş kontrolüyle hesaplanır. 16 likit + 8 dönüşümlü TRY paritesi 15 dakikada bir seçilir. Kapalı ve ardışık 1m/1h mumlar, güncel fiyat, BTC bağlamı ve emir defteri zamanları ayrı doğrulanır. Eski puanın zamanı hatada yenilenmez.
 
-İlk APK 3.8.0'ın ayar sözleşmesi korunur: enabled, threshold (50/60/70/80/90/100), BASE/FINAL, AUTO/FIXED, MARKET/LIMIT, fixed_try, coin_cap_try, total_cap_try, risk_pct, portfolio_risk_pct, max_coin_pct, max_positions, cooldown_hours, target_pct, stop_pct ve entry_prices.
+## Kota düzeltmesi
 
-İlk kurulumda `execution_mode=MANUAL` ve otomasyon kapalıdır. Manuel modda POST `/v1/wallet/manual-order` ile `pair`, `entry_mode`, `amount_try`, limit için `entry`, `target`, `stop`, `revision` gönderilir. Güncel TR envanteri ve emir anında yeniden alınan fiyat doğrulanır. Kullanıcı planına sahte puan atanmaz.
+Önceki sürüm aynı büyük model JSON'larını ve piyasa durumunu sık sık PostgreSQL'den okuyordu. Eski projenin 5 GB aylık aktarım sınırı aşıldı. Yeni piyasa motoru (`market-memory.mjs`) sıfır PostgreSQL sorgusuyla çalışır. Modeller dağıtımda gerçek TR geçmişinden hazırlanan başlangıç verisini ve sıkıştırılmış **özel** nesne deposunu kullanır; depo anahtarları platformdan sunucuya enjekte edilir. Öğrenme vektörleri telefona veya kamuya açık API'ye verilmez. Sıcak süreçte nesne deposu okuması altı saatte birle sınırlıdır; model 24 saati aşarsa araştırma katkısı sıfırlanır.
 
-`execution_mode=OPTIMAL` seçimi ve `total_cap_try` çalışma bütçesi zorunludur. Açık tutar + bekleyen limit rezervi bütçeyi aşamaz. Risk ve yoğunlaşma yüzdeleri kasa ile çalışma bütçesinin küçüğü üzerinden hesaplanır. Optimal seçim; güncel araştırma, en az 20 benzer olay, ayrı testte en az 8 etkin örnek, pozitif maliyet sonrası komşu ve test ortalaması ister. Öncelik: `(min(komşu ortalaması, ayrı test ortalaması) − 0,5 × standart hata − güncel spread) / planlanan kayıp × nihai puan / 100`. Pozitif değer yoksa işlem açılmaz. Bu şeffaf sezgisel dağıtım kuralı matematiksel en iyi sonuç veya gelecekte kâr iddiası değildir. Optimal her zaman nihai puanı, araştırmanın seçtiği limit planını ve otomatik tutarı kullanır; eski manuel varsayılanlar bu planı değiştirmez. Kasa API'sindeki `daily`, İstanbul gününe ait kapanmış sanal işlemlerin net sonucudur.
+APK iki sabit, güvenilen sunucu arasında otomatik geçer. HTTP 429/503, bağlantı hatası ve güncel puan bulunamaması yedeği tetikler. Retry-After ve artan bekleme süresi uygulanır. Kamuya açık piyasa istekleri cihaz anahtarı taşımaz. Her iki kaynak da doğrulanamazsa eski kayıt açıkça çevrimdışı gösterilir.
 
-İlk bakiye bir kez oluşturulur. Para kuruş olarak saklanır; her yazım Postgres transaction + row lock + revision kontrolünden geçer. Anahtarlar cihaza özeldir; başka cihazın kasasına erişemez. Uygulama silinirse cihaz anahtarı kaybolabilir; mevcut kasayı başka cihaza taşımak için anahtarın güvenli biçimde korunması gerekir. Anahtar repoya veya APK'ye gömülmez.
+Sanal kasa ayrı, küçük bir PostgreSQL projesindedir (`broad-fog-26964869`, `br-gentle-glade-bai48xkz`). İki piyasa sunucusu tek kasa otoritesini kullanır; yedek için ikinci bakiye oluşturulmaz. Yazımlar transaction, row lock, revision ve tekil request_id ile korunur. Kaybolan cevap aynı alışın iki kez düşülmesine yol açmaz. Kapanmış eski emirler sayfalanan arşive taşınır. Ücretsiz planda 0,25 CU üst sınırı ve 90 CU-saat / 4 GB aktarım / 100 MB veritabanı koruma sınırları vardır. Ücretli plan veya otomatik yükseltme açılmadı. Ücretsiz hizmetlerin sınırsızlık veya kesintisizlik garantisi yoktur.
 
-Sanal limit dolumu ve stop/hedef sırası resmi aggregate trades ile doğrulanır; sıra boşluğu varsa sonuç bekletilir. Her tur işlem sayfası bütçesi sınırlıdır; yoğun paritelerde geçmiş akışı yakalama gecikebilir. Limit bekleme 6 saat, dolumdan sonra takip 48 saat. Alış/satış komisyonu ayrı %0,10; stop/zaman çıkışında ek %0,10 kayma varsayımı. Puan başarı olasılığı değildir; bilinmeyen korelasyon bağımsızlık sayılmaz, ortak risk sınırı uygulanır.
+**Eski kasa durumu:** Eski proje kotası SQL okumalarını da engelliyor. Eski kayıtlar silinmedi ve yeni kasaya aktarılmış gibi gösterilmiyor. Önceki cihaz anahtarında uygulama bunu açıkça belirtir. Yeni oluşturulan sanal kasa ayrıdır. Yetkili eski kayıt okuma yolu `/v1/wallet/legacy` korunmuştur; sağlayıcı erişimi açılmadan eski bakiye kurtarıldığı iddia edilmez.
 
-## Kurulum ve test
+## Karar ve göstergeler
 
-`npm ci && npm test && npm run build`. `src/schema.sql` sürümlü ve tekrar uygulanabilir migration'dır. Önce validation dalında uygulanıp HTTP entegrasyonu doğrulandı, sonra production'a uygulandı. Function zip kökünde `index.mjs` bulunur. `neon.ts` aynı function/cron politikasını belgeler; secret değerleri yalnızca dağıtım ortamındadır.
+Optimal mod çalışma bütçesi gerektirir. **Nihai puan >= seçilen eşik** ve güncel veri varsa aday kabul edilir; ayrıca araştırma hazır/pozitif olsun diye ikinci bir veto uygulanmaz. Gerçek bütçe, coin yoğunlaşması, pozisyon sayısı, bekleme süresi, spread, geçerli stop/hedef ve açık işlem doğrulaması sınırları geçerlidir. Kabul edilmeyen aday için nedeni, puanı ve izin verilen azami tutar kaydedilir.
 
-Kullanıcı anahtarı: POST `/v1/session`, yalnızca kendi kasa API'sinde kullanılır. GET `/v1/wallet`; POST `/v1/wallet/init`; PUT `/v1/wallet/settings`; POST `/v1/wallet/manual-order`, `/buy`, `/cancel`, `/close`. Kasa yazımları ve ayar yazımı `revision` ister. Yönetici refresh anahtarı kullanıcı anahtarı değildir.
+Piyasa alışta güncel doğrulanmış fiyatla sanal pozisyon hemen açılır. Limit seçiminde araştırmanın seçtiği fiyat beklenir; gerçekleşmemiş emir alış gibi gösterilmez. Nihai puan eşiğin altına inerse bekleyen limit ancak önceki işlem akışı doğrulandıktan sonra iptal edilir. Manuel mod otomatik yeni alış yapmaz; kullanıcı coin, tutar, alış, stop ve hedefi seçer. İlk APK'daki BASE/FINAL, AUTO/FIXED, MARKET/LIMIT ve risk ayarları korunur; Optimal nihai puan ve otomatik tutar kullanır.
 
-Neon Free organizasyonunda ücretli plan açılmadı. 0,25 CU, varsayılan ölçek sıfırlama; 100 CU-saat ve servislerin ücretsiz kotası geçerlidir. Kota dolarsa hizmet durabilir. FCM arka plan bildirimi henüz yapılandırılmadı.
+Göstergeler: EMA20/50, MACD, Wilder RSI, Stoch RSI, Bollinger, ADX, CCI, VWAP, MFI, CMF, OBV, Donchian, ATR, hacim oranı ve dakika getirilerine ek olarak Kaufman trend verimliliği, ROC ivmesi, Williams %R, Keltner konumu, gerçekleşen/aşağı yönlü oynaklık, BTC'ye göre 5 dakikalık göreli güç, piyasa genişliği ve derinlik dengesizliği. İlişkili göstergeler bağımsız oylar gibi toplanmaz; rejime göre ağırlıklı gruplarda sınırlı katkı verir.
 
-Ücretsiz veritabanı yaklaşık 750 MB'a ulaştığında yeni ham geçmiş ve örüntü yazımı duraklatılır; güncel piyasa analizi, mevcut kasaların takibi ve durum raporu için kapasite ayrılır. Ücretli plana kendiliğinden geçilmez.
+Araştırma dört önceden tanımlı politikayı kronolojik eğitim/doğrulama/test ayrımı ve 54 saatlik etiket boşluğuyla karşılaştırır. Politika ayrı testte seçilmez. Benzer geçmiş olayların ve ayrı testin maliyet sonrası getirisi nihai puanı sınırlı kanıtta en fazla ±8, aynı yönlü güçlü kanıtta ±20 puan etkiler. Örnek sayısı ve belirsizlik katkıyı küçültür. Araştırma tutarı ve ATR planını da etkiler. Python `dynamic.py` ile Node kuralları parite testindedir. Bu betimsel puan bir olasılık veya kâr garantisi değildir.
 
-## İki ayrı güncelleme döngüsü
+## Çalışma ve doğrulama
 
-`/v1/live/status`: ortak 10 saniyelik tazelik penceresiyle canlı puan; `/internal/pulse`: her dakika puan + sanal işlem kontrolü; `/internal/cron`: 15 dakikalık evren/derin tarihsel araştırma. Aktif piyasa çiftleri aynı kalırken puan değişebilir. Saatlik/dakikalık kapalı mumlar yalnızca yeni mum kapanışında yenilenir; fiyatla işaretlenen EMA/RSI/MACD ve fiyat seviyeleri güncel kotasyonla tekrar hesaplanır. Hacim, ATR, ADX, CMF/MFI kapanmış gerçek mum kullanır. Son kaynak zamanları API'de ayrı verilir.
+Uygulama açıkken puan 10 saniyede, kullanıcı kasası 60 saniyede kontrol edilir. Telefon kapalıyken ücretsiz sunucu tetikleyicisi 15 dakikada bir piyasa, kasa ve sıradaki iki araştırma modelini işler. Hedef/stop sırası resmî aggregate trades ile doğrulanır; eksik sıra varsa yeni alış bekletilir. Limit 6 saat, dolumdan sonra en fazla 48 saat takip edilir. Alış/satış ayrı %0,10 komisyon; stop/zaman çıkışında ek %0,10 kayma varsayılır. Gerçek para emri verilmez.
 
-`live.mjs` dağıtık tarama kilidiyle, `tracking.mjs` ayrı kasa kilidiyle çalışır; çakışan kasa yazımları revision denetiminden geçer. Canlı hata eski puanın zamanını yenilemez. Optimal kanıt gücü `risk_scale` olarak tutarı da sınırlar. Gösterge overlay'i betimsel bir kuraldır; mevcut tarihsel modelin yeni indikatörler için ileri dönem kârlılığı doğruladığı iddia edilmez.
+`npm ci && npm test && npm run build`. Normal build ana sunucudur; `ORAN_BUILD_ROLE=backup npm run build` yedeği üretir. Function ZIP kökünde index.mjs bulunur. `neon.ts` özel model deposu ve 15 dakikalık tetikleyiciyi belgeler. Mevcut deploy ortamına secret değerleri yeniden gönderilmez.
+
+Kasa uçları: `/v1/session`, `/v1/wallet`, `/init`, `/settings`, `/manual-order`, `/buy`, `/cancel`, `/close`, `/tick`, `/archive`, `/legacy`. Yazımlarda revision ve request_id gerekir. Cihaz anahtarı SecureStore'da saklanır. Arka plan bildirimi yapılandırılmadı.
